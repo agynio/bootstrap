@@ -86,8 +86,8 @@ services:
         condition: service_healthy
     expose:
       - "3010"
-    # NOTE: Once the server image includes Prisma CLI, uncomment the command below to run migrations before starting.
-    # command: ["/bin/sh", "-lc", "prisma migrate deploy && tsx src/index.ts"]
+    # Run DB migrations then start the server. Requires prisma CLI in the image (now included).
+    command: ["/bin/sh", "-lc", "prisma migrate deploy # command: ["/bin/sh", "-lc", "prisma migrate deploy && tsx src/index.ts"]# command: ["/bin/sh", "-lc", "prisma migrate deploy && tsx src/index.ts"] tsx src/index.ts"]
 
   # Platform UI reverse proxy — the only exposed service
   platform-ui:
