@@ -5,9 +5,9 @@ version: '3.9'
 
 services:
   # Postgres for Agents persistent state
-  agents-db:
+  agyn-db:
     image: postgres:16-alpine
-    container_name: agents-db
+    container_name: agyn-db
     restart: unless-stopped
     environment:
       POSTGRES_USER: agents
@@ -73,21 +73,21 @@ services:
     container_name: platform-server
     restart: unless-stopped
     environment:
-      AGENTS_DATABASE_URL: postgresql://agents:agents@agents-db:5432/agents
+      AGENTS_DATABASE_URL: postgresql://agents:agents@agyn-db:5432/agents
       LLM_PROVIDER: litellm
       LITELLM_BASE_URL: http://litellm:4000
       WORKSPACE_NETWORK_NAME: agents_stack
       CORS_ORIGINS: http://localhost:2496
       PORT: "3010"
     depends_on:
-      agents-db:
+      agyn-db:
         condition: service_healthy
       litellm:
         condition: service_healthy
     expose:
       - "3010"
     # Run DB migrations then start the server. Requires prisma CLI in the image (now included).
-    command: ["/bin/sh", "-lc", "prisma migrate deploy # command: ["/bin/sh", "-lc", "prisma migrate deploy && tsx src/index.ts"]# command: ["/bin/sh", "-lc", "prisma migrate deploy && tsx src/index.ts"] tsx src/index.ts"]
+    command: ["/bin/sh", "-lc", "prisma migrate deploy command: ["/bin/sh", "-lc", "prisma migrate deploy # command: ["/bin/sh", "-lc", "prisma migrate deploy && tsx src/index.ts"]# command: ["/bin/sh", "-lc", "prisma migrate deploy && tsx src/index.ts"] tsx src/index.ts"]command: ["/bin/sh", "-lc", "prisma migrate deploy # command: ["/bin/sh", "-lc", "prisma migrate deploy && tsx src/index.ts"]# command: ["/bin/sh", "-lc", "prisma migrate deploy && tsx src/index.ts"] tsx src/index.ts"] tsx src/index.ts"]
 
   # Platform UI reverse proxy — the only exposed service
   platform-ui:
