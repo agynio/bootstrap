@@ -1,0 +1,54 @@
+version: '3.9'
+
+# Bootstrap compose to run the full Agents platform using pre-existing dependencies
+# from HautechAI/agents root docker-compose (agents_net network, vault, litellm, agents-db, etc.).
+# This file only orchestrates platform-server and platform-ui and exposes a single public port (2496).
+# Prerequisite: Start the dependencies compose from HautechAI/agents on the same host first.
+
+services:
+  platform-server:
+    image: ghcr.io/hautechai/agents-platform-server:latest
+    container_name: platform-server
+    restart: unless-stopped
+    environment:
+      # Required DB URL (agents-db must be running on the same docker network)
+      AGENTS_DATABASE_URL: postgresql://agents:agents@agents-db:5432/agents
+      # LLM provider via LiteLLM (must be running on agents_net)
+      LLM_PROVIDER: litellm
+      LITELLM_BASE_URL: http://litellm:4000
+      # Optional Vault (if running)
+      VAULT_ENABLED: 'false'
+      VAULT_ADDR: http://vault:8200
+      VAULT_TOKEN: dev-root
+      # Workspace network name used by platform-server to attach sidecars
+      WORKSPACE_NETWORK_NAME: agents_net
+      # CORS for UI (served by platform-ui reverse proxy). Adjust if needed.
+      CORS_ORIGINS: http://localhost:2496
+      # Service port in container (do not publish externally; UI proxies inbound traffic)
+      PORT: '3010'
+    networks:
+      - agents_net
+    # Keep internal only (UI handles external exposure).
+    expose:
+      - '3010'
+
+  platform-ui:
+    image: ghcr.io/hautechai/agents-platform-ui:latest
+    container_name: platform-ui
+    restart: unless-stopped
+    environment:
+      # UI reverse proxy target inside the docker network
+      API_UPSTREAM: http://platform-server:3010
+    ports:
+      # Single external port for the UI reverse proxy
+      - '2496:80'
+    depends_on:
+      - platform-server
+    networks:
+      - agents_net
+
+networks:
+  # Reuse the shared network created by the HautechAI/agents root compose
+  agents_net:
+    external: true
+    name: agents_net
