@@ -1,54 +1,111 @@
 version: '3.9'
 
-# Bootstrap compose to run the full Agents platform using pre-existing dependencies
-# from HautechAI/agents root docker-compose (agents_net network, vault, litellm, agents-db, etc.).
-# This file only orchestrates platform-server and platform-ui and exposes a single public port (2496).
-# Prerequisite: Start the dependencies compose from HautechAI/agents on the same host first.
+# Isolated bootstrap compose to ship Agents platform to clients.
+# Includes all required dependencies and exposes a single port 2496 for the UI reverse proxy.
 
 services:
+  # Postgres for Agents persistent state
+  agents-db:
+    image: postgres:16-alpine
+    container_name: agents-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: agents
+      POSTGRES_PASSWORD: agents
+      POSTGRES_DB: agents
+    volumes:
+      - agents_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agents -d agents"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # LiteLLM Postgres database
+  litellm-db:
+    image: postgres:16-alpine
+    container_name: litellm-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: litellm
+      POSTGRES_USER: litellm
+      POSTGRES_PASSWORD: change-me
+    volumes:
+      - litellm_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U litellm -d litellm"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # LiteLLM service
+  litellm:
+    image: ghcr.io/berriai/litellm:v1.80.5-stable
+    container_name: litellm
+    restart: unless-stopped
+    environment:
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:-sk-dev-master-1234}
+      LITELLM_SALT_KEY: ${LITELLM_SALT_KEY:-sk-dev-salt-1234}
+      DATABASE_URL: postgresql://litellm:change-me@litellm-db:5432/litellm
+      STORE_MODEL_IN_DB: "True"
+      UI_USERNAME: ${LITELLM_UI_USERNAME:-admin}
+      UI_PASSWORD: ${LITELLM_UI_PASSWORD:-admin}
+      PORT: "4000"
+      HOST: "0.0.0.0"
+    depends_on:
+      litellm-db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -qO- http://localhost:4000/health || wget -qO- http://localhost:4000/ui || wget -qO- http://localhost:4000/ || (command -v curl >/dev/null 2>&1 && curl -fsS http://localhost:4000/health)",
+        ]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  # Platform server (NestJS) — internal only, UI will proxy
   platform-server:
     image: ghcr.io/hautechai/agents-platform-server:latest
     container_name: platform-server
     restart: unless-stopped
     environment:
-      # Required DB URL (agents-db must be running on the same docker network)
       AGENTS_DATABASE_URL: postgresql://agents:agents@agents-db:5432/agents
-      # LLM provider via LiteLLM (must be running on agents_net)
       LLM_PROVIDER: litellm
       LITELLM_BASE_URL: http://litellm:4000
-      # Optional Vault (if running)
-      VAULT_ENABLED: 'false'
-      VAULT_ADDR: http://vault:8200
-      VAULT_TOKEN: dev-root
-      # Workspace network name used by platform-server to attach sidecars
-      WORKSPACE_NETWORK_NAME: agents_net
-      # CORS for UI (served by platform-ui reverse proxy). Adjust if needed.
+      WORKSPACE_NETWORK_NAME: agents_stack
       CORS_ORIGINS: http://localhost:2496
-      # Service port in container (do not publish externally; UI proxies inbound traffic)
-      PORT: '3010'
-    networks:
-      - agents_net
-    # Keep internal only (UI handles external exposure).
+      PORT: "3010"
+    depends_on:
+      agents-db:
+        condition: service_healthy
+      litellm:
+        condition: service_healthy
     expose:
-      - '3010'
+      - "3010"
+    # NOTE: Once the server image includes Prisma CLI, uncomment the command below to run migrations before starting.
+    # command: ["/bin/sh", "-lc", "prisma migrate deploy && tsx src/index.ts"]
 
+  # Platform UI reverse proxy — the only exposed service
   platform-ui:
     image: ghcr.io/hautechai/agents-platform-ui:latest
     container_name: platform-ui
     restart: unless-stopped
     environment:
-      # UI reverse proxy target inside the docker network
       API_UPSTREAM: http://platform-server:3010
-    ports:
-      # Single external port for the UI reverse proxy
-      - '2496:80'
     depends_on:
-      - platform-server
-    networks:
-      - agents_net
+      platform-server:
+        condition: service_started
+    ports:
+      - "2496:80"
 
 networks:
-  # Reuse the shared network created by the HautechAI/agents root compose
-  agents_net:
-    external: true
-    name: agents_net
+  agents_stack:
+    driver: bridge
+
+volumes:
+  agents_pgdata:
+  litellm_pgdata:
