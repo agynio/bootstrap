@@ -6,7 +6,6 @@ services:
   # Postgres for Agents persistent state
   agyn-db:
     image: postgres:16-alpine
-    container_name: agyn-db
     restart: unless-stopped
     environment:
       POSTGRES_USER: agents
@@ -23,7 +22,6 @@ services:
   # LiteLLM Postgres database
   litellm-db:
     image: postgres:16-alpine
-    container_name: litellm-db
     restart: unless-stopped
     environment:
       POSTGRES_DB: litellm
@@ -41,7 +39,6 @@ services:
   # LiteLLM service
   litellm:
     image: ghcr.io/berriai/litellm:v1.80.5-stable
-    container_name: litellm
     restart: unless-stopped
     environment:
       LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:-sk-dev-master-1234}
@@ -69,7 +66,6 @@ services:
   # Platform server (NestJS) — internal only, UI will proxy
   platform-server:
     image: ghcr.io/hautechai/agents-platform-server:latest
-    container_name: platform-server
     restart: unless-stopped
     environment:
       AGENTS_DATABASE_URL: postgresql://agents:agents@agyn-db:5432/agents
@@ -95,7 +91,6 @@ services:
   # Platform UI reverse proxy — the only exposed service
   platform-ui:
     image: ghcr.io/hautechai/agents-platform-ui:latest
-    container_name: platform-ui
     restart: unless-stopped
     environment:
       API_UPSTREAM: http://platform-server:3010
@@ -108,7 +103,6 @@ services:
 
   vault:
     image: hashicorp/vault:1.17
-    container_name: vault
 
     restart: unless-stopped
     cap_add:
