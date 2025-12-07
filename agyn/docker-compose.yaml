@@ -1,4 +1,3 @@
-version: '3.9'
 
 # Isolated bootstrap compose to ship Agents platform to clients.
 # Includes all required dependencies and exposes a single port 2496 for the UI reverse proxy.
