@@ -114,7 +114,7 @@ services:
     restart: unless-stopped
     cap_add:
       - IPC_LOCK
-    environment:
+    environment: {}
     command:
       - server
       - -dev
