@@ -14,7 +14,7 @@ services:
       POSTGRES_PASSWORD: agents
       POSTGRES_DB: agents
     volumes:
-      - agents_pgdata:/var/lib/postgresql/data
+      - agyn_pgdata:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U agents -d agents"]
       interval: 10s
@@ -79,16 +79,20 @@ services:
       WORKSPACE_NETWORK_NAME: agents_stack
       CORS_ORIGINS: http://localhost:2496
       PORT: "3010"
+      VAULT_ENABLED: 'true'
+      VAULT_ADDR: http://vault:8200
+      VAULT_TOKEN: dev-root
     depends_on:
       agyn-db:
         condition: service_healthy
       litellm:
         condition: service_healthy
+      vault:
+        condition: service_started
     expose:
       - "3010"
     # Run DB migrations then start the server. Requires prisma CLI in the image (now included).
     command: ["/bin/sh", "-lc", "prisma migrate deploy && tsx src/index.ts"]
-
   # Platform UI reverse proxy — the only exposed service
   platform-ui:
     image: ghcr.io/hautechai/agents-platform-ui:latest
@@ -102,10 +106,30 @@ services:
     ports:
       - "2496:80"
 
+
+  vault:
+    image: hashicorp/vault:1.17
+    container_name: vault
+
+    restart: unless-stopped
+    cap_add:
+      - IPC_LOCK
+    environment:
+    command:
+      - server
+      - -dev
+      - -dev-root-token-id=dev-root
+      - -dev-listen-address=0.0.0.0:8200
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8200/v1/sys/health || (command -v curl >/dev/null 2>&1 && curl -fsS http://localhost:8200/v1/sys/health)"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
 networks:
   agents_stack:
     driver: bridge
 
 volumes:
-  agents_pgdata:
+  agyn_pgdata:
   litellm_pgdata:
