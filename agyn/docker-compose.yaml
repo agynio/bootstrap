@@ -65,7 +65,7 @@ services:
       PORT: "3010"
       VAULT_ENABLED: 'true'
       VAULT_ADDR: http://vault:8200
-      VAULT_TOKEN: dev-root
+      NODE_OPTIONS: --experimental-specifier-resolution=node
     depends_on:
       platform-db:
         condition: service_healthy
