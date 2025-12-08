@@ -76,7 +76,7 @@ services:
     expose:
       - "3010"
     # Run DB migrations then start the server. Requires prisma CLI in the image (now included).
-    command: ["/bin/sh", "-lc", "set -e; prisma migrate deploy --schema /opt/app/packages/platform-server/prisma/schema.prisma; exec tsx src/index.ts"]
+    command: ["/bin/sh", "-lc", "set -e; prisma migrate deploy --schema /opt/app/packages/platform-server/prisma/schema.prisma; exec node dist/index.js"]
 
   # Platform UI reverse proxy — the only exposed service
   platform-ui:
