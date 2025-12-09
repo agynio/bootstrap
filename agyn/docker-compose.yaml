@@ -65,7 +65,6 @@ services:
       PORT: "3010"
       VAULT_ENABLED: 'true'
       VAULT_ADDR: http://vault:8200
-      NODE_OPTIONS: --experimental-specifier-resolution=node
     depends_on:
       platform-db:
         condition: service_healthy
@@ -76,7 +75,7 @@ services:
     expose:
       - "3010"
     # Run DB migrations then start the server. Requires prisma CLI in the image (now included).
-    command: ["/bin/sh", "-lc", "set -e; prisma migrate deploy --schema /opt/app/packages/platform-server/prisma/schema.prisma; exec node --experimental-specifier-resolution=node dist/index.js"]
+    command: ["/bin/sh", "-lc", "set -e; prisma migrate deploy --schema /opt/app/packages/platform-server/prisma/schema.prisma; exec tsx src/index.ts"]
 
   # Platform UI reverse proxy — the only exposed service
   platform-ui:
