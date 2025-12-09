@@ -1,0 +1,124 @@
+# Isolated bootstrap compose to ship Agents platform to clients.
+# Includes all required dependencies and exposes a single port 2496 for the UI reverse proxy.
+
+services:
+  # Postgres for Agents persistent state
+  platform-db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: agents
+      POSTGRES_PASSWORD: agents
+      POSTGRES_DB: agents
+    volumes:
+      - agyn_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agents -d agents"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - agents_stack
+
+  # LiteLLM Postgres database
+  litellm-db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: litellm
+      POSTGRES_USER: litellm
+      POSTGRES_PASSWORD: change-me
+    volumes:
+      - litellm_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U litellm -d litellm"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - agents_stack
+
+  # LiteLLM service
+  litellm:
+    image: ghcr.io/berriai/litellm:v1.80.5-stable
+    restart: unless-stopped
+    environment:
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:-sk-dev-master-1234}
+      LITELLM_SALT_KEY: ${LITELLM_SALT_KEY:-sk-dev-salt-1234}
+      DATABASE_URL: postgresql://litellm:change-me@litellm-db:5432/litellm
+      STORE_MODEL_IN_DB: "True"
+      UI_USERNAME: ${LITELLM_UI_USERNAME:-admin}
+      UI_PASSWORD: ${LITELLM_UI_PASSWORD:-admin}
+      PORT: "4000"
+      HOST: "0.0.0.0"
+    depends_on:
+      litellm-db:
+        condition: service_healthy
+    networks:
+      - agents_stack
+
+  # Platform server (NestJS) — internal only, UI will proxy
+  platform-server:
+    image: ghcr.io/hautechai/agents-platform-server:latest
+    restart: unless-stopped
+    environment:
+      AGENTS_DATABASE_URL: postgresql://agents:agents@platform-db:5432/agents
+      LLM_PROVIDER: litellm
+      LITELLM_BASE_URL: http://litellm:4000
+      WORKSPACE_NETWORK_NAME: agents_stack
+      CORS_ORIGINS: http://localhost:2496
+      PORT: "3010"
+      VAULT_ENABLED: 'true'
+      VAULT_ADDR: http://vault:8200
+      VAULT_TOKEN: dev-root
+    depends_on:
+      platform-db:
+        condition: service_healthy
+      litellm:
+        condition: service_started
+      vault:
+        condition: service_started
+    expose:
+      - "3010"
+    # Run DB migrations then start the server. Requires prisma CLI in the image (now included).
+    command: ["/bin/sh", "-lc", "set -e; prisma migrate deploy --schema /opt/app/packages/platform-server/prisma/schema.prisma; exec tsx src/index.ts"]
+    networks:
+      - agents_stack
+
+  # Platform UI reverse proxy — the only exposed service
+  platform-ui:
+    image: ghcr.io/hautechai/agents-platform-ui:latest
+    restart: unless-stopped
+    environment:
+      API_UPSTREAM: http://platform-server:3010
+    depends_on:
+      platform-server:
+        condition: service_started
+    ports:
+      - "2496:80"
+    networks:
+      - agents_stack
+
+  # HashiCorp Vault (dev mode) for secrets management — internal only
+  vault:
+    image: hashicorp/vault:1.17
+    restart: unless-stopped
+    cap_add:
+      - IPC_LOCK
+    environment: {}
+    command:
+      - server
+      - -dev
+      - -dev-root-token-id=dev-root
+      - -dev-listen-address=0.0.0.0:8200
+    networks:
+      - agents_stack
+
+networks:
+  agents_stack:
+    driver: bridge
+
+volumes:
+  agyn_pgdata:
+  litellm_pgdata:
