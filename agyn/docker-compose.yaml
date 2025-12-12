@@ -91,6 +91,8 @@ services:
     volumes:
       - ../graph:/opt/app/data/graph
       - /var/run/docker.sock:/var/run/docker.sock
+    group_add:
+      - "${DOCKER_HOST_GID}"
     networks:
       - agents_stack
 
