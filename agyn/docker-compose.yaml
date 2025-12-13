@@ -60,6 +60,7 @@ services:
 
   # Platform server (NestJS) — internal only, UI will proxy
   platform-server:
+    user: root
     image: ghcr.io/hautechai/agents-platform-server:latest
     restart: unless-stopped
     environment:
