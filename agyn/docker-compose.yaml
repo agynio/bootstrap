@@ -69,6 +69,7 @@ services:
       AGENTS_DATABASE_URL: postgresql://agents:agents@platform-db:5432/agents
       LLM_PROVIDER: litellm
       LITELLM_BASE_URL: http://litellm:4000
+      LITELLM_MASTER_KEY: sk-dev-master-1234
       WORKSPACE_NETWORK_NAME: agents_stack
       CORS_ORIGINS: http://localhost:2496
       PORT: "3010"
