@@ -74,7 +74,7 @@ services:
       VAULT_ADDR: http://vault:8200
       VAULT_TOKEN: dev-root
       GRAPH_REPO_PATH: /opt/app/data/graph
-      GRAPH_BRANCH: graph-state
+      GRAPH_BRANCH: main
       GRAPH_AUTHOR_NAME: Agyn Platform
       GRAPH_AUTHOR_EMAIL: rowan.stein@agyn.io
       DOCKER_SOCKET: /var/run/docker.sock
@@ -109,20 +109,46 @@ services:
     networks:
       - agents_stack
 
-  # HashiCorp Vault (dev mode) for secrets management — internal only
   vault:
     image: hashicorp/vault:1.17
     restart: unless-stopped
     cap_add:
       - IPC_LOCK
-    environment: {}
-    command:
-      - server
-      - -dev
-      - -dev-root-token-id=dev-root
-      - -dev-listen-address=0.0.0.0:8200
+    environment:
+      VAULT_ADDR: http://127.0.0.1:8200
+      VAULT_LOCAL_CONFIG: |
+        ui = true
+        cluster_name = "local-vault"
+        disable_mlock = true
+        listener "tcp" {
+          address     = "0.0.0.0:8200"
+          tls_disable = 1
+        }
+        storage "file" {
+          path = "/vault/file"
+        }
+        api_addr     = "http://vault:8200"
+        cluster_addr = "http://vault:8201"
+    command: ["server"]
+    volumes:
+      - vault-file:/vault/file
     networks:
       - agents_stack
+  
+  vault-auto-init:
+    image: hashicorp/vault:1.17
+    depends_on:
+      - vault
+    restart: "no"
+    environment:
+      VAULT_ADDR: http://vault:8200
+    volumes:
+      - vault-file:/vault/file
+      - ./vault/auto-init.sh:/auto-init.sh:ro
+    entrypoint: ["/bin/sh", "/auto-init.sh"]
+    networks:
+      - agents_stack
+
 
 networks:
   agents_stack:
@@ -131,3 +157,4 @@ networks:
 volumes:
   agyn_pgdata:
   litellm_pgdata:
+  vault-file:
