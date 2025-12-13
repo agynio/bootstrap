@@ -52,6 +52,8 @@ services:
       UI_PASSWORD: ${LITELLM_UI_PASSWORD:-admin}
       PORT: "4000"
       HOST: "0.0.0.0"
+    ports:
+      - "4001:4000"
     depends_on:
       litellm-db:
         condition: service_healthy
