@@ -70,7 +70,7 @@ services:
       LLM_PROVIDER: litellm
       LITELLM_BASE_URL: http://litellm:4000
       LITELLM_MASTER_KEY: sk-dev-master-1234
-      WORKSPACE_NETWORK_NAME: agents_stack
+      WORKSPACE_NETWORK_NAME: agyn_agents_stack
       CORS_ORIGINS: http://localhost:2496
       PORT: "3010"
       VAULT_ENABLED: 'true'
