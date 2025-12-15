@@ -70,13 +70,13 @@ services:
       LLM_PROVIDER: litellm
       LITELLM_BASE_URL: http://litellm:4000
       LITELLM_MASTER_KEY: sk-dev-master-1234
-      WORKSPACE_NETWORK_NAME: agents_stack
+      WORKSPACE_NETWORK_NAME: agyn_agents_stack
       CORS_ORIGINS: http://localhost:2496
       PORT: "3010"
       VAULT_ENABLED: 'true'
       VAULT_ADDR: http://vault:8200
       VAULT_TOKEN: dev-root
-      GRAPH_REPO_PATH: /opt/app/data/graph
+      GRAPH_REPO_PATH: /opt/app/data/bootstrap/graph
       GRAPH_BRANCH: main
       GRAPH_AUTHOR_NAME: Agyn Platform
       GRAPH_AUTHOR_EMAIL: rowan.stein@agyn.io
@@ -93,7 +93,7 @@ services:
     # Run DB migrations then start the server. Requires prisma CLI in the image (now included).
     command: ["/bin/sh", "-lc", "set -e; prisma migrate deploy --schema /opt/app/packages/platform-server/prisma/schema.prisma; exec tsx src/index.ts"]
     volumes:
-      - ../graph:/opt/app/data/graph
+      - ..:/opt/app/data/bootstrap
       - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - agents_stack
