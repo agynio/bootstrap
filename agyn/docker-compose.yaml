@@ -1,4 +1,8 @@
+# Isolated bootstrap compose to ship Agents platform to clients.
+# Includes all required dependencies and exposes a single port 2496 for the UI reverse proxy.
+
 services:
+  # Postgres for Agents persistent state
   platform-db:
     image: postgres:16-alpine
     restart: unless-stopped
@@ -7,16 +11,16 @@ services:
       POSTGRES_PASSWORD: agents
       POSTGRES_DB: agents
     volumes:
-    - agyn_pgdata:/var/lib/postgresql/data
+      - agyn_pgdata:/var/lib/postgresql/data
     healthcheck:
-      test:
-      - CMD-SHELL
-      - pg_isready -U agents -d agents
+      test: ["CMD-SHELL", "pg_isready -U agents -d agents"]
       interval: 10s
       timeout: 5s
       retries: 5
     networks:
-    - agents_stack
+      - agents_stack
+
+  # LiteLLM Postgres database
   litellm-db:
     image: postgres:16-alpine
     restart: unless-stopped
@@ -25,17 +29,17 @@ services:
       POSTGRES_USER: litellm
       POSTGRES_PASSWORD: change-me
     volumes:
-    - litellm_pgdata:/var/lib/postgresql/data
+      - litellm_pgdata:/var/lib/postgresql/data
     healthcheck:
-      test:
-      - CMD-SHELL
-      - pg_isready -U litellm -d litellm
+      test: ["CMD-SHELL", "pg_isready -U litellm -d litellm"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 20s
     networks:
-    - agents_stack
+      - agents_stack
+
+  # LiteLLM service
   litellm:
     image: ghcr.io/berriai/litellm:v1.80.5-stable
     restart: unless-stopped
@@ -43,18 +47,20 @@ services:
       LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:-sk-dev-master-1234}
       LITELLM_SALT_KEY: ${LITELLM_SALT_KEY:-sk-dev-salt-1234}
       DATABASE_URL: postgresql://litellm:change-me@litellm-db:5432/litellm
-      STORE_MODEL_IN_DB: 'True'
+      STORE_MODEL_IN_DB: "True"
       UI_USERNAME: ${LITELLM_UI_USERNAME:-admin}
       UI_PASSWORD: ${LITELLM_UI_PASSWORD:-admin}
-      PORT: '4000'
-      HOST: 0.0.0.0
+      PORT: "4000"
+      HOST: "0.0.0.0"
     ports:
-    - 4001:4000
+      - "4001:4000"
     depends_on:
       litellm-db:
         condition: service_healthy
     networks:
-    - agents_stack
+      - agents_stack
+
+  # Platform server (NestJS) — internal only, UI will proxy
   platform-server:
     user: root
     image: ghcr.io/hautechai/agents-platform-server:latest
@@ -66,7 +72,7 @@ services:
       LITELLM_MASTER_KEY: sk-dev-master-1234
       WORKSPACE_NETWORK_NAME: agents_stack
       CORS_ORIGINS: http://localhost:2496
-      PORT: '3010'
+      PORT: "3010"
       VAULT_ENABLED: 'true'
       VAULT_ADDR: http://vault:8200
       VAULT_TOKEN: dev-root
@@ -83,17 +89,16 @@ services:
       vault:
         condition: service_started
     expose:
-    - '3010'
-    command:
-    - /bin/sh
-    - -lc
-    - set -e; prisma migrate deploy --schema /opt/app/packages/platform-server/prisma/schema.prisma;
-      exec tsx src/index.ts
+      - "3010"
+    # Run DB migrations then start the server. Requires prisma CLI in the image (now included).
+    command: ["/bin/sh", "-lc", "set -e; prisma migrate deploy --schema /opt/app/packages/platform-server/prisma/schema.prisma; exec tsx src/index.ts"]
     volumes:
-    - ../..:/opt/app/data/bootstrap
-    - /var/run/docker.sock:/var/run/docker.sock
+      - ..:/opt/app/data/bootstrap
+      - /var/run/docker.sock:/var/run/docker.sock
     networks:
-    - agents_stack
+      - agents_stack
+
+  # Platform UI reverse proxy — the only exposed service
   platform-ui:
     image: ghcr.io/hautechai/agents-platform-ui:latest
     restart: unless-stopped
@@ -103,45 +108,56 @@ services:
       platform-server:
         condition: service_started
     ports:
-    - 2496:80
+      - "2496:80"
     networks:
-    - agents_stack
+      - agents_stack
+
   vault:
     image: hashicorp/vault:1.17
     restart: unless-stopped
     cap_add:
-    - IPC_LOCK
+      - IPC_LOCK
     environment:
       VAULT_ADDR: http://127.0.0.1:8200
-      VAULT_LOCAL_CONFIG: "ui = true\ncluster_name = \"local-vault\"\ndisable_mlock\
-        \ = true\nlistener \"tcp\" {\n  address     = \"0.0.0.0:8200\"\n  tls_disable\
-        \ = 1\n}\nstorage \"file\" {\n  path = \"/vault/file\"\n}\napi_addr     =\
-        \ \"http://vault:8200\"\ncluster_addr = \"http://vault:8201\"\n"
-    command:
-    - server
+      VAULT_LOCAL_CONFIG: |
+        ui = true
+        cluster_name = "local-vault"
+        disable_mlock = true
+        listener "tcp" {
+          address     = "0.0.0.0:8200"
+          tls_disable = 1
+        }
+        storage "file" {
+          path = "/vault/file"
+        }
+        api_addr     = "http://vault:8200"
+        cluster_addr = "http://vault:8201"
+    command: ["server"]
     volumes:
-    - vault-file:/vault/file
+      - vault-file:/vault/file
     networks:
-    - agents_stack
+      - agents_stack
+  
   vault-auto-init:
     image: hashicorp/vault:1.17
     depends_on:
-    - vault
-    restart: 'no'
+      - vault
+    restart: "no"
     environment:
       VAULT_ADDR: http://vault:8200
     volumes:
-    - vault-file:/vault/file
-    - ./vault/auto-init.sh:/auto-init.sh:ro
-    entrypoint:
-    - /bin/sh
-    - /auto-init.sh
+      - vault-file:/vault/file
+      - ./vault/auto-init.sh:/auto-init.sh:ro
+    entrypoint: ["/bin/sh", "/auto-init.sh"]
     networks:
-    - agents_stack
+      - agents_stack
+
+
 networks:
   agents_stack:
     driver: bridge
+
 volumes:
-  agyn_pgdata: null
-  litellm_pgdata: null
-  vault-file: null
+  agyn_pgdata:
+  litellm_pgdata:
+  vault-file:
