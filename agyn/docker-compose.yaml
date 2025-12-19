@@ -63,7 +63,7 @@ services:
   # Platform server (NestJS) — internal only, UI will proxy
   platform-server:
     user: root
-    image: ghcr.io/hautechai/agents-platform-server:latest
+    image: ghcr.io/agynio/platform-server:latest
     restart: unless-stopped
     environment:
       AGENTS_DATABASE_URL: postgresql://agents:agents@platform-db:5432/agents
@@ -100,7 +100,7 @@ services:
 
   # Platform UI reverse proxy — the only exposed service
   platform-ui:
-    image: ghcr.io/hautechai/agents-platform-ui:latest
+    image: ghcr.io/agynio/platform-ui:latest
     restart: unless-stopped
     environment:
       API_UPSTREAM: http://platform-server:3010
