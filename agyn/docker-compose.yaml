@@ -77,7 +77,7 @@ services:
       VAULT_ADDR: http://vault:8200
       VAULT_TOKEN: dev-root
       GRAPH_REPO_PATH: /opt/app/data/bootstrap/graph
-      GRAPH_BRANCH: main
+      GRAPH_BRANCH: v0.10.1
       GRAPH_AUTHOR_NAME: Agyn Platform
       GRAPH_AUTHOR_EMAIL: rowan.stein@agyn.io
       DOCKER_SOCKET: /var/run/docker.sock
