@@ -101,6 +101,10 @@ services:
   # Platform UI reverse proxy — the only exposed service
   platform-ui:
     image: ghcr.io/agynio/platform-ui:0.10.0
+    build:
+      context: "${PLATFORM_UI_BUILD_CONTEXT:-https://github.com/agynio/platform.git#v0.10.0:packages/platform-ui}"
+      args:
+        VITE_API_BASE_URL: "${PLATFORM_UI_VITE_API_BASE_URL:-http://localhost:2496}"
     restart: unless-stopped
     environment:
       API_UPSTREAM: http://platform-server:3010
