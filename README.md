@@ -2,6 +2,8 @@
 
 ## Quickstart
 
+Runs the prebuilt Platform Server and UI images via Docker Compose (not a development environment). For development workflows, see [agynio/platform](https://github.com/agynio/platform).
+
 Prereqs: Docker with Compose v2 enabled.
 
 ```bash
