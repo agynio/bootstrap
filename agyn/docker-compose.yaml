@@ -132,6 +132,8 @@ services:
         }
         api_addr     = "http://vault:8200"
         cluster_addr = "http://vault:8201"
+    ports:
+      - "8202:8200"
     command: ["server"]
     volumes:
       - vault-file:/vault/file
