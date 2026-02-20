@@ -70,8 +70,6 @@ services:
       - type: bind
         source: /var/run/docker.sock
         target: /var/run/docker.sock
-    expose:
-      - "7071"
     networks:
       - agents_stack
 
