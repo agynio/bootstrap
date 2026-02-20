@@ -60,10 +60,23 @@ services:
     networks:
       - agents_stack
 
+  docker-runner:
+    image: ghcr.io/agynio/docker-runner:0.12.0
+    restart: unless-stopped
+    environment:
+      DOCKER_RUNNER_SHARED_SECRET: ${DOCKER_RUNNER_SHARED_SECRET:-dev-shared-secret}
+      DOCKER_RUNNER_PORT: ${DOCKER_RUNNER_PORT:-7071}
+    volumes:
+      - type: bind
+        source: /var/run/docker.sock
+        target: /var/run/docker.sock
+    networks:
+      - agents_stack
+
   # Platform server (NestJS) — internal only, UI will proxy
   platform-server:
     user: root
-    image: ghcr.io/agynio/platform-server:0.11.0
+    image: ghcr.io/agynio/platform-server:0.12.0
     restart: unless-stopped
     environment:
       AGENTS_DATABASE_URL: postgresql://agents:agents@platform-db:5432/agents
@@ -80,7 +93,9 @@ services:
       GRAPH_BRANCH: v0.10.1
       GRAPH_AUTHOR_NAME: Agyn Platform
       GRAPH_AUTHOR_EMAIL: rowan.stein@agyn.io
-      DOCKER_SOCKET: /var/run/docker.sock
+      DOCKER_RUNNER_BASE_URL: http://docker-runner:7071
+      DOCKER_RUNNER_SHARED_SECRET: ${DOCKER_RUNNER_SHARED_SECRET:-dev-shared-secret}
+      DOCKER_RUNNER_TIMEOUT_MS: ${DOCKER_RUNNER_TIMEOUT_MS:-30000}
     depends_on:
       platform-db:
         condition: service_healthy
@@ -88,19 +103,20 @@ services:
         condition: service_started
       vault:
         condition: service_started
+      docker-runner:
+        condition: service_started
     expose:
       - "3010"
     # Run DB migrations then start the server. Requires prisma CLI in the image (now included).
     command: ["/bin/sh", "-lc", "set -e; prisma migrate deploy --schema /opt/app/packages/platform-server/prisma/schema.prisma; exec tsx src/index.ts"]
     volumes:
       - ..:/opt/app/data/bootstrap
-      - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - agents_stack
 
   # Platform UI reverse proxy — the only exposed service
   platform-ui:
-    image: ghcr.io/agynio/platform-ui:0.11.0
+    image: ghcr.io/agynio/platform-ui:0.12.0
     restart: unless-stopped
     environment:
       API_UPSTREAM: http://platform-server:3010
