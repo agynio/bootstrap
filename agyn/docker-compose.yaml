@@ -81,6 +81,8 @@ services:
       REGISTRY_PROXY_REMOTEURL: https://registry-1.docker.io
     networks:
       - agents_stack
+    volumes:
+      - registry-cache:/var/lib/registry
 
   # Platform server (NestJS) — internal only, UI will proxy
   platform-server:
@@ -188,3 +190,4 @@ volumes:
   agyn_pgdata:
   litellm_pgdata:
   vault-file:
+  registry-cache:
