@@ -66,7 +66,7 @@ services:
     environment:
       DOCKER_RUNNER_HOST: "0.0.0.0"
       DOCKER_RUNNER_PORT: "7071"
-      DOCKER_RUNNER_SHARED_SECRET: ${DOCKER_RUNNER_SHARED_SECRET:?DOCKER_RUNNER_SHARED_SECRET must be set}
+      DOCKER_RUNNER_SHARED_SECRET: ${DOCKER_RUNNER_SHARED_SECRET:-change-me}
       DOCKER_SOCKET: /var/run/docker.sock
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
@@ -94,7 +94,7 @@ services:
       GRAPH_AUTHOR_NAME: Agyn Platform
       GRAPH_AUTHOR_EMAIL: rowan.stein@agyn.io
       DOCKER_RUNNER_BASE_URL: http://docker-runner:7071
-      DOCKER_RUNNER_SHARED_SECRET: ${DOCKER_RUNNER_SHARED_SECRET:?DOCKER_RUNNER_SHARED_SECRET must be set}
+      DOCKER_RUNNER_SHARED_SECRET: ${DOCKER_RUNNER_SHARED_SECRET:-change-me}
       # DOCKER_RUNNER_TIMEOUT_MS: "30000"
     depends_on:
       platform-db:
