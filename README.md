@@ -6,10 +6,37 @@ Runs the prebuilt Platform Server and UI images via Docker Compose (not a develo
 
 Prereqs: Docker with Compose v2 enabled.
 
+# Quick start (default: single agent)
 ```bash
 git clone --recurse-submodules https://github.com/agynio/bootstrap.git
 cd bootstrap/agyn
 docker compose up -d
+```
+
+# Reset graph to Team
+```
+# switch graph template
+cd bootstrap/graph
+git fetch origin
+git checkout main
+git reset --hard origin/example/team
+
+# restart services
+cd ../agyn
+docker compose up -d --force-recreate
+```
+
+# Reset graph to Solo Agent
+```
+# switch graph template
+cd bootstrap/graph
+git fetch origin
+git checkout main
+git reset --hard origin/example/solo-agent
+
+# restart services
+cd ../agyn
+docker compose up -d --force-recreate
 ```
 
 Open http://localhost:2496 in your browser.
