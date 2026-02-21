@@ -1,6 +1,0 @@
-# Optional override to expose the registry mirror on the host loopback
-# Copy to agyn/docker-compose.override.yaml to enable
-services:
-  registry-mirror:
-    ports:
-      - "127.0.0.1:5000:5000"
