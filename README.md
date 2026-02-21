@@ -6,7 +6,12 @@ Runs the prebuilt Platform Server and UI images via Docker Compose (not a develo
 
 Prereqs: Docker with Compose v2 enabled and access to the host Docker socket (`/var/run/docker.sock`).
 
-Copy `.env.example` to `.env` and change `DOCKER_RUNNER_SHARED_SECRET` to a long random string before starting the stack.
+From the repo root, copy `agyn/.env.example` to `agyn/.env` and set `DOCKER_RUNNER_SHARED_SECRET` to a long random string before starting the stack:
+
+```bash
+cp agyn/.env.example agyn/.env
+openssl rand -hex 32  # generate a new secret
+```
 
 ```bash
 git clone --recurse-submodules https://github.com/agynio/bootstrap.git
@@ -18,4 +23,4 @@ Open http://localhost:2496 in your browser.
 
 > Notes:
 > - `agyn/docker-compose.yaml` is the compose file, and the `graph` submodule is required.
-> - The stack now includes the `docker-runner` service, which brokers privileged Docker access for the platform-server. Ensure the host socket is available and the shared secret matches `DOCKER_RUNNER_SHARED_SECRET` in your `.env` file.
+> - The stack now includes the `docker-runner` service, which brokers privileged Docker access for the platform-server. Ensure the host socket is available and the shared secret matches `DOCKER_RUNNER_SHARED_SECRET` in your `agyn/.env` file.
