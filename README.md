@@ -85,6 +85,6 @@ Bootstrap now ships a pull-through Docker registry cache (`registry-mirror` serv
    - `curl -fsSL http://127.0.0.1:5000/v2/` returns `{}`.
    - Pull an image twice (e.g. `docker pull alpine:3.19` twice) and observe `docker compose logs -f registry-mirror` showing cache hits on the second run.
 
-5. **Rollback:** stop the service (`docker compose down registry-mirror`), remove the loopback override, delete the mirror entry from `daemon.json`/containerd config, and restart Docker/containerd. Existing pulls will then bypass the cache again.
+5. **Rollback:** stop the service (`docker compose stop registry-mirror && docker compose rm -f registry-mirror`), remove the loopback override, delete the mirror entry from `daemon.json`/containerd config, and restart Docker/containerd. Existing pulls will then bypass the cache again.
 
 > The mirror only accelerates pulls when the host daemon is configured as above. Containers inside the stack do not access it directly otherwise.
