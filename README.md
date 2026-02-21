@@ -6,7 +6,7 @@ Runs the prebuilt Platform Server and UI images via Docker Compose (not a develo
 
 Prereqs: Docker with Compose v2 enabled.
 
-# Quick start (default: single agent)
+# Quick start (default: solo agent)
 ```bash
 git clone --recurse-submodules https://github.com/agynio/bootstrap.git
 cd bootstrap/agyn
