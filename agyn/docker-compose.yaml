@@ -73,6 +73,21 @@ services:
     networks:
       - agents_stack
 
+  registry-mirror:
+    image: registry:2
+    restart: unless-stopped
+    volumes:
+      - registry-cache:/var/lib/registry
+      - ./registry:/etc/docker/registry:ro
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:5000/v2/"]
+      interval: 30s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    networks:
+      - agents_stack
+
   # Platform server (NestJS) — internal only, UI will proxy
   platform-server:
     user: root
@@ -179,3 +194,4 @@ volumes:
   agyn_pgdata:
   litellm_pgdata:
   vault-file:
+  registry-cache:
