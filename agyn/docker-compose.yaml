@@ -60,6 +60,19 @@ services:
     networks:
       - agents_stack
 
+  docker-runner:
+    image: ghcr.io/agynio/docker-runner:0.13.0
+    restart: unless-stopped
+    environment:
+      DOCKER_RUNNER_HOST: "0.0.0.0"
+      DOCKER_RUNNER_PORT: "7071"
+      DOCKER_RUNNER_SHARED_SECRET: ${DOCKER_RUNNER_SHARED_SECRET:-change-me}
+      DOCKER_SOCKET: /var/run/docker.sock
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - agents_stack
+
   # Platform server (NestJS) — internal only, UI will proxy
   platform-server:
     user: root
@@ -80,7 +93,9 @@ services:
       GRAPH_BRANCH: v0.10.1
       GRAPH_AUTHOR_NAME: Agyn Platform
       GRAPH_AUTHOR_EMAIL: rowan.stein@agyn.io
-      DOCKER_SOCKET: /var/run/docker.sock
+      DOCKER_RUNNER_BASE_URL: http://docker-runner:7071
+      DOCKER_RUNNER_SHARED_SECRET: ${DOCKER_RUNNER_SHARED_SECRET:-change-me}
+      # DOCKER_RUNNER_TIMEOUT_MS: "30000"
     depends_on:
       platform-db:
         condition: service_healthy
@@ -88,13 +103,14 @@ services:
         condition: service_started
       vault:
         condition: service_started
+      docker-runner:
+        condition: service_started
     expose:
       - "3010"
     # Run DB migrations then start the server. Requires prisma CLI in the image (now included).
     command: ["/bin/sh", "-lc", "set -e; prisma migrate deploy --schema /opt/app/packages/platform-server/prisma/schema.prisma; exec tsx src/index.ts"]
     volumes:
       - ..:/opt/app/data/bootstrap
-      - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - agents_stack
 
