@@ -6,7 +6,7 @@ Runs the prebuilt Platform Server and UI images via Docker Compose (not a develo
 
 Prereqs: Docker with Compose v2 enabled and access to the host Docker socket (`/var/run/docker.sock`).
 
-From the repo root, copy `agyn/.env.example` to `agyn/.env` and set `DOCKER_RUNNER_SHARED_SECRET` to a long random string before starting the stack:
+From the repo root, copy `agyn/.env.example` to `agyn/.env` and set `DOCKER_RUNNER_SHARED_SECRET` to a long random string before starting the stack (Compose now fails fast if this value is missing):
 
 ```bash
 cp agyn/.env.example agyn/.env
