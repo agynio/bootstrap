@@ -70,6 +70,8 @@ services:
       DOCKER_SOCKET: /var/run/docker.sock
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+    group_add:
+      - 0
     networks:
       - agents_stack
 
