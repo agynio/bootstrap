@@ -26,6 +26,10 @@ jobs:
         with:
           terraform_version: 1.6.6
 
+      - name: Timestamp
+        id: ts
+        run: echo "utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_OUTPUT
+
       - name: Apply k8s stack
         working-directory: stacks/k8s
         run: |
@@ -34,19 +38,26 @@ jobs:
 
       - name: Apply system stack (Istio + Argo CD)
         working-directory: stacks/system
+        env:
+          TF_VAR_argocd_admin_password_mtime: "${{ steps.ts.outputs.utc }}"
         run: |
           terraform init -input=false
           terraform apply -auto-approve -input=false
+          kubectl -n argocd rollout restart deploy argocd-server
+          kubectl -n argocd rollout status deploy argocd-server --timeout=120s
+          kubectl -n argocd get secret argocd-secret -o jsonpath='{.data.admin\.passwordMtime}' | base64 -d || true
 
       - name: Destroy system stack (PR only)
-        if: ${{ always() && github.event_name == 'pull_request' }}
+        if: ${{ github.event_name == 'pull_request' }}
         working-directory: stacks/system
+        env:
+          TF_VAR_argocd_admin_password_mtime: "${{ steps.ts.outputs.utc }}"
         run: |
           terraform init -input=false
           terraform destroy -auto-approve -input=false
 
       - name: Destroy k8s stack (PR only)
-        if: ${{ always() && github.event_name == 'pull_request' }}
+        if: ${{ github.event_name == 'pull_request' }}
         working-directory: stacks/k8s
         run: |
           terraform init -input=false
