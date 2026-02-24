@@ -34,8 +34,6 @@ jobs:
 
       - name: Apply system stack (Istio + Argo CD)
         working-directory: stacks/system
-        env:
-          TF_VAR_kubeconfig_path: "../k8s/.kube/agyn-local-kubeconfig.yaml"
         run: |
           terraform init -input=false
           terraform apply -auto-approve -input=false
@@ -43,8 +41,6 @@ jobs:
       - name: Destroy system stack (PR only)
         if: ${{ always() && github.event_name == 'pull_request' }}
         working-directory: stacks/system
-        env:
-          TF_VAR_kubeconfig_path: "../k8s/.kube/agyn-local-kubeconfig.yaml"
         run: |
           terraform init -input=false
           terraform destroy -auto-approve -input=false
