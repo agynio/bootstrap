@@ -15,15 +15,3 @@ variable "argocd_chart_version" {
   description = "Argo CD chart version"
   default     = "5.33.0"
 }
-
-variable "argocd_admin_password_bcrypt" {
-  type        = string
-  description = "Bcrypt hash of admin password"
-  default     = null
-}
-
-variable "argocd_admin_password_mtime" {
-  type        = string
-  description = "RFC3339 timestamp for admin password change"
-  default     = null
-}
