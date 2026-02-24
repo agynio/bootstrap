@@ -1,0 +1,55 @@
+name: bootstrap
+on:
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ main ]
+
+jobs:
+  full-apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify Docker
+        run: |
+          docker version || (echo "Docker is required" && exit 1)
+
+      - name: Install k3d
+        run: |
+          curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
+          k3d version
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.6
+
+      - name: Apply k8s stack
+        working-directory: stacks/k8s
+        run: |
+          terraform init -input=false
+          terraform apply -auto-approve -input=false
+
+      - name: Apply system stack (Istio + Argo CD)
+        working-directory: stacks/system
+        env:
+          TF_VAR_kubeconfig_path: "../k8s/.kube/agyn-local-kubeconfig.yaml"
+        run: |
+          terraform init -input=false
+          terraform apply -auto-approve -input=false
+
+      - name: Destroy system stack (PR only)
+        if: ${{ github.event_name == 'pull_request' }}
+        working-directory: stacks/system
+        env:
+          TF_VAR_kubeconfig_path: "../k8s/.kube/agyn-local-kubeconfig.yaml"
+        run: |
+          terraform destroy -auto-approve -input=false || true
+
+      - name: Destroy k8s stack (PR only)
+        if: ${{ github.event_name == 'pull_request' }}
+        working-directory: stacks/k8s
+        run: |
+          terraform destroy -auto-approve -input=false || true

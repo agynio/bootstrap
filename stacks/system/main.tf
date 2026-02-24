@@ -1,0 +1,86 @@
+# Helm repositories
+resource "helm_repository" "istio" {
+  name = "istio"
+  url  = "https://istio-release.storage.googleapis.com/charts"
+}
+
+resource "helm_repository" "argo" {
+  name = "argo"
+  url  = "https://argoproj.github.io/argo-helm"
+}
+
+# Istio base (CRDs)
+resource "helm_release" "istio_base" {
+  name       = "istio-base"
+  repository = helm_repository.istio.url
+  chart      = "base"
+  version    = var.istio_chart_version
+  namespace  = kubernetes_namespace.istio_system.metadata[0].name
+}
+
+# Istio control plane
+resource "helm_release" "istiod" {
+  name       = "istiod"
+  repository = helm_repository.istio.url
+  chart      = "istiod"
+  version    = var.istio_chart_version
+  namespace  = kubernetes_namespace.istio_system.metadata[0].name
+
+  depends_on = [helm_release.istio_base]
+
+  values = [
+    yamlencode({
+      pilot = {
+        traceSampling = 1.0
+      }
+    })
+  ]
+}
+
+# Istio gateway (minimal)
+resource "helm_release" "istio_gateway" {
+  name       = "istio-gateway"
+  repository = helm_repository.istio.url
+  chart      = "gateway"
+  version    = var.istio_chart_version
+  namespace  = kubernetes_namespace.istio_gateway.metadata[0].name
+
+  depends_on = [helm_release.istiod]
+
+  values = [
+    yamlencode({
+      name = "istio-ingressgateway",
+      service = {
+        type = "ClusterIP",
+        ports = [{
+          name       = "http2",
+          port       = 80,
+          targetPort = 8080
+        },{
+          name       = "https",
+          port       = 443,
+          targetPort = 8443
+        }]
+      }
+    })
+  ]
+}
+
+# Argo CD
+resource "helm_release" "argo_cd" {
+  name       = "argo-cd"
+  repository = helm_repository.argo.url
+  chart      = "argo-cd"
+  version    = var.argocd_chart_version
+  namespace  = kubernetes_namespace.argocd.metadata[0].name
+
+  values = [
+    yamlencode({
+      server = {
+        service = {
+          type = "ClusterIP"
+        }
+      }
+    })
+  ]
+}
