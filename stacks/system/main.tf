@@ -63,11 +63,12 @@ resource "helm_release" "istio_gateway" {
 
 # Argo CD
 resource "helm_release" "argo_cd" {
-  name       = "argo-cd"
-  repository = local.argo_repository_url
-  chart      = "argo-cd"
-  version    = var.argocd_chart_version
-  namespace  = kubernetes_namespace.argocd.metadata[0].name
+  name         = "argo-cd"
+  repository   = local.argo_repository_url
+  chart        = "argo-cd"
+  version      = var.argocd_chart_version
+  namespace    = kubernetes_namespace.argocd.metadata[0].name
+  force_update = true
 
   values = [
     yamlencode({
@@ -79,7 +80,7 @@ resource "helm_release" "argo_cd" {
       configs = {
         secret = {
           argocdServerAdminPassword      = "$2a$10$H1a30nMr9v2QE2nkyz0BoOD2J0I6FQFMtHS0csEg12RBWzfRuuoE6"
-          argocdServerAdminPasswordMtime = "2026-02-24T00:00:00Z"
+          argocdServerAdminPasswordMtime = coalesce(var.argocd_admin_password_mtime, "2026-02-24T00:00:00Z")
         }
       }
     })

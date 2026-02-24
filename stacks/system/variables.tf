@@ -15,3 +15,9 @@ variable "argocd_chart_version" {
   description = "Argo CD chart version"
   default     = "5.33.0"
 }
+
+variable "argocd_admin_password_mtime" {
+  type        = string
+  description = "Timestamp used to rotate the Argo CD admin password"
+  default     = null
+}
