@@ -1,5 +1,6 @@
 locals {
-  kubeconfig_path = "${path.module}/.kube/${var.cluster_name}-kubeconfig.yaml"
+  kubeconfig_dir  = "${path.module}/.kube"
+  kubeconfig_path = "${local.kubeconfig_dir}/${var.cluster_name}-kubeconfig.yaml"
 }
 
 resource "k3d_cluster" "this" {
@@ -7,19 +8,47 @@ resource "k3d_cluster" "this" {
   servers = var.servers
   agents  = var.agents
 
-  k3s_version    = var.k3s_version
-  k3s_extra_args = var.k3s_extra_args
+  image = "rancher/k3s:${var.k3s_version}"
 
-  expose_api = var.expose_api
-  api_port   = var.api_port
+  dynamic "kube_api" {
+    for_each = var.expose_api ? [true] : []
 
-  ports = [
-    for p in var.ports : {
-      container_port = p.container_port
-      host_port      = p.host_port
-      protocol       = p.protocol
+    content {
+      host      = "127.0.0.1"
+      host_ip   = "127.0.0.1"
+      host_port = var.api_port
     }
-  ]
+  }
 
-  kubeconfig_path = local.kubeconfig_path
+  dynamic "k3s" {
+    for_each = length(var.k3s_extra_args) > 0 ? [true] : []
+
+    content {
+      dynamic "extra_args" {
+        for_each = var.k3s_extra_args
+
+        content {
+          arg = extra_args.value
+        }
+      }
+    }
+  }
+
+  dynamic "port" {
+    for_each = var.ports
+
+    content {
+      host           = try(port.value.host, "")
+      host_port      = port.value.host_port
+      container_port = port.value.container_port
+      protocol       = upper(port.value.protocol)
+    }
+  }
+}
+
+resource "local_sensitive_file" "kubeconfig" {
+  filename             = local.kubeconfig_path
+  content              = one(k3d_cluster.this.credentials).raw
+  file_permission      = "0600"
+  directory_permission = "0700"
 }

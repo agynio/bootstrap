@@ -5,6 +5,11 @@ terraform {
       source  = "agynio/k3d"
       version = "~> 0.1.0"
     }
+
+    local = {
+      source  = "hashicorp/local"
+      version = "~> 2.5"
+    }
   }
   backend "local" {
     path = "./state/terraform.tfstate"
