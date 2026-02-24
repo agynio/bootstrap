@@ -1,5 +1,5 @@
 output "installed_namespaces" {
-  value       = [
+  value = [
     kubernetes_namespace.istio_system.metadata[0].name,
     kubernetes_namespace.istio_gateway.metadata[0].name,
     kubernetes_namespace.argocd.metadata[0].name,
@@ -8,7 +8,7 @@ output "installed_namespaces" {
 }
 
 output "releases" {
-  value       = [
+  value = [
     helm_release.istio_base.name,
     helm_release.istiod.name,
     helm_release.istio_gateway.name,

@@ -1,18 +1,13 @@
 # Helm repositories
-resource "helm_repository" "istio" {
-  name = "istio"
-  url  = "https://istio-release.storage.googleapis.com/charts"
-}
-
-resource "helm_repository" "argo" {
-  name = "argo"
-  url  = "https://argoproj.github.io/argo-helm"
+locals {
+  istio_repository_url = "https://istio-release.storage.googleapis.com/charts"
+  argo_repository_url  = "https://argoproj.github.io/argo-helm"
 }
 
 # Istio base (CRDs)
 resource "helm_release" "istio_base" {
   name       = "istio-base"
-  repository = helm_repository.istio.url
+  repository = local.istio_repository_url
   chart      = "base"
   version    = var.istio_chart_version
   namespace  = kubernetes_namespace.istio_system.metadata[0].name
@@ -21,7 +16,7 @@ resource "helm_release" "istio_base" {
 # Istio control plane
 resource "helm_release" "istiod" {
   name       = "istiod"
-  repository = helm_repository.istio.url
+  repository = local.istio_repository_url
   chart      = "istiod"
   version    = var.istio_chart_version
   namespace  = kubernetes_namespace.istio_system.metadata[0].name
@@ -40,7 +35,7 @@ resource "helm_release" "istiod" {
 # Istio gateway (minimal)
 resource "helm_release" "istio_gateway" {
   name       = "istio-gateway"
-  repository = helm_repository.istio.url
+  repository = local.istio_repository_url
   chart      = "gateway"
   version    = var.istio_chart_version
   namespace  = kubernetes_namespace.istio_gateway.metadata[0].name
@@ -56,7 +51,7 @@ resource "helm_release" "istio_gateway" {
           name       = "http2",
           port       = 80,
           targetPort = 8080
-        },{
+          }, {
           name       = "https",
           port       = 443,
           targetPort = 8443
@@ -69,7 +64,7 @@ resource "helm_release" "istio_gateway" {
 # Argo CD
 resource "helm_release" "argo_cd" {
   name       = "argo-cd"
-  repository = helm_repository.argo.url
+  repository = local.argo_repository_url
   chart      = "argo-cd"
   version    = var.argocd_chart_version
   namespace  = kubernetes_namespace.argocd.metadata[0].name
