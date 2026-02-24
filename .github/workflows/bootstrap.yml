@@ -37,39 +37,6 @@ jobs:
         run: |
           terraform init -input=false
           terraform apply -auto-approve -input=false
-          export KUBECONFIG="${{ github.workspace }}/stacks/k8s/.kube/agyn-local-kubeconfig.yaml"
-          kubectl -n argocd rollout status deploy/argocd-server --timeout=180s
-
-      - name: Install Argo CD CLI
-        run: |
-          ARGOCD_VERSION="v2.10.2"
-          curl -sSL -o /usr/local/bin/argocd "https://github.com/argoproj/argo-cd/releases/download/${ARGOCD_VERSION}/argocd-linux-amd64"
-          chmod +x /usr/local/bin/argocd
-          argocd version --client
-
-      - name: Set Argo CD admin password via CLI
-        env:
-          KUBECONFIG: "${{ github.workspace }}/stacks/k8s/.kube/agyn-local-kubeconfig.yaml"
-          ARGOCD_NAMESPACE: argocd
-          ARGOCD_LOCAL_PORT: "8080"
-          NEW_ADMIN_PASSWORD: "admin"
-        run: |
-          set -euo pipefail
-          INITIAL_ADMIN_PW=$(kubectl -n "$ARGOCD_NAMESPACE" get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d)
-          if [ -z "$INITIAL_ADMIN_PW" ]; then echo "Failed to read initial admin password"; exit 1; fi
-          kubectl -n "$ARGOCD_NAMESPACE" port-forward svc/argocd-server "$ARGOCD_LOCAL_PORT:443" >/tmp/argocd_pf.log 2>&1 &
-          PF_PID=$!
-          trap 'kill -TERM "$PF_PID" 2>/dev/null || true' EXIT
-          for i in $(seq 1 30); do nc -z 127.0.0.1 "$ARGOCD_LOCAL_PORT" && break || sleep 1; done
-          nc -z 127.0.0.1 "$ARGOCD_LOCAL_PORT" || { echo "Port-forward failed"; exit 1; }
-          argocd login "127.0.0.1:$ARGOCD_LOCAL_PORT" --username admin --password "$INITIAL_ADMIN_PW" --insecure --grpc-web --plaintext --timeout 30s
-          argocd account update-password --current-password "$INITIAL_ADMIN_PW" --new-password "$NEW_ADMIN_PASSWORD" --timeout 30s
-          argocd logout "127.0.0.1:$ARGOCD_LOCAL_PORT"
-          argocd login "127.0.0.1:$ARGOCD_LOCAL_PORT" --username admin --password "$NEW_ADMIN_PASSWORD" --insecure --grpc-web --plaintext --timeout 30s
-          kubectl -n "$ARGOCD_NAMESPACE" delete secret argocd-initial-admin-secret || true
-          kill -TERM "$PF_PID" 2>/dev/null || true
-          wait "$PF_PID" 2>/dev/null || true
-          trap - EXIT
 
       - name: Destroy system stack (PR only)
         if: ${{ always() && github.event_name == 'pull_request' }}
