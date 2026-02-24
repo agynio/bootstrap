@@ -43,12 +43,14 @@ jobs:
         run: |
           terraform init -input=false
           terraform apply -auto-approve -input=false
-          kubectl -n argocd rollout restart deploy argocd-server
-          kubectl -n argocd rollout status deploy argocd-server --timeout=120s
+          export KUBECONFIG="${GITHUB_WORKSPACE}/stacks/k8s/.kube/agyn-local-kubeconfig.yaml"
+          ARGOCD_SERVER_DEPLOYMENT="argo-cd-argocd-server"
+          kubectl -n argocd rollout restart deploy/${ARGOCD_SERVER_DEPLOYMENT}
+          kubectl -n argocd rollout status deploy/${ARGOCD_SERVER_DEPLOYMENT} --timeout=120s
           kubectl -n argocd get secret argocd-secret -o jsonpath='{.data.admin\.passwordMtime}' | base64 -d || true
 
       - name: Destroy system stack (PR only)
-        if: ${{ github.event_name == 'pull_request' }}
+        if: ${{ always() && github.event_name == 'pull_request' }}
         working-directory: stacks/system
         env:
           TF_VAR_argocd_admin_password_mtime: "${{ steps.ts.outputs.utc }}"
@@ -57,7 +59,7 @@ jobs:
           terraform destroy -auto-approve -input=false
 
       - name: Destroy k8s stack (PR only)
-        if: ${{ github.event_name == 'pull_request' }}
+        if: ${{ always() && github.event_name == 'pull_request' }}
         working-directory: stacks/k8s
         run: |
           terraform init -input=false
