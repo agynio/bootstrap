@@ -76,6 +76,12 @@ resource "helm_release" "argo_cd" {
           type = "ClusterIP"
         }
       }
+      configs = {
+        secret = {
+          argocdServerAdminPassword      = "$2a$10$H1a30nMr9v2QE2nkyz0BoOD2J0I6FQFMtHS0csEg12RBWzfRuuoE6"
+          argocdServerAdminPasswordMtime = "2026-02-24T00:00:00Z"
+        }
+      }
     })
   ]
 }
