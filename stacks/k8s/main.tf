@@ -1,5 +1,6 @@
 locals {
-  kubeconfig_path = "${path.module}/.kube/${var.cluster_name}-kubeconfig.yaml"
+  kubeconfig_dir  = "${path.module}/.kube"
+  kubeconfig_path = "${local.kubeconfig_dir}/${var.cluster_name}-kubeconfig.yaml"
 }
 
 resource "k3d_cluster" "this" {
@@ -43,4 +44,11 @@ resource "k3d_cluster" "this" {
       protocol       = upper(port.value.protocol)
     }
   }
+}
+
+resource "local_sensitive_file" "kubeconfig" {
+  filename             = local.kubeconfig_path
+  content              = one(k3d_cluster.this.credentials).raw
+  file_permission      = "0600"
+  directory_permission = "0700"
 }
