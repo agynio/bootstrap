@@ -8,6 +8,8 @@ on:
 jobs:
   full-apply:
     runs-on: ubuntu-latest
+    env:
+      ARGOCD_ADMIN_PASSWORD: admin
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -26,6 +28,49 @@ jobs:
         with:
           terraform_version: 1.6.6
 
+      - name: Install Argo CD CLI
+        run: |
+          set -euo pipefail
+          if command -v argocd >/dev/null 2>&1; then
+            argocd version --client
+            exit 0
+          fi
+          ARGOCD_VERSION="v2.10.2"
+          if curl -sSL -o argocd "https://github.com/argoproj/argo-cd/releases/download/${ARGOCD_VERSION}/argocd-linux-amd64"; then
+            sudo install -m 0755 argocd /usr/local/bin/argocd
+            rm argocd
+            argocd version --client
+          else
+            echo "Argo CD CLI download failed; will rely on htpasswd fallback" >&2
+          fi
+
+      - name: Record password timestamp
+        id: ts
+        run: |
+          set -euo pipefail
+          echo "utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
+      - name: Generate bcrypt
+        id: hash
+        env:
+          PASSWORD: ${{ env.ARGOCD_ADMIN_PASSWORD }}
+        run: |
+          set -euo pipefail
+          PASS_VALUE="${PASSWORD:-admin}"
+          if command -v argocd >/dev/null 2>&1; then
+            BCRYPT=$(argocd account bcrypt --password "$PASS_VALUE" | tr -d '\n')
+          else
+            sudo apt-get update
+            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y apache2-utils
+            BCRYPT=$(htpasswd -bnBC 10 "" "$PASS_VALUE" | tr -d ':\n')
+            BCRYPT=${BCRYPT/\$2y/\$2a}
+          fi
+          if [ -z "$BCRYPT" ]; then
+            echo "Failed to generate bcrypt hash" >&2
+            exit 1
+          fi
+          echo "bcrypt=$BCRYPT" >> "$GITHUB_OUTPUT"
+
       - name: Apply k8s stack
         working-directory: stacks/k8s
         run: |
@@ -34,6 +79,9 @@ jobs:
 
       - name: Apply system stack (Istio + Argo CD)
         working-directory: stacks/system
+        env:
+          TF_VAR_argocd_admin_password_bcrypt: ${{ steps.hash.outputs.bcrypt }}
+          TF_VAR_argocd_admin_password_mtime: ${{ steps.ts.outputs.utc }}
         run: |
           terraform init -input=false
           terraform apply -auto-approve -input=false

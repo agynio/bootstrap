@@ -78,9 +78,10 @@ resource "helm_release" "argo_cd" {
       }
       configs = {
         secret = {
-          createSecret                   = true
-          argocdServerAdminPassword      = "$2a$10$JOKMnxAqofr2trzjNASWQuh5IFHMoC701cf.LGDuBsSevA..XT1d2"
-          argocdServerAdminPasswordMtime = "2026-02-24T15:04:05Z"
+          createSecret = true
+          # bcrypt for "admin" (dev default, cost 10)
+          argocdServerAdminPassword      = var.argocd_admin_password_bcrypt
+          argocdServerAdminPasswordMtime = coalesce(var.argocd_admin_password_mtime, "2026-02-24T15:04:05Z")
         }
       }
     })
