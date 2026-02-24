@@ -4,7 +4,7 @@ output "cluster_name" {
 }
 
 output "kubeconfig_path" {
-  value       = k3d_cluster.this.kubeconfig_path
+  value       = local.kubeconfig_path
   description = "Local kubeconfig path"
 }
 
@@ -19,6 +19,6 @@ output "agents" {
 }
 
 output "kube_api_endpoint" {
-  value       = var.expose_api ? "https://127.0.0.1:${var.api_port}" : null
+  value       = var.expose_api ? format("https://127.0.0.1:%d", var.api_port) : null
   description = "Local Kubernetes API endpoint (if exposed)"
 }
