@@ -62,7 +62,6 @@ services:
 
   docker-runner:
     image: ghcr.io/agynio/docker-runner:0.15.1
-# bumped by EM: v0.15.1
     restart: unless-stopped
     environment:
       DOCKER_RUNNER_HOST: "0.0.0.0"
