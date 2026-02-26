@@ -61,7 +61,7 @@ services:
       - agents_stack
 
   docker-runner:
-    image: ghcr.io/agynio/docker-runner:0.14.4
+    image: ghcr.io/agynio/docker-runner:0.15.0
 # bumped by EM: v0.15.0
     restart: unless-stopped
     environment:
@@ -90,14 +90,13 @@ services:
   # Platform server (NestJS) — internal only, UI will proxy
   platform-server:
     user: root
-    image: ghcr.io/agynio/platform-server:0.14.4
+    image: ghcr.io/agynio/platform-server:0.15.0
     restart: unless-stopped
     environment:
       AGENTS_DATABASE_URL: postgresql://agents:agents@platform-db:5432/agents
       LLM_PROVIDER: litellm
       LITELLM_BASE_URL: http://litellm:4000
       LITELLM_MASTER_KEY: sk-dev-master-1234
-      WORKSPACE_NETWORK_NAME: agyn_agents_stack
       CORS_ORIGINS: http://localhost:2496
       PORT: "3010"
       VAULT_ENABLED: 'true'
@@ -107,8 +106,8 @@ services:
       GRAPH_BRANCH: v0.10.1
       GRAPH_AUTHOR_NAME: Agyn Platform
       GRAPH_AUTHOR_EMAIL: rowan.stein@agyn.io
-      DOCKER_RUNNER_BASE_URL: http://docker-runner:7071
-      DOCKER_RUNNER_SHARED_SECRET: ${DOCKER_RUNNER_SHARED_SECRET:-change-me}
+      DOCKER_RUNNER_GRPC_HOST: docker-runner
+      DOCKER_RUNNER_GRPC_PORT: 7071
       # DOCKER_RUNNER_TIMEOUT_MS: "30000"
     depends_on:
       platform-db:
@@ -130,7 +129,7 @@ services:
 
   # Platform UI reverse proxy — the only exposed service
   platform-ui:
-    image: ghcr.io/agynio/platform-ui:0.14.5
+    image: ghcr.io/agynio/platform-ui:0.15.0
     restart: unless-stopped
     environment:
       API_UPSTREAM: http://platform-server:3010
