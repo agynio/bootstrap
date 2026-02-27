@@ -24,7 +24,7 @@ variable "platform_repo_url" {
 variable "platform_target_revision" {
   type        = string
   description = "Git revision for platform Helm charts"
-  default     = "main"
+  default     = "v0.15.2"
 }
 
 variable "platform_namespace" {
@@ -42,7 +42,7 @@ variable "destination_server" {
 variable "platform_server_image_tag" {
   type        = string
   description = "Optional override for the platform-server image tag"
-  default     = ""
+  default     = "0.15.2"
 }
 
 variable "platform_server_replica_count" {
@@ -54,7 +54,7 @@ variable "platform_server_replica_count" {
 variable "docker_runner_image_tag" {
   type        = string
   description = "Optional override for the docker-runner image tag"
-  default     = ""
+  default     = "0.15.2"
 }
 
 variable "docker_runner_replica_count" {
@@ -79,4 +79,70 @@ variable "argocd_self_heal_enabled" {
   type        = bool
   description = "Enable self-healing during automated sync"
   default     = true
+}
+
+variable "platform_db_password" {
+  type        = string
+  description = "Password for the platform PostgreSQL database user"
+  default     = "agents"
+  sensitive   = true
+}
+
+variable "platform_db_pvc_size" {
+  type        = string
+  description = "Persistent volume claim size for the platform PostgreSQL primary"
+  default     = "5Gi"
+}
+
+variable "litellm_db_password" {
+  type        = string
+  description = "Password for the LiteLLM PostgreSQL database user"
+  default     = "change-me"
+  sensitive   = true
+}
+
+variable "litellm_db_pvc_size" {
+  type        = string
+  description = "Persistent volume claim size for the LiteLLM PostgreSQL primary"
+  default     = "5Gi"
+}
+
+variable "litellm_master_key" {
+  type        = string
+  description = "LiteLLM master key used by platform workloads"
+  default     = "sk-dev-master"
+  sensitive   = true
+}
+
+variable "litellm_salt_key" {
+  type        = string
+  description = "LiteLLM salt key used by platform workloads"
+  default     = "sk-dev-salt"
+  sensitive   = true
+}
+
+variable "docker_runner_shared_secret" {
+  type        = string
+  description = "Shared secret used by docker-runner and platform-server"
+  default     = "change-me"
+  sensitive   = true
+}
+
+variable "vault_token" {
+  type        = string
+  description = "Vault root token used during bootstrap"
+  default     = "dev-root"
+  sensitive   = true
+}
+
+variable "vault_pvc_size" {
+  type        = string
+  description = "Persistent volume claim size for Vault data"
+  default     = "5Gi"
+}
+
+variable "registry_mirror_pvc_size" {
+  type        = string
+  description = "Persistent volume claim size for the registry mirror"
+  default     = "5Gi"
 }
