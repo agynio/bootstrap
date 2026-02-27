@@ -13,5 +13,5 @@ variable "istio_chart_version" {
 variable "argocd_chart_version" {
   type        = string
   description = "Argo CD chart version"
-  default     = "5.33.0"
+  default     = "9.4.3"
 }
