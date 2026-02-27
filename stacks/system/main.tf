@@ -77,9 +77,14 @@ resource "helm_release" "argo_cd" {
         }
       }
       configs = {
+        cm = {
+          admin = {
+            enabled = true
+          }
+        }
         secret = {
-          argocdServerAdminPassword      = "$2a$10$H1a30nMr9v2QE2nkyz0BoOD2J0I6FQFMtHS0csEg12RBWzfRuuoE6"
-          argocdServerAdminPasswordMtime = "2026-02-24T00:00:00Z"
+          argocdServerAdminPassword      = "$2a$10$hR1GwTdUGuvKqOZBrM2ctu8eAwE70ItpOXOHgslxBqG6UHIRhRrzK"
+          argocdServerAdminPasswordMtime = "2026-02-27T14:54:31Z"
         }
       }
     })
