@@ -107,6 +107,7 @@ services:
       GRAPH_AUTHOR_EMAIL: rowan.stein@agyn.io
       DOCKER_RUNNER_GRPC_HOST: docker-runner
       DOCKER_RUNNER_GRPC_PORT: 7071
+      DOCKER_RUNNER_SHARED_SECRET: ${DOCKER_RUNNER_SHARED_SECRET:-change-me}
       # DOCKER_RUNNER_TIMEOUT_MS: "30000"
     depends_on:
       platform-db:
