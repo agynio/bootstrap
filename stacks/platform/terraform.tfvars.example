@@ -1,0 +1,15 @@
+argocd_server_addr = "http://localhost:8080"
+argocd_auth_token  = "REPLACE_WITH_ARGOCD_TOKEN"
+argocd_insecure    = true
+
+platform_namespace            = "platform"
+platform_repo_url             = "https://github.com/agynio/platform.git"
+platform_target_revision      = "main"
+platform_server_image_tag     = ""
+platform_server_replica_count = 2
+docker_runner_image_tag       = ""
+docker_runner_replica_count   = 1
+
+argocd_automated_sync_enabled = true
+argocd_prune_enabled          = true
+argocd_self_heal_enabled      = true
