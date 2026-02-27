@@ -1,19 +1,20 @@
 # This file is maintained automatically by "terraform init".
 # Manual edits may be lost in future updates.
 
-provider "registry.terraform.io/oboukili/argocd" {
-  version     = "6.2.0"
-  constraints = "~> 6.0"
+provider "registry.terraform.io/argoproj-labs/argocd" {
+  version     = "7.14.0"
+  constraints = "~> 7.14"
   hashes = [
-    "h1:iVH2d+f2uqymcqSMp9vq+FS1kiMwdkOZpmyMwb54YxY=",
-    "zh:0edef45dbb7cb4471ec3487d209e944a5fd79c934417648abc93ad8649f1cb44",
-    "zh:18320269e3655beca0621392c76c3782fd4395524dcb7be06089c2bb113f993f",
-    "zh:4424c54195e385a6a17b8da538e78c12ff228be29310d545090539ca6089486b",
-    "zh:7256f9c1beb759ae3334c10d17c30fe4cbbe005f4e4255c4dc3902849ba49709",
-    "zh:7c13b4f6b0c0e0ac6fbd019f12babd4a5f380694e00f474efc4f08a98669bb76",
-    "zh:8cc95e77262fc8584ccc801af6b32bff28ad4e51dcaaca4ca6bda31fb9f56aa8",
-    "zh:f5adbe92c12e221a16871ab5f71dda12ae21ccdf1d9581ae0e923dec39d018ad",
-    "zh:fa2cd21a03011535e488756671eab0a4575115d8d69d1e0d8bb6fd8b871ef168",
-    "zh:fd46b783992eb653571f4699b620a42441ff362f1a670c4f1ac3718b68d9b462",
+    "h1:JSCNeVCJjlCV7YH81/wftfhi653vG1wvw904wiy5q8Y=",
+    "zh:2a178612dc518b8faa121daccb605798807ca3cee9ea06ae01f16ef420ecf920",
+    "zh:2c7e2f0ed0ea4e5d4641b39905627d0da1f7d6057e17c5b8ed990d6342a59a31",
+    "zh:53edbdcfd2e786c70445368d8fb5bb3330e82c9c5356a1f7e6fe9f3644dd32d5",
+    "zh:774d4942d6b911114be2232eedcb518e9605a994140db2a714dfacf61ee6e5f6",
+    "zh:924b55797633f869d01125bd139e41470ed80f68f5aca29a2d0b198f0179c68b",
+    "zh:98cdc3ed6f6e37bccd57cd4f988e6d0232988b114f1f38e95dd4d3293ddff994",
+    "zh:a2efbd5bb3ea81a85833382631b94808985be7a53666fc2bc10598df0c01c4d7",
+    "zh:a9668b1541df25473d0d122453b569bc9ede3f5591aa4c05c7152d962adb0fea",
+    "zh:aa272a38156d2be482d432a926691f57ab8915bc2e1b5fbe72f436fb54e2226e",
+    "zh:b2375ff2fd59456f9f8c9f58d30815c7001285b559bd89cd71e419da81df708b",
   ]
 }
