@@ -1,3 +1,9 @@
+variable "kubeconfig_path" {
+  type        = string
+  description = "Path to kubeconfig for connecting to the cluster"
+  default     = "../k8s/.kube/agyn-local-kubeconfig.yaml"
+}
+
 variable "argocd_server_addr" {
   type        = string
   description = "Argo CD API server address (e.g. http://localhost:8080 when port-forwarding)"
@@ -19,6 +25,18 @@ variable "platform_repo_url" {
   type        = string
   description = "Git repository URL containing platform Helm charts"
   default     = "https://github.com/agynio/platform.git"
+}
+
+variable "platform_stack_repo_url" {
+  type        = string
+  description = "Git repository URL containing raw Kubernetes manifests managed in this stack"
+  default     = "https://github.com/agynio/bootstrap_v2.git"
+}
+
+variable "platform_stack_target_revision" {
+  type        = string
+  description = "Git revision for raw Kubernetes manifests managed in this stack"
+  default     = "main"
 }
 
 variable "platform_target_revision" {
@@ -125,13 +143,6 @@ variable "docker_runner_shared_secret" {
   type        = string
   description = "Shared secret used by docker-runner and platform-server"
   default     = "change-me"
-  sensitive   = true
-}
-
-variable "vault_token" {
-  type        = string
-  description = "Vault root token used during bootstrap"
-  default     = "dev-root"
   sensitive   = true
 }
 

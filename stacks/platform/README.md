@@ -33,11 +33,13 @@ Use the forwarded host and port (`localhost:8080`) along with an Argo CD token i
 |-----------|--------------------|-------------------------------------|-------|
 | 0         | `platform-db`      | Bitnami PostgreSQL for platform     | Auth defaults: `agents` user/password, database `agents` |
 | 0         | `litellm-db`       | Bitnami PostgreSQL for LiteLLM      | Auth defaults: `litellm` user, password `change-me` |
-| 1         | `vault`            | HashiCorp Vault in standalone mode  | PVC size configurable via `vault_pvc_size` |
 | 1         | `registry-mirror`  | Twuni docker-registry proxy         | Proxies Docker Hub with persistent storage |
-| 2         | `litellm`          | LiteLLM API deployment              | Connects to `litellm-db` using provided secrets |
-| 3         | `docker-runner`    | Platform workspace runner           | Uses shared secret and exposes gRPC on 7071 |
-| 4         | `platform-server`  | Core platform API                   | Relies on Vault, LiteLLM, docker-runner, Postgres |
-| 5         | `platform-ui`      | Platform web UI                     | Connects to `platform-server` |
+| 10        | `vault`            | HashiCorp Vault in standalone mode  | PVC size configurable via `vault_pvc_size` |
+| 11        | `vault-init`       | Vault initialization/unseal job     | Creates/updates `vault-root-token` with root and unseal keys |
+| 12        | `litellm`          | LiteLLM API deployment              | Connects to `litellm-db` using provided secrets |
+| 13        | `litellm-bootstrap` | LiteLLM default key bootstrap job   | Generates default alias and writes `litellm-default-key` secret |
+| 18        | `docker-runner`    | Platform workspace runner           | Uses shared secret and exposes gRPC on 7071 |
+| 20        | `platform-server`  | Core platform API                   | Reads Vault token and LiteLLM client key from Kubernetes secrets |
+| 25        | `platform-ui`      | Platform web UI                     | Connects to `platform-server` |
 
 All chart versions, image tags, and critical secrets are pinned via Terraform variables for reproducibility. Adjust the defaults in `terraform.tfvars` to match your environment before applying.

@@ -2,6 +2,7 @@ locals {
   resolved_platform_server_image_tag = trimspace(var.platform_server_image_tag) != "" ? var.platform_server_image_tag : var.platform_target_revision
   resolved_docker_runner_image_tag   = trimspace(var.docker_runner_image_tag) != "" ? var.docker_runner_image_tag : var.platform_target_revision
   resolved_platform_ui_image_tag     = local.resolved_platform_server_image_tag
+  platform_stack_manifests_base_path = "stacks/platform/k8s"
 
   vault_chart_version            = "0.28.1"
   bitnami_charts_repo_url        = "https://github.com/bitnami/charts.git"
@@ -368,6 +369,15 @@ locals {
         value = var.litellm_salt_key
       },
       {
+        name = "OPENAI_API_KEY"
+        valueFrom = {
+          secretKeyRef = {
+            name = "litellm-default-key"
+            key  = "LITELLM_DEFAULT_KEY"
+          }
+        }
+      },
+      {
         name  = "DOCKER_RUNNER_GRPC_HOST"
         value = "docker-runner"
       },
@@ -388,8 +398,13 @@ locals {
         value = "http://vault:8200"
       },
       {
-        name  = "VAULT_TOKEN"
-        value = var.vault_token
+        name = "VAULT_TOKEN"
+        valueFrom = {
+          secretKeyRef = {
+            name = "vault-root-token"
+            key  = "VAULT_TOKEN"
+          }
+        }
       },
       {
         name  = "GRAPH_BRANCH"
@@ -433,6 +448,19 @@ locals {
   })
 }
 
+resource "kubernetes_secret" "litellm_master_key" {
+  metadata {
+    name      = "litellm-master-key"
+    namespace = var.platform_namespace
+  }
+
+  data = {
+    LITELLM_MASTER_KEY = base64encode(var.litellm_master_key)
+  }
+
+  type = "Opaque"
+}
+
 resource "argocd_repository" "bitnami_charts" {
   repo = local.bitnami_charts_repo_url
   type = "git"
@@ -445,6 +473,11 @@ resource "argocd_repository" "twuni_docker_registry" {
 
 resource "argocd_repository" "litellm_repo" {
   repo = local.litellm_chart_repo_url
+  type = "git"
+}
+
+resource "argocd_repository" "platform_stack" {
+  repo = var.platform_stack_repo_url
   type = "git"
 }
 
@@ -539,7 +572,7 @@ resource "argocd_application" "vault" {
     name      = "vault"
     namespace = "argocd"
     annotations = {
-      "argocd.argoproj.io/sync-wave" = "1"
+      "argocd.argoproj.io/sync-wave" = "10"
     }
   }
 
@@ -553,6 +586,50 @@ resource "argocd_application" "vault" {
 
       helm {
         values = local.vault_values
+      }
+    }
+
+    destination {
+      server    = var.destination_server
+      namespace = var.platform_namespace
+    }
+
+    sync_policy {
+      dynamic "automated" {
+        for_each = var.argocd_automated_sync_enabled ? [1] : []
+        content {
+          prune       = var.argocd_prune_enabled
+          self_heal   = var.argocd_self_heal_enabled
+          allow_empty = false
+        }
+      }
+
+      sync_options = local.default_sync_options
+    }
+  }
+}
+
+resource "argocd_application" "vault_init" {
+  depends_on = [argocd_repository.platform_stack]
+
+  metadata {
+    name      = "vault-init"
+    namespace = "argocd"
+    annotations = {
+      "argocd.argoproj.io/sync-wave" = "11"
+    }
+  }
+
+  spec {
+    project = "default"
+
+    source {
+      repo_url        = var.platform_stack_repo_url
+      target_revision = var.platform_stack_target_revision
+      path            = "${local.platform_stack_manifests_base_path}/vault-init"
+
+      directory {
+        recurse = false
       }
     }
 
@@ -625,7 +702,7 @@ resource "argocd_application" "litellm" {
     name      = "litellm"
     namespace = "argocd"
     annotations = {
-      "argocd.argoproj.io/sync-wave" = "2"
+      "argocd.argoproj.io/sync-wave" = "12"
     }
   }
 
@@ -662,12 +739,56 @@ resource "argocd_application" "litellm" {
   }
 }
 
+resource "argocd_application" "litellm_bootstrap" {
+  depends_on = [argocd_repository.platform_stack, kubernetes_secret.litellm_master_key]
+
+  metadata {
+    name      = "litellm-bootstrap"
+    namespace = "argocd"
+    annotations = {
+      "argocd.argoproj.io/sync-wave" = "13"
+    }
+  }
+
+  spec {
+    project = "default"
+
+    source {
+      repo_url        = var.platform_stack_repo_url
+      target_revision = var.platform_stack_target_revision
+      path            = "${local.platform_stack_manifests_base_path}/litellm-bootstrap"
+
+      directory {
+        recurse = false
+      }
+    }
+
+    destination {
+      server    = var.destination_server
+      namespace = var.platform_namespace
+    }
+
+    sync_policy {
+      dynamic "automated" {
+        for_each = var.argocd_automated_sync_enabled ? [1] : []
+        content {
+          prune       = var.argocd_prune_enabled
+          self_heal   = var.argocd_self_heal_enabled
+          allow_empty = false
+        }
+      }
+
+      sync_options = local.default_sync_options
+    }
+  }
+}
+
 resource "argocd_application" "docker_runner" {
   metadata {
     name      = "docker-runner"
     namespace = "argocd"
     annotations = {
-      "argocd.argoproj.io/sync-wave" = "3"
+      "argocd.argoproj.io/sync-wave" = "18"
     }
   }
 
@@ -709,7 +830,7 @@ resource "argocd_application" "platform_server" {
     name      = "platform-server"
     namespace = "argocd"
     annotations = {
-      "argocd.argoproj.io/sync-wave" = "4"
+      "argocd.argoproj.io/sync-wave" = "20"
     }
   }
 
@@ -751,7 +872,7 @@ resource "argocd_application" "platform_ui" {
     name      = "platform-ui"
     namespace = "argocd"
     annotations = {
-      "argocd.argoproj.io/sync-wave" = "5"
+      "argocd.argoproj.io/sync-wave" = "25"
     }
   }
 
