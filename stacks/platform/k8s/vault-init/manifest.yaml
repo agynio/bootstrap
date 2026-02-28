@@ -48,12 +48,12 @@ spec:
       imagePullSecrets:
         - name: ghcr-creds
       securityContext:
-        runAsNonRoot: true
-        runAsUser: 65532
-        runAsGroup: 65532
+        runAsNonRoot: false
+        runAsUser: 0
+        runAsGroup: 0
       containers:
         - name: vault-init
-          image: ghcr.io/bank-vaults/vault:1.17.2
+          image: alpine:3.19
           imagePullPolicy: IfNotPresent
           env:
             - name: VAULT_ADDR
@@ -69,6 +69,18 @@ spec:
           command: ["/bin/sh", "-ec"]
           args:
             - |
+              set -euo pipefail
+              echo "[vault-init] installing tooling"
+              apk add --no-cache curl jq unzip >/dev/null
+
+              VAULT_VERSION="1.17.2"
+              KUBECTL_VERSION="v1.29.2"
+
+              curl -fsSL "https://releases.hashicorp.com/vault/${VAULT_VERSION}/vault_${VAULT_VERSION}_linux_amd64.zip" -o /tmp/vault.zip
+              unzip -oq /tmp/vault.zip -d /usr/local/bin
+              curl -fsSL "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl" -o /usr/local/bin/kubectl
+              chmod +x /usr/local/bin/vault /usr/local/bin/kubectl
+
               echo "[vault-init] starting (VAULT_ADDR=$VAULT_ADDR)"
 
               ns="${VAULT_SECRET_NAMESPACE}"
