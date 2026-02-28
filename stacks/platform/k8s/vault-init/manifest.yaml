@@ -107,7 +107,7 @@ spec:
                 sleep 1
               done
 
-              health="$(curl -fsS "$VAULT_ADDR/v1/sys/health")"
+              health="$(curl -sS "$VAULT_ADDR/v1/sys/health")"
               initialized="$(echo "$health" | jq -r '.initialized')"
               sealed="$(echo "$health" | jq -r '.sealed')"
 
@@ -156,7 +156,7 @@ spec:
                 sealed="true"
               fi
 
-              health="$(curl -fsS "$VAULT_ADDR/v1/sys/health")"
+              health="$(curl -sS "$VAULT_ADDR/v1/sys/health")"
               sealed="$(echo "$health" | jq -r '.sealed')"
               echo "[vault-init] post-init health sealed=$sealed"
 
