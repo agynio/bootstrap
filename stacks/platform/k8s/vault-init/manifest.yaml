@@ -45,6 +45,8 @@ spec:
     spec:
       restartPolicy: Never
       serviceAccountName: vault-init
+      imagePullSecrets:
+        - name: ghcr-creds
       securityContext:
         runAsNonRoot: true
         runAsUser: 65532

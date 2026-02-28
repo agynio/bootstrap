@@ -491,6 +491,10 @@ locals {
       {
         name     = "platform-ui-tmp"
         emptyDir = {}
+      },
+      {
+        name     = "platform-ui-conf"
+        emptyDir = {}
       }
     ]
     extraVolumeMounts = [
@@ -505,6 +509,10 @@ locals {
       {
         name      = "platform-ui-tmp"
         mountPath = "/tmp"
+      },
+      {
+        name      = "platform-ui-conf"
+        mountPath = "/etc/nginx/conf.d"
       }
     ]
     livenessProbe = {
