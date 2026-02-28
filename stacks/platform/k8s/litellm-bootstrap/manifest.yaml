@@ -79,8 +79,18 @@ spec:
               alias="$LITELLM_DEFAULT_ALIAS"
 
               echo "[litellm-bootstrap] waiting for LiteLLM..."
+              health_ready() {
+                url="$1"
+                code=$(curl -s -o /dev/null -w '%{http_code}' "$url" 2>/dev/null || true)
+                code=$(echo "${code:-000}" | tr -d '\r\n')
+                case "$code" in
+                  200|401|403) return 0 ;;
+                  *) return 1 ;;
+                esac
+              }
+
               for i in $(seq 1 180); do
-                if curl -fsS "$api/health" >/dev/null 2>&1 || curl -fsS "$api/v1/health" >/dev/null 2>&1; then
+                if health_ready "$api/health" || health_ready "$api/v1/health"; then
                   break
                 fi
                 sleep 1
