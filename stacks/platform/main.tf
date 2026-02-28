@@ -369,6 +369,18 @@ locals {
         value = var.litellm_salt_key
       },
       {
+        name  = "LITELLM_KEY_ALIAS"
+        value = "agents/default"
+      },
+      {
+        name  = "LITELLM_KEY_DURATION"
+        value = "30d"
+      },
+      {
+        name  = "LITELLM_MODELS"
+        value = "all-team-models"
+      },
+      {
         name = "OPENAI_API_KEY"
         valueFrom = {
           secretKeyRef = {
@@ -388,6 +400,34 @@ locals {
       {
         name  = "DOCKER_RUNNER_SHARED_SECRET"
         value = var.docker_runner_shared_secret
+      },
+      {
+        name  = "DOCKER_RUNNER_OPTIONAL"
+        value = "true"
+      },
+      {
+        name  = "DOCKER_RUNNER_TIMEOUT_MS"
+        value = "60000"
+      },
+      {
+        name  = "DOCKER_RUNNER_CONNECT_RETRY_BASE_DELAY_MS"
+        value = "1000"
+      },
+      {
+        name  = "DOCKER_RUNNER_CONNECT_RETRY_MAX_DELAY_MS"
+        value = "60000"
+      },
+      {
+        name  = "DOCKER_RUNNER_CONNECT_RETRY_JITTER_MS"
+        value = "500"
+      },
+      {
+        name  = "DOCKER_RUNNER_CONNECT_PROBE_INTERVAL_MS"
+        value = "10000"
+      },
+      {
+        name  = "DOCKER_RUNNER_CONNECT_MAX_RETRIES"
+        value = "120"
       },
       {
         name  = "VAULT_ENABLED"
@@ -438,6 +478,40 @@ locals {
           protocol   = "TCP"
         }
       ]
+    }
+    extraVolumes = [
+      {
+        name     = "platform-ui-cache"
+        emptyDir = {}
+      },
+      {
+        name     = "platform-ui-run"
+        emptyDir = {}
+      },
+      {
+        name     = "platform-ui-tmp"
+        emptyDir = {}
+      }
+    ]
+    extraVolumeMounts = [
+      {
+        name      = "platform-ui-cache"
+        mountPath = "/var/cache/nginx"
+      },
+      {
+        name      = "platform-ui-run"
+        mountPath = "/var/run"
+      },
+      {
+        name      = "platform-ui-tmp"
+        mountPath = "/tmp"
+      }
+    ]
+    livenessProbe = {
+      enabled = true
+    }
+    readinessProbe = {
+      enabled = true
     }
     env = [
       {

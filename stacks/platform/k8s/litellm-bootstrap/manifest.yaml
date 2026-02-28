@@ -55,7 +55,7 @@ spec:
                   name: litellm-master-key
                   key: LITELLM_MASTER_KEY
             - name: LITELLM_DEFAULT_ALIAS
-              value: "default"
+              value: "agents/default"
             - name: OUTPUT_SECRET_NAME
               value: "litellm-default-key"
             - name: OUTPUT_SECRET_KEY
@@ -128,7 +128,7 @@ spec:
               type: Opaque
               stringData:
                 ${OUTPUT_SECRET_KEY}: "${key}"
-            EOF
+              EOF
               else
                 echo "[litellm-bootstrap] no key returned (possibly already exists). Not updating ${OUTPUT_SECRET_NAME}."
               fi

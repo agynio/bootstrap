@@ -63,7 +63,7 @@ spec:
                 fieldRef:
                   fieldPath: metadata.namespace
             - name: WAIT_TIMEOUT_SECONDS
-              value: "180"
+              value: "300"
           command: ["/bin/sh", "-ec"]
           args:
             - |
@@ -127,7 +127,7 @@ spec:
               stringData:
                 VAULT_TOKEN: "${root_token}"
                 VAULT_UNSEAL_KEY: "${unseal_key}"
-            EOF
+              EOF
 
                 sealed="true"
               fi
@@ -171,6 +171,6 @@ spec:
               type: Opaque
               stringData:
                 VAULT_TOKEN: "${root_token}"
-            EOF
+              EOF
 
               echo "[vault-init] done (vault unsealed, token secret ensured)"
