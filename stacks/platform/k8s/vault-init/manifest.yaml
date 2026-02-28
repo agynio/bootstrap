@@ -88,7 +88,17 @@ spec:
 
               timeout="${WAIT_TIMEOUT_SECONDS}"
               i=0
-              until curl -fsS "$VAULT_ADDR/v1/sys/health" >/dev/null 2>&1; do
+
+              health_ready() {
+                code=$(curl -s -o /dev/null -w '%{http_code}' "$VAULT_ADDR/v1/sys/health" 2>/dev/null || true)
+                code=$(echo "${code:-000}" | tr -d '\r\n')
+                case "$code" in
+                  200|429|500|501|503) return 0 ;;
+                  *) return 1 ;;
+                esac
+              }
+
+              until health_ready; do
                 i=$((i+1))
                 if [ "$i" -ge "$timeout" ]; then
                   echo "[vault-init] ERROR: Vault not reachable after ${timeout}s"
