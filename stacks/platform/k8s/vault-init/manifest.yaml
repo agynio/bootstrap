@@ -65,7 +65,7 @@ spec:
                 fieldRef:
                   fieldPath: metadata.namespace
             - name: WAIT_TIMEOUT_SECONDS
-              value: "600"
+              value: "300"
           command: ["/bin/sh", "-ec"]
           args:
             - |

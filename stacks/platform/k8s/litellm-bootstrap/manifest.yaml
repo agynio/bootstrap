@@ -59,7 +59,7 @@ spec:
             - name: OUTPUT_SECRET_NAME
               value: "litellm-default-key"
             - name: OUTPUT_SECRET_KEY
-              value: "LITELLM_DEFAULT_KEY"
+              value: "OPENAI_API_KEY"
             - name: NAMESPACE
               valueFrom:
                 fieldRef:
@@ -133,12 +133,32 @@ spec:
                 body=$(cat /tmp/body)
               fi
 
-              if [ "${code#2}" != "$code" ] || [ "$code" = "409" ]; then
-                echo "[litellm-bootstrap] key generate response code=$code"
-              else
-                echo "[litellm-bootstrap] ERROR: key generation failed code=$code body=$body"
-                exit 1
-              fi
+              normalized="$(printf '%s' "$body" | tr '[:upper:]' '[:lower:]')"
+              status_reason="unknown"
+
+              case "$code" in
+                2??)
+                  echo "[litellm-bootstrap] key generate response code=$code"
+                  status_reason="generated"
+                  ;;
+                409)
+                  echo "[litellm-bootstrap] key generate response conflict code=$code"
+                  status_reason="exists"
+                  ;;
+                400)
+                  if printf '%s' "$normalized" | grep -q 'alias' && printf '%s' "$normalized" | grep -q 'already exists'; then
+                    echo "[litellm-bootstrap] key alias already exists (code=$code)"
+                    status_reason="alias-exists"
+                  else
+                    echo "[litellm-bootstrap] ERROR: key generation failed code=$code body=$body"
+                    exit 1
+                  fi
+                  ;;
+                *)
+                  echo "[litellm-bootstrap] ERROR: key generation failed code=$code body=$body"
+                  exit 1
+                  ;;
+              esac
 
               key=$(echo "$body" | tr -d '\n' | sed -n 's/.*"key"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n1 || true)
 
@@ -155,7 +175,25 @@ spec:
                 ${OUTPUT_SECRET_KEY}: "${key}"
               EOF
               else
-                echo "[litellm-bootstrap] no key returned (possibly already exists). Not updating ${OUTPUT_SECRET_NAME}."
+                echo "[litellm-bootstrap] no key returned (${status_reason}); attempting to reuse existing secret ${OUTPUT_SECRET_NAME}."
+                selector="{.data.${OUTPUT_SECRET_KEY}}"
+                existing_b64="$(kubectl -n "$NAMESPACE" get secret "$OUTPUT_SECRET_NAME" -o jsonpath="${selector}" 2>/dev/null || true)"
+                if [ -z "$existing_b64" ]; then
+                  existing_b64="$(kubectl -n "$NAMESPACE" get secret "$OUTPUT_SECRET_NAME" -o jsonpath='{.data.LITELLM_DEFAULT_KEY}' 2>/dev/null || true)"
+                fi
+
+                if [ -n "$existing_b64" ]; then
+                  existing_plain="$(printf '%s' "$existing_b64" | base64 -d 2>/dev/null || true)"
+                  if [ -n "$existing_plain" ]; then
+                    echo "[litellm-bootstrap] reusing stored key; enforcing ${OUTPUT_SECRET_KEY}."
+                    patch_payload="$(printf '{"stringData":{"%s":"%s"}}' "$OUTPUT_SECRET_KEY" "$existing_plain")"
+                    kubectl -n "$NAMESPACE" patch secret "$OUTPUT_SECRET_NAME" --type merge -p "$patch_payload" >/dev/null
+                  else
+                    echo "[litellm-bootstrap] existing secret data unreadable; leaving ${OUTPUT_SECRET_NAME} unchanged."
+                  fi
+                else
+                  echo "[litellm-bootstrap] no existing key to reuse; leaving ${OUTPUT_SECRET_NAME} unchanged."
+                fi
               fi
 
               echo "[litellm-bootstrap] done"

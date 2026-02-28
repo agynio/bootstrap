@@ -320,6 +320,30 @@ locals {
         mountPath = "/data"
       }
     ]
+    livenessProbe = {
+      enabled             = true
+      initialDelaySeconds = 10
+      periodSeconds       = 10
+      timeoutSeconds      = 5
+      successThreshold    = 1
+      failureThreshold    = 6
+      httpGet = {
+        path = "/health"
+        port = "http"
+      }
+    }
+    readinessProbe = {
+      enabled             = true
+      initialDelaySeconds = 5
+      periodSeconds       = 10
+      timeoutSeconds      = 5
+      successThreshold    = 1
+      failureThreshold    = 6
+      httpGet = {
+        path = "/health"
+        port = "http"
+      }
+    }
     initContainers = [
       {
         name            = "platform-server-migrations"
@@ -385,7 +409,7 @@ locals {
       },
       {
         name  = "LLM_PROVIDER"
-        value = "litellm"
+        value = "openai"
       },
       {
         name  = "LITELLM_BASE_URL"
@@ -400,23 +424,15 @@ locals {
         value = var.litellm_salt_key
       },
       {
-        name  = "LITELLM_KEY_ALIAS"
-        value = "agents/default"
-      },
-      {
-        name  = "LITELLM_KEY_DURATION"
-        value = "30d"
-      },
-      {
-        name  = "LITELLM_MODELS"
-        value = "all-team-models"
+        name  = "OPENAI_BASE_URL"
+        value = "http://litellm:4000/v1"
       },
       {
         name = "OPENAI_API_KEY"
         valueFrom = {
           secretKeyRef = {
             name = "litellm-default-key"
-            key  = "LITELLM_DEFAULT_KEY"
+            key  = "OPENAI_API_KEY"
           }
         }
       },
@@ -558,13 +574,19 @@ locals {
         value = "http://platform-server:3010"
       }
     ]
-  })
+})
+}
+
+resource "kubernetes_namespace" "platform" {
+  metadata {
+    name = var.platform_namespace
+  }
 }
 
 resource "kubernetes_secret" "litellm_master_key" {
   metadata {
     name      = "litellm-master-key"
-    namespace = var.platform_namespace
+    namespace = kubernetes_namespace.platform.metadata[0].name
   }
 
   data = {
@@ -590,8 +612,10 @@ resource "argocd_repository" "litellm_repo" {
 }
 
 resource "argocd_repository" "platform_stack" {
-  repo = var.platform_stack_repo_url
-  type = "git"
+  repo     = var.platform_stack_repo_url
+  type     = "git"
+  username = trimspace(var.platform_stack_repo_username) == "" ? null : var.platform_stack_repo_username
+  password = trimspace(var.platform_stack_repo_password) == "" ? null : var.platform_stack_repo_password
 }
 
 resource "argocd_application" "platform_db" {
@@ -705,6 +729,15 @@ resource "argocd_application" "vault" {
     destination {
       server    = var.destination_server
       namespace = var.platform_namespace
+    }
+
+    ignore_difference {
+      group = "admissionregistration.k8s.io"
+      kind  = "MutatingWebhookConfiguration"
+      name  = "vault-agent-injector-cfg"
+      json_pointers = [
+        "/webhooks/0/clientConfig/caBundle"
+      ]
     }
 
     sync_policy {
