@@ -78,6 +78,13 @@ spec:
               api="$LITELLM_BASE_URL"
               alias="$LITELLM_DEFAULT_ALIAS"
 
+              raw_master="$LITELLM_MASTER_KEY"
+              master_key="$raw_master"
+              if printf '%s' "$raw_master" | base64 -d >/tmp/master-key 2>/dev/null; then
+                master_key="$(cat /tmp/master-key)"
+              fi
+              rm -f /tmp/master-key
+
               echo "[litellm-bootstrap] waiting for LiteLLM..."
               health_ready() {
                 url="$1"
@@ -100,7 +107,7 @@ spec:
                 fi
               done
 
-              auth="Authorization: Bearer $LITELLM_MASTER_KEY"
+              auth="Authorization: Bearer $master_key"
               ct="Content-Type: application/json"
 
               gen_body='{"key_alias":"'"$alias"'","duration":null,"metadata":{"bootstrap":true}}'
