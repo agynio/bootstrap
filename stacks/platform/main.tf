@@ -5,9 +5,9 @@ locals {
   platform_stack_manifests_base_path = "stacks/platform/k8s"
 
   vault_chart_version            = "0.28.1"
-  bitnami_charts_repo_url        = "https://github.com/bitnami/charts.git"
-  postgresql_chart_path          = "bitnami/postgresql"
-  postgresql_chart_revision      = "postgresql/15.5.17"
+  bitnami_charts_repo_url        = "https://charts.bitnami.com/bitnami"
+  postgresql_chart_name          = "postgresql"
+  postgresql_chart_version       = "15.5.17"
   registry_mirror_repo_url       = "https://github.com/twuni/docker-registry.helm.git"
   registry_mirror_chart_path     = "."
   registry_mirror_chart_revision = "v2.2.2"
@@ -39,10 +39,9 @@ locals {
 
   platform_db_values = yamlencode({
     image = {
-      registry   = "docker.io"
+      registry   = "public.ecr.aws"
       repository = "bitnami/postgresql"
-      tag        = "latest"
-      digest     = "sha256:e8b68936d05ee665974430bb4765fedcdc5c9ba399e133e120e2deed77f54dbf"
+      tag        = "16.3.0"
       pullPolicy = "IfNotPresent"
     }
     auth = {
@@ -60,10 +59,9 @@ locals {
 
   litellm_db_values = yamlencode({
     image = {
-      registry   = "docker.io"
+      registry   = "public.ecr.aws"
       repository = "bitnami/postgresql"
-      tag        = "latest"
-      digest     = "sha256:e8b68936d05ee665974430bb4765fedcdc5c9ba399e133e120e2deed77f54dbf"
+      tag        = "16.3.0"
       pullPolicy = "IfNotPresent"
     }
     auth = {
@@ -82,6 +80,11 @@ locals {
   vault_values = yamlencode({
     fullnameOverride = "vault"
     server = {
+      image = {
+        repository = "public.ecr.aws/hashicorp/vault"
+        tag        = "1.17.2"
+        pullPolicy = "IfNotPresent"
+      }
       ha = {
         enabled = false
       }
@@ -94,6 +97,18 @@ locals {
         size    = var.vault_pvc_size
       }
     }
+    injector = {
+      image = {
+        repository = "public.ecr.aws/hashicorp/vault-k8s"
+        tag        = "1.4.2"
+        pullPolicy = "IfNotPresent"
+      }
+      agentImage = {
+        repository = "public.ecr.aws/hashicorp/vault"
+        tag        = "1.17.2"
+        pullPolicy = "IfNotPresent"
+      }
+    }
     ui = {
       enabled = true
     }
@@ -101,6 +116,11 @@ locals {
 
   registry_mirror_values = yamlencode({
     fullnameOverride = "registry-mirror"
+    image = {
+      repository = "public.ecr.aws/docker/library/registry"
+      tag        = "2"
+      pullPolicy = "IfNotPresent"
+    }
     persistence = {
       enabled = true
       size    = var.registry_mirror_pvc_size
@@ -193,6 +213,17 @@ locals {
         mountPath = "/tmp"
       }
     ]
+    runtime = {
+      mode = "dind"
+      dind = {
+        image = {
+          registry   = "public.ecr.aws/docker/library"
+          repository = "docker"
+          tag        = "24.0.7-dind"
+          pullPolicy = "IfNotPresent"
+        }
+      }
+    }
     env = [
       {
         name  = "DOCKER_RUNNER_SHARED_SECRET"
@@ -545,7 +576,7 @@ resource "kubernetes_secret" "litellm_master_key" {
 
 resource "argocd_repository" "bitnami_charts" {
   repo = local.bitnami_charts_repo_url
-  type = "git"
+  type = "helm"
 }
 
 resource "argocd_repository" "twuni_docker_registry" {
@@ -578,8 +609,8 @@ resource "argocd_application" "platform_db" {
 
     source {
       repo_url        = local.bitnami_charts_repo_url
-      target_revision = local.postgresql_chart_revision
-      path            = local.postgresql_chart_path
+      chart           = local.postgresql_chart_name
+      target_revision = local.postgresql_chart_version
 
       helm {
         values = local.platform_db_values
@@ -621,8 +652,8 @@ resource "argocd_application" "litellm_db" {
 
     source {
       repo_url        = local.bitnami_charts_repo_url
-      target_revision = local.postgresql_chart_revision
-      path            = local.postgresql_chart_path
+      chart           = local.postgresql_chart_name
+      target_revision = local.postgresql_chart_version
 
       helm {
         values = local.litellm_db_values

@@ -44,7 +44,7 @@ spec:
       serviceAccountName: litellm-bootstrap
       containers:
         - name: bootstrap
-          image: dtzar/helm-kubectl:3.14.0
+          image: public.ecr.aws/docker/library/alpine:3.19.1
           imagePullPolicy: IfNotPresent
           env:
             - name: LITELLM_BASE_URL
@@ -67,6 +67,14 @@ spec:
           command: ["/bin/sh", "-ec"]
           args:
             - |
+              set -euo pipefail
+              echo "[litellm-bootstrap] installing tooling"
+              apk add --no-cache ca-certificates curl jq >/dev/null
+
+              KUBECTL_VERSION="v1.29.2"
+              curl -fsSL "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl" -o /usr/local/bin/kubectl
+              chmod +x /usr/local/bin/kubectl
+
               api="$LITELLM_BASE_URL"
               alias="$LITELLM_DEFAULT_ALIAS"
 
