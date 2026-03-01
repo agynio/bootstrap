@@ -42,31 +42,6 @@ variable "platform_repo_password" {
   sensitive   = true
 }
 
-variable "platform_stack_repo_url" {
-  type        = string
-  description = "Git repository URL containing raw Kubernetes manifests managed in this stack"
-  default     = "https://github.com/agynio/bootstrap_v2.git"
-}
-
-variable "platform_stack_repo_username" {
-  type        = string
-  description = "Optional basic-auth username for accessing the platform stack repository"
-  default     = ""
-}
-
-variable "platform_stack_repo_password" {
-  type        = string
-  description = "Optional basic-auth password/token for accessing the platform stack repository"
-  default     = ""
-  sensitive   = true
-}
-
-variable "platform_stack_target_revision" {
-  type        = string
-  description = "Git revision for raw Kubernetes manifests managed in this stack"
-  default     = "main"
-}
-
 variable "platform_target_revision" {
   type        = string
   description = "Git revision for platform Helm charts"
