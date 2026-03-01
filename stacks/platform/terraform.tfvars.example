@@ -1,7 +1,15 @@
-kubeconfig_path   = "../k8s/.kube/agyn-local-kubeconfig.yaml"
+kubeconfig_path    = "../k8s/.kube/agyn-local-kubeconfig.yaml"
 argocd_server_addr = "localhost:8080"
-argocd_auth_token  = "REPLACE_WITH_ARGOCD_TOKEN"
 argocd_insecure    = true
+
+# Secret-based Argo CD authentication (default)
+argocd_token_secret_enabled   = true
+argocd_token_secret_namespace = "argocd"
+argocd_token_secret_name      = "argocd-platform-automation-token"
+argocd_token_secret_key       = "token"
+
+# Uncomment to override with a manual token instead of using the secret
+# argocd_auth_token = "REPLACE_WITH_ARGOCD_TOKEN"
 
 platform_namespace            = "platform"
 platform_repo_url             = "https://github.com/agynio/platform.git"

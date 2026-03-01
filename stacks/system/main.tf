@@ -1,7 +1,15 @@
 # Helm repositories
 locals {
-  istio_repository_url = "https://istio-release.storage.googleapis.com/charts"
-  argo_repository_url  = "https://argoproj.github.io/argo-helm"
+  istio_repository_url                  = "https://istio-release.storage.googleapis.com/charts"
+  argo_repository_url                   = "https://argoproj.github.io/argo-helm"
+  argocd_platform_automation_image      = "quay.io/argoproj/argocd:v3.3.1"
+  argocd_platform_automation_policy_csv = <<-EOT
+    p, role:platform-automation, applications, *, *, allow
+    p, role:platform-automation, applicationsets, *, *, allow
+    p, role:platform-automation, projects, *, *, allow
+    p, role:platform-automation, repositories, *, *, allow
+    g, platform-automation, role:platform-automation
+  EOT
 }
 
 # Istio base (CRDs)
@@ -81,7 +89,11 @@ resource "helm_release" "argo_cd" {
           admin = {
             enabled = true
           }
-          "accounts.admin" = "apiKey,login"
+          "accounts.admin"               = "apiKey,login"
+          "accounts.platform-automation" = "apiKey"
+        }
+        rbac = {
+          "policy.csv" = local.argocd_platform_automation_policy_csv
         }
         secret = {
           argocdServerAdminPassword      = "$2a$10$hR1GwTdUGuvKqOZBrM2ctu8eAwE70ItpOXOHgslxBqG6UHIRhRrzK"

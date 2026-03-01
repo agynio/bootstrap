@@ -4,8 +4,8 @@ Deploy platform workloads via Argo CD applications that reference the Helm chart
 
 ## Prerequisites
 
-- `stacks/k8s` and `stacks/system` applied so that Argo CD is installed in the cluster.
-- Argo CD authentication token with permissions to manage applications.
+- `stacks/k8s` and `stacks/system` applied so that Argo CD is installed in the cluster and the `argocd-platform-automation-token` secret exists in the `argocd` namespace.
+- (Optional) Manual Argo CD authentication token if you disable the secret-based workflow.
 - Persistent storage classes available for PostgreSQL, Vault, and registry mirror PVCs.
 
 ## Usage
@@ -13,7 +13,7 @@ Deploy platform workloads via Argo CD applications that reference the Helm chart
 ```bash
 cd stacks/platform
 cp terraform.tfvars.example terraform.tfvars
-# edit terraform.tfvars with your Argo CD details
+# edit terraform.tfvars if you need to override the secret location or provide a manual token
 terraform init
 terraform validate
 terraform apply
@@ -25,7 +25,7 @@ For local clusters, Argo CD is typically reached via port-forwarding:
 kubectl -n argocd port-forward svc/argocd-server 8080:80
 ```
 
-Use the forwarded host and port (`localhost:8080`) along with an Argo CD token in `terraform.tfvars` when running this stack.
+Use the forwarded host and port (`localhost:8080`). A token is read from the Kubernetes secret by default; set `argocd_auth_token` only when overriding the secret-based workflow.
 
 ## Applications deployed
 

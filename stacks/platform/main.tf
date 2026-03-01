@@ -574,7 +574,7 @@ locals {
         value = "http://platform-server:3010"
       }
     ]
-})
+  })
 }
 
 resource "kubernetes_namespace" "platform" {

@@ -1,6 +1,6 @@
 provider "argocd" {
   server_addr = var.argocd_server_addr
-  auth_token  = var.argocd_auth_token
+  auth_token  = local.argocd_provider_token
   insecure    = var.argocd_insecure
 }
 
