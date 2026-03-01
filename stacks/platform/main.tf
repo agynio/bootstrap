@@ -2,6 +2,7 @@ locals {
   resolved_platform_server_image_tag = trimspace(var.platform_server_image_tag) != "" ? var.platform_server_image_tag : var.platform_target_revision
   resolved_docker_runner_image_tag   = trimspace(var.docker_runner_image_tag) != "" ? var.docker_runner_image_tag : var.platform_target_revision
   resolved_platform_ui_image_tag     = local.resolved_platform_server_image_tag
+  platform_stack_manifests_base_path = "stacks/platform/k8s"
   argocd_server_addr_normalized      = replace(replace(var.argocd_server_addr, "https://", ""), "http://", "")
 
   vault_chart_version            = "0.28.1"
@@ -39,9 +40,9 @@ locals {
 
   platform_db_values = yamlencode({
     image = {
-      registry   = "public.ecr.aws"
+      registry   = "docker.io"
       repository = "bitnami/postgresql"
-      tag        = "16.3.0-debian-12-r21"
+      tag        = "16.3.0"
       pullPolicy = "IfNotPresent"
     }
     auth = {
@@ -59,9 +60,9 @@ locals {
 
   litellm_db_values = yamlencode({
     image = {
-      registry   = "public.ecr.aws"
+      registry   = "docker.io"
       repository = "bitnami/postgresql"
-      tag        = "16.3.0-debian-12-r21"
+      tag        = "16.3.0"
       pullPolicy = "IfNotPresent"
     }
     auth = {
@@ -140,8 +141,6 @@ locals {
           securityContext = {
             allowPrivilegeEscalation = false
             runAsNonRoot             = false
-            runAsUser                = 0
-            runAsGroup               = 0
           }
           volumeMounts = [
             {
@@ -630,9 +629,6 @@ locals {
       }
     ]
   })
-
-  vault_auto_init_script   = trimspace(file("${path.module}/files/vault-auto-init.sh"))
-  litellm_bootstrap_script = trimspace(file("${path.module}/files/litellm-bootstrap.sh"))
 }
 
 resource "kubernetes_namespace" "platform" {
@@ -652,134 +648,6 @@ resource "kubernetes_secret" "litellm_master_key" {
   }
 
   type = "Opaque"
-}
-
-resource "kubernetes_config_map_v1" "vault_auto_init" {
-  metadata {
-    name      = "vault-auto-init"
-    namespace = kubernetes_namespace.platform.metadata[0].name
-  }
-
-  data = {
-    "auto-init.sh" = local.vault_auto_init_script
-  }
-}
-
-resource "kubernetes_service_account_v1" "litellm_bootstrap" {
-  metadata {
-    name      = "litellm-bootstrap"
-    namespace = kubernetes_namespace.platform.metadata[0].name
-  }
-}
-
-resource "kubernetes_role_v1" "litellm_bootstrap_secrets_writer" {
-  metadata {
-    name      = "litellm-bootstrap-secrets-writer"
-    namespace = kubernetes_namespace.platform.metadata[0].name
-  }
-
-  rule {
-    api_groups = [""]
-    resources  = ["secrets"]
-    verbs      = ["get", "create", "update", "patch"]
-  }
-}
-
-resource "kubernetes_role_binding_v1" "litellm_bootstrap_secrets_writer" {
-  metadata {
-    name      = "litellm-bootstrap-secrets-writer"
-    namespace = kubernetes_namespace.platform.metadata[0].name
-  }
-
-  role_ref {
-    api_group = "rbac.authorization.k8s.io"
-    kind      = "Role"
-    name      = kubernetes_role_v1.litellm_bootstrap_secrets_writer.metadata[0].name
-  }
-
-  subject {
-    kind      = "ServiceAccount"
-    name      = kubernetes_service_account_v1.litellm_bootstrap.metadata[0].name
-    namespace = kubernetes_namespace.platform.metadata[0].name
-  }
-}
-
-resource "kubernetes_job_v1" "litellm_bootstrap_default_key" {
-  metadata {
-    name      = "litellm-bootstrap-default-key"
-    namespace = kubernetes_namespace.platform.metadata[0].name
-  }
-
-  spec {
-    backoff_limit              = 6
-    ttl_seconds_after_finished = 3600
-
-    template {
-      metadata {}
-
-      spec {
-        service_account_name = kubernetes_service_account_v1.litellm_bootstrap.metadata[0].name
-        restart_policy       = "Never"
-
-        container {
-          name              = "bootstrap"
-          image             = "public.ecr.aws/docker/library/alpine:3.19.1"
-          image_pull_policy = "IfNotPresent"
-
-          env {
-            name  = "LITELLM_BASE_URL"
-            value = "http://litellm:4000"
-          }
-
-          env {
-            name = "LITELLM_MASTER_KEY"
-            value_from {
-              secret_key_ref {
-                name = kubernetes_secret.litellm_master_key.metadata[0].name
-                key  = "LITELLM_MASTER_KEY"
-              }
-            }
-          }
-
-          env {
-            name  = "LITELLM_DEFAULT_ALIAS"
-            value = "agents/default"
-          }
-
-          env {
-            name  = "OUTPUT_SECRET_NAME"
-            value = "litellm-default-key"
-          }
-
-          env {
-            name  = "OUTPUT_SECRET_KEY"
-            value = "OPENAI_API_KEY"
-          }
-
-          env {
-            name = "NAMESPACE"
-            value_from {
-              field_ref {
-                field_path = "metadata.namespace"
-              }
-            }
-          }
-
-          command = ["/bin/sh", "-ec"]
-          args    = [local.litellm_bootstrap_script]
-        }
-      }
-    }
-  }
-
-  depends_on = [
-    kubernetes_secret.litellm_master_key,
-    kubernetes_service_account_v1.litellm_bootstrap,
-    kubernetes_role_binding_v1.litellm_bootstrap_secrets_writer,
-    argocd_application.litellm
-  ]
-
-  wait_for_completion = false
 }
 
 resource "argocd_repository" "bitnami_charts" {
@@ -802,6 +670,13 @@ resource "argocd_repository" "platform" {
   type     = "git"
   username = trimspace(var.platform_repo_username) == "" ? null : var.platform_repo_username
   password = trimspace(var.platform_repo_password) == "" ? null : var.platform_repo_password
+}
+
+resource "argocd_repository" "platform_stack" {
+  repo     = var.platform_stack_repo_url
+  type     = "git"
+  username = trimspace(var.platform_stack_repo_username) == "" ? null : var.platform_stack_repo_username
+  password = trimspace(var.platform_stack_repo_password) == "" ? null : var.platform_stack_repo_password
 }
 
 resource "argocd_application" "platform_db" {
@@ -891,8 +766,6 @@ resource "argocd_application" "litellm_db" {
 }
 
 resource "argocd_application" "vault" {
-  depends_on = [kubernetes_config_map_v1.vault_auto_init]
-
   metadata {
     name      = "vault"
     namespace = "argocd"
@@ -926,6 +799,50 @@ resource "argocd_application" "vault" {
       json_pointers = [
         "/webhooks/0/clientConfig/caBundle"
       ]
+    }
+
+    sync_policy {
+      dynamic "automated" {
+        for_each = var.argocd_automated_sync_enabled ? [1] : []
+        content {
+          prune       = var.argocd_prune_enabled
+          self_heal   = var.argocd_self_heal_enabled
+          allow_empty = false
+        }
+      }
+
+      sync_options = local.default_sync_options
+    }
+  }
+}
+
+resource "argocd_application" "vault_auto_init" {
+  depends_on = [argocd_repository.platform_stack]
+
+  metadata {
+    name      = "vault-auto-init"
+    namespace = "argocd"
+    annotations = {
+      "argocd.argoproj.io/sync-wave" = "9"
+    }
+  }
+
+  spec {
+    project = "default"
+
+    source {
+      repo_url        = var.platform_stack_repo_url
+      target_revision = var.platform_stack_target_revision
+      path            = "${local.platform_stack_manifests_base_path}/vault-auto-init"
+
+      directory {
+        recurse = false
+      }
+    }
+
+    destination {
+      server    = var.destination_server
+      namespace = var.platform_namespace
     }
 
     sync_policy {
@@ -1006,6 +923,50 @@ resource "argocd_application" "litellm" {
 
       helm {
         values = local.litellm_values
+      }
+    }
+
+    destination {
+      server    = var.destination_server
+      namespace = var.platform_namespace
+    }
+
+    sync_policy {
+      dynamic "automated" {
+        for_each = var.argocd_automated_sync_enabled ? [1] : []
+        content {
+          prune       = var.argocd_prune_enabled
+          self_heal   = var.argocd_self_heal_enabled
+          allow_empty = false
+        }
+      }
+
+      sync_options = local.default_sync_options
+    }
+  }
+}
+
+resource "argocd_application" "litellm_bootstrap" {
+  depends_on = [argocd_repository.platform_stack, kubernetes_secret.litellm_master_key]
+
+  metadata {
+    name      = "litellm-bootstrap"
+    namespace = "argocd"
+    annotations = {
+      "argocd.argoproj.io/sync-wave" = "13"
+    }
+  }
+
+  spec {
+    project = "default"
+
+    source {
+      repo_url        = var.platform_stack_repo_url
+      target_revision = var.platform_stack_target_revision
+      path            = "${local.platform_stack_manifests_base_path}/litellm-bootstrap"
+
+      directory {
+        recurse = false
       }
     }
 

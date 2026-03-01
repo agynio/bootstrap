@@ -5,15 +5,4 @@ k3s_version    = "v1.28.4-k3s1"
 k3s_extra_args = []
 expose_api     = true
 api_port       = 6443
-ports = [
-  {
-    container_port = 8080
-    host_port      = 8080
-    protocol       = "tcp"
-  },
-  {
-    container_port = 8443
-    host_port      = 8443
-    protocol       = "tcp"
-  }
-]
+ports          = []
