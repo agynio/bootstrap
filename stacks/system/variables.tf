@@ -15,3 +15,21 @@ variable "argocd_chart_version" {
   description = "Argo CD chart version"
   default     = "9.4.3"
 }
+
+variable "argocd_admin_username" {
+  type        = string
+  description = "Admin username used by the automation bootstrap job"
+  default     = "admin"
+}
+
+variable "argocd_admin_password" {
+  type        = string
+  description = "Admin password used by the automation bootstrap job"
+  default     = "admin"
+}
+
+variable "argocd_server_addr" {
+  type        = string
+  description = "Internal address of the Argo CD server"
+  default     = "argo-cd-argocd-server.argocd.svc.cluster.local"
+}

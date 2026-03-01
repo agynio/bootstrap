@@ -6,55 +6,40 @@ variable "kubeconfig_path" {
 
 variable "argocd_server_addr" {
   type        = string
-  description = "Argo CD API server address (e.g. http://localhost:8080 when port-forwarding)"
+  description = "Argo CD API host:port for Terraform to reach"
+  default     = "localhost:8080"
 }
 
-variable "argocd_auth_token" {
+variable "argocd_admin_username" {
   type        = string
-  description = "Optional Argo CD authentication token override used instead of the secret-based token"
+  description = "Admin username used for Argo CD provider authentication"
+  default     = "admin"
+}
+
+variable "argocd_admin_password" {
+  type        = string
+  description = "Admin password used for Argo CD provider authentication"
+  default     = "admin"
   sensitive   = true
-  default     = null
-}
-
-variable "argocd_insecure" {
-  type        = bool
-  description = "Allow insecure TLS or plaintext connections to the Argo CD API"
-  default     = true
-}
-
-variable "argocd_token_secret_enabled" {
-  type        = bool
-  description = "Enable retrieving the Argo CD authentication token from a Kubernetes secret"
-  default     = true
-
-  validation {
-    condition     = var.argocd_token_secret_enabled || (var.argocd_auth_token != null && trimspace(var.argocd_auth_token) != "")
-    error_message = "Set argocd_auth_token when argocd_token_secret_enabled is false."
-  }
-}
-
-variable "argocd_token_secret_namespace" {
-  type        = string
-  description = "Namespace containing the Kubernetes secret with the Argo CD authentication token"
-  default     = "argocd"
-}
-
-variable "argocd_token_secret_name" {
-  type        = string
-  description = "Name of the Kubernetes secret containing the Argo CD authentication token"
-  default     = "argocd-platform-automation-token"
-}
-
-variable "argocd_token_secret_key" {
-  type        = string
-  description = "Secret data key storing the Argo CD authentication token"
-  default     = "token"
 }
 
 variable "platform_repo_url" {
   type        = string
   description = "Git repository URL containing platform Helm charts"
   default     = "https://github.com/agynio/platform.git"
+}
+
+variable "platform_repo_username" {
+  type        = string
+  description = "Optional basic-auth username for accessing the platform Helm repository"
+  default     = ""
+}
+
+variable "platform_repo_password" {
+  type        = string
+  description = "Optional basic-auth password/token for accessing the platform Helm repository"
+  default     = ""
+  sensitive   = true
 }
 
 variable "platform_stack_repo_url" {

@@ -1,9 +1,14 @@
 # Helm repositories
 locals {
-  istio_repository_url                  = "https://istio-release.storage.googleapis.com/charts"
-  argo_repository_url                   = "https://argoproj.github.io/argo-helm"
-  argocd_platform_automation_image      = "quay.io/argoproj/argocd:v3.3.1"
-  argocd_platform_automation_policy_csv = <<-EOT
+  istio_repository_url                       = "https://istio-release.storage.googleapis.com/charts"
+  argo_repository_url                        = "https://argoproj.github.io/argo-helm"
+  argocd_platform_automation_job_image       = "docker.io/library/alpine:3.19"
+  argocd_platform_automation_cli_version     = "v3.3.1"
+  argocd_platform_automation_kubectl_version = "v1.35.0"
+  argocd_platform_automation_server_addr     = var.argocd_server_addr
+  argocd_platform_automation_admin_username  = var.argocd_admin_username
+  argocd_platform_automation_admin_password  = var.argocd_admin_password
+  argocd_platform_automation_policy_csv      = <<-EOT
     p, role:platform-automation, applications, *, *, allow
     p, role:platform-automation, applicationsets, *, *, allow
     p, role:platform-automation, projects, *, *, allow

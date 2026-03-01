@@ -3,6 +3,10 @@ locals {
   resolved_docker_runner_image_tag   = trimspace(var.docker_runner_image_tag) != "" ? var.docker_runner_image_tag : var.platform_target_revision
   resolved_platform_ui_image_tag     = local.resolved_platform_server_image_tag
   platform_stack_manifests_base_path = "stacks/platform/k8s"
+  argocd_port_forward_state_dir      = "/tmp/agynio-bootstrap-v2"
+  argocd_port_forward_pid_file       = "${local.argocd_port_forward_state_dir}/argocd-port-forward.pid"
+  argocd_port_forward_log_file       = "${local.argocd_port_forward_state_dir}/argocd-port-forward.log"
+  argocd_server_addr_normalized      = replace(replace(var.argocd_server_addr, "https://", ""), "http://", "")
 
   vault_chart_version            = "0.28.1"
   bitnami_charts_repo_url        = "https://charts.bitnami.com/bitnami"
@@ -39,7 +43,7 @@ locals {
 
   platform_db_values = yamlencode({
     image = {
-      registry   = "public.ecr.aws"
+      registry   = "docker.io"
       repository = "bitnami/postgresql"
       tag        = "16.3.0"
       pullPolicy = "IfNotPresent"
@@ -59,7 +63,7 @@ locals {
 
   litellm_db_values = yamlencode({
     image = {
-      registry   = "public.ecr.aws"
+      registry   = "docker.io"
       repository = "bitnami/postgresql"
       tag        = "16.3.0"
       pullPolicy = "IfNotPresent"
@@ -96,6 +100,64 @@ locals {
         enabled = true
         size    = var.vault_pvc_size
       }
+      volumes = [
+        {
+          name = "vault-auto-init"
+          configMap = {
+            name        = "vault-auto-init"
+            defaultMode = 493
+          }
+        }
+      ]
+      extraContainers = [
+        {
+          name            = "vault-auto-init"
+          image           = "public.ecr.aws/docker/library/alpine:3.19.1"
+          imagePullPolicy = "IfNotPresent"
+          command         = ["/bin/sh", "/opt/vault-auto-init/auto-init.sh"]
+          env = [
+            {
+              name  = "VAULT_ADDR"
+              value = "http://127.0.0.1:8200"
+            },
+            {
+              name  = "WAIT_TIMEOUT_SECONDS"
+              value = "300"
+            },
+            {
+              name  = "CHECK_INTERVAL_SECONDS"
+              value = "5"
+            },
+            {
+              name  = "VAULT_VERSION"
+              value = "1.17.2"
+            },
+            {
+              name  = "VAULT_AUTO_INIT_DATA_DIR"
+              value = "/vault/data"
+            },
+            {
+              name  = "VAULT_DEV_ROOT_TOKEN"
+              value = "dev-root"
+            }
+          ]
+          securityContext = {
+            allowPrivilegeEscalation = false
+            runAsNonRoot             = false
+          }
+          volumeMounts = [
+            {
+              name      = "vault-auto-init"
+              mountPath = "/opt/vault-auto-init"
+              readOnly  = true
+            },
+            {
+              name      = "data"
+              mountPath = "/vault/data"
+            }
+          ]
+        }
+      ]
     }
     injector = {
       image = {
@@ -485,13 +547,8 @@ locals {
         value = "http://vault:8200"
       },
       {
-        name = "VAULT_TOKEN"
-        valueFrom = {
-          secretKeyRef = {
-            name = "vault-root-token"
-            key  = "VAULT_TOKEN"
-          }
-        }
+        name  = "VAULT_TOKEN"
+        value = "dev-root"
       },
       {
         name  = "GRAPH_BRANCH"
@@ -597,25 +654,37 @@ resource "kubernetes_secret" "litellm_master_key" {
 }
 
 resource "argocd_repository" "bitnami_charts" {
-  repo = local.bitnami_charts_repo_url
-  type = "helm"
+  depends_on = [null_resource.argocd_port_forward]
+  repo       = local.bitnami_charts_repo_url
+  type       = "helm"
 }
 
 resource "argocd_repository" "twuni_docker_registry" {
-  repo = local.registry_mirror_repo_url
-  type = "git"
+  depends_on = [null_resource.argocd_port_forward]
+  repo       = local.registry_mirror_repo_url
+  type       = "git"
 }
 
 resource "argocd_repository" "litellm_repo" {
-  repo = local.litellm_chart_repo_url
-  type = "git"
+  depends_on = [null_resource.argocd_port_forward]
+  repo       = local.litellm_chart_repo_url
+  type       = "git"
+}
+
+resource "argocd_repository" "platform" {
+  depends_on = [null_resource.argocd_port_forward]
+  repo       = var.platform_repo_url
+  type       = "git"
+  username   = trimspace(var.platform_repo_username) == "" ? null : var.platform_repo_username
+  password   = trimspace(var.platform_repo_password) == "" ? null : var.platform_repo_password
 }
 
 resource "argocd_repository" "platform_stack" {
-  repo     = var.platform_stack_repo_url
-  type     = "git"
-  username = trimspace(var.platform_stack_repo_username) == "" ? null : var.platform_stack_repo_username
-  password = trimspace(var.platform_stack_repo_password) == "" ? null : var.platform_stack_repo_password
+  depends_on = [null_resource.argocd_port_forward]
+  repo       = var.platform_stack_repo_url
+  type       = "git"
+  username   = trimspace(var.platform_stack_repo_username) == "" ? null : var.platform_stack_repo_username
+  password   = trimspace(var.platform_stack_repo_password) == "" ? null : var.platform_stack_repo_password
 }
 
 resource "argocd_application" "platform_db" {
@@ -705,6 +774,8 @@ resource "argocd_application" "litellm_db" {
 }
 
 resource "argocd_application" "vault" {
+  depends_on = [null_resource.argocd_port_forward]
+
   metadata {
     name      = "vault"
     namespace = "argocd"
@@ -755,14 +826,14 @@ resource "argocd_application" "vault" {
   }
 }
 
-resource "argocd_application" "vault_init" {
+resource "argocd_application" "vault_auto_init" {
   depends_on = [argocd_repository.platform_stack]
 
   metadata {
-    name      = "vault-init"
+    name      = "vault-auto-init"
     namespace = "argocd"
     annotations = {
-      "argocd.argoproj.io/sync-wave" = "11"
+      "argocd.argoproj.io/sync-wave" = "9"
     }
   }
 
@@ -772,7 +843,7 @@ resource "argocd_application" "vault_init" {
     source {
       repo_url        = var.platform_stack_repo_url
       target_revision = var.platform_stack_target_revision
-      path            = "${local.platform_stack_manifests_base_path}/vault-init"
+      path            = "${local.platform_stack_manifests_base_path}/vault-auto-init"
 
       directory {
         recurse = false
@@ -930,6 +1001,8 @@ resource "argocd_application" "litellm_bootstrap" {
 }
 
 resource "argocd_application" "docker_runner" {
+  depends_on = [argocd_repository.platform]
+
   metadata {
     name      = "docker-runner"
     namespace = "argocd"
@@ -972,6 +1045,8 @@ resource "argocd_application" "docker_runner" {
 }
 
 resource "argocd_application" "platform_server" {
+  depends_on = [argocd_repository.platform]
+
   metadata {
     name      = "platform-server"
     namespace = "argocd"
@@ -1014,6 +1089,8 @@ resource "argocd_application" "platform_server" {
 }
 
 resource "argocd_application" "platform_ui" {
+  depends_on = [argocd_repository.platform]
+
   metadata {
     name      = "platform-ui"
     namespace = "argocd"
