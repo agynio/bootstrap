@@ -47,5 +47,11 @@ variable "ports" {
     protocol       = string
   }))
   description = "Additional port mappings for cluster ingress/services"
-  default     = []
+  default = [
+    {
+      container_port = 8080
+      host_port      = 8080
+      protocol       = "tcp"
+    }
+  ]
 }
