@@ -1,0 +1,200 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: vault-init
+  namespace: platform
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: vault-init-secrets-writer
+  namespace: platform
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "create", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: vault-init-secrets-writer
+  namespace: platform
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: vault-init-secrets-writer
+subjects:
+  - kind: ServiceAccount
+    name: vault-init
+    namespace: platform
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: vault-init-unseal
+  namespace: platform
+  annotations:
+    argocd.argoproj.io/sync-wave: "11"
+spec:
+  backoffLimit: 6
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: vault-init-unseal
+    spec:
+      restartPolicy: Never
+      serviceAccountName: vault-init
+      imagePullSecrets:
+        - name: ghcr-creds
+      securityContext:
+        runAsNonRoot: false
+        runAsUser: 0
+        runAsGroup: 0
+      containers:
+        - name: vault-init
+          image: public.ecr.aws/docker/library/alpine:3.19.1
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: VAULT_ADDR
+              value: "http://vault:8200"
+            - name: VAULT_SECRET_NAME
+              value: "vault-root-token"
+            - name: VAULT_SECRET_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: WAIT_TIMEOUT_SECONDS
+              value: "300"
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              set -euo pipefail
+              echo "[vault-init] installing tooling"
+              apk add --no-cache curl jq unzip >/dev/null
+
+              VAULT_VERSION="1.17.2"
+              KUBECTL_VERSION="v1.29.2"
+
+              curl -fsSL "https://releases.hashicorp.com/vault/${VAULT_VERSION}/vault_${VAULT_VERSION}_linux_amd64.zip" -o /tmp/vault.zip
+              unzip -oq /tmp/vault.zip -d /usr/local/bin
+              curl -fsSL "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl" -o /usr/local/bin/kubectl
+              chmod +x /usr/local/bin/vault /usr/local/bin/kubectl
+
+              echo "[vault-init] starting (VAULT_ADDR=$VAULT_ADDR)"
+
+              ns="${VAULT_SECRET_NAMESPACE}"
+              secret="${VAULT_SECRET_NAME}"
+
+              timeout="${WAIT_TIMEOUT_SECONDS}"
+              i=0
+
+              health_ready() {
+                code=$(curl -s -o /dev/null -w '%{http_code}' "$VAULT_ADDR/v1/sys/health" 2>/dev/null || true)
+                code=$(echo "${code:-000}" | tr -d '\r\n')
+                case "$code" in
+                  200|429|500|501|503) return 0 ;;
+                  *) return 1 ;;
+                esac
+              }
+
+              until health_ready; do
+                i=$((i+1))
+                if [ "$i" -ge "$timeout" ]; then
+                  echo "[vault-init] ERROR: Vault not reachable after ${timeout}s"
+                  exit 1
+                fi
+                sleep 1
+              done
+
+              health="$(curl -sS "$VAULT_ADDR/v1/sys/health")"
+              initialized="$(echo "$health" | jq -r '.initialized')"
+              sealed="$(echo "$health" | jq -r '.sealed')"
+
+              echo "[vault-init] health initialized=$initialized sealed=$sealed"
+
+              existing_root_token=""
+              existing_unseal_key=""
+
+              if kubectl -n "$ns" get secret "$secret" >/dev/null 2>&1; then
+                existing_root_token="$(kubectl -n "$ns" get secret "$secret" -o jsonpath='{.data.VAULT_TOKEN}' 2>/dev/null | base64 -d || true)"
+                existing_unseal_key="$(kubectl -n "$ns" get secret "$secret" -o jsonpath='{.data.VAULT_UNSEAL_KEY}' 2>/dev/null | base64 -d || true)"
+                echo "[vault-init] found existing secret $ns/$secret"
+              else
+                echo "[vault-init] secret $ns/$secret does not exist yet"
+              fi
+
+              root_token="$existing_root_token"
+              unseal_key="$existing_unseal_key"
+
+              if [ "$initialized" = "false" ]; then
+                echo "[vault-init] vault not initialized -> initializing"
+                init_json="$(vault operator init -key-shares=1 -key-threshold=1 -format=json)"
+
+                unseal_key="$(echo "$init_json" | jq -r '.unseal_keys_b64[0]')"
+                root_token="$(echo "$init_json" | jq -r '.root_token')"
+
+                if [ -z "$unseal_key" ] || [ "$unseal_key" = "null" ] || [ -z "$root_token" ] || [ "$root_token" = "null" ]; then
+                  echo "[vault-init] ERROR: failed to parse init output"
+                  echo "$init_json"
+                  exit 1
+                fi
+
+                echo "[vault-init] initialized; writing secret $ns/$secret"
+                kubectl -n "$ns" apply -f - <<EOF
+              apiVersion: v1
+              kind: Secret
+              metadata:
+                name: ${secret}
+                namespace: ${ns}
+              type: Opaque
+              stringData:
+                VAULT_TOKEN: "${root_token}"
+                VAULT_UNSEAL_KEY: "${unseal_key}"
+              EOF
+
+                sealed="true"
+              fi
+
+              health="$(curl -sS "$VAULT_ADDR/v1/sys/health")"
+              sealed="$(echo "$health" | jq -r '.sealed')"
+              echo "[vault-init] post-init health sealed=$sealed"
+
+              if [ "$sealed" = "true" ]; then
+                if [ -z "$unseal_key" ]; then
+                  echo "[vault-init] ERROR: Vault is sealed but no unseal key available"
+                  exit 1
+                fi
+                echo "[vault-init] unsealing"
+                vault operator unseal "$unseal_key" >/dev/null
+
+                health="$(curl -fsS "$VAULT_ADDR/v1/sys/health")"
+                sealed="$(echo "$health" | jq -r '.sealed')"
+                if [ "$sealed" = "true" ]; then
+                  echo "[vault-init] ERROR: unseal did not succeed"
+                  echo "$health"
+                  exit 1
+                fi
+              fi
+
+              if [ -z "$root_token" ]; then
+                root_token="$(kubectl -n "$ns" get secret "$secret" -o jsonpath='{.data.VAULT_TOKEN}' 2>/dev/null | base64 -d || true)"
+              fi
+
+              if [ -z "$root_token" ]; then
+                echo "[vault-init] ERROR: root token missing; cannot ensure secret"
+                exit 1
+              fi
+
+              kubectl -n "$ns" apply -f - <<EOF
+              apiVersion: v1
+              kind: Secret
+              metadata:
+                name: ${secret}
+                namespace: ${ns}
+              type: Opaque
+              stringData:
+                VAULT_TOKEN: "${root_token}"
+              EOF
+
+              echo "[vault-init] done (vault unsealed, token secret ensured)"
