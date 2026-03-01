@@ -1,7 +1,6 @@
 kubeconfig_path = "../k8s/.kube/agyn-local-kubeconfig.yaml"
-
-# Optional override (Terraform automatically port-forwards Argo CD to localhost:8080)
-# argocd_server_addr = "localhost:8080"
+# Optional override if Argo CD is exposed on a different host/port
+# argocd_server_addr    = "localhost:8080"
 # argocd_admin_username = "admin"
 # argocd_admin_password = "admin"
 

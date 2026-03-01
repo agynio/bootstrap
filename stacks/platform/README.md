@@ -18,7 +18,7 @@ terraform validate
 terraform apply
 ```
 
-Terraform automatically establishes a background port-forward to `svc/argo-cd-argocd-server` on `localhost:8080` and authenticates with the admin credentials (`argocd_admin_username` / `argocd_admin_password`, default `admin/admin`). The port-forward PID and logs are stored under `/tmp/agynio-bootstrap-v2/`. Destroying the stack tears the tunnel down.
+After the system stack is applied, the Argo CD server `Service` is exposed as a `LoadBalancer`. Ensure your local cluster forwards the load balancer listener to the host (for k3d use `--port 8080:8080@loadbalancer`). Terraform connects to Argo CD directly on `http://localhost:8080` using the default `admin/admin` credentials during the apply, and the UI is available at the same address for manual verification.
 
 ### Repository authentication
 

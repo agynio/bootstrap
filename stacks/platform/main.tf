@@ -3,9 +3,6 @@ locals {
   resolved_docker_runner_image_tag   = trimspace(var.docker_runner_image_tag) != "" ? var.docker_runner_image_tag : var.platform_target_revision
   resolved_platform_ui_image_tag     = local.resolved_platform_server_image_tag
   platform_stack_manifests_base_path = "stacks/platform/k8s"
-  argocd_port_forward_state_dir      = "/tmp/agynio-bootstrap-v2"
-  argocd_port_forward_pid_file       = "${local.argocd_port_forward_state_dir}/argocd-port-forward.pid"
-  argocd_port_forward_log_file       = "${local.argocd_port_forward_state_dir}/argocd-port-forward.log"
   argocd_server_addr_normalized      = replace(replace(var.argocd_server_addr, "https://", ""), "http://", "")
 
   vault_chart_version            = "0.28.1"
@@ -654,37 +651,32 @@ resource "kubernetes_secret" "litellm_master_key" {
 }
 
 resource "argocd_repository" "bitnami_charts" {
-  depends_on = [null_resource.argocd_port_forward]
-  repo       = local.bitnami_charts_repo_url
-  type       = "helm"
+  repo = local.bitnami_charts_repo_url
+  type = "helm"
 }
 
 resource "argocd_repository" "twuni_docker_registry" {
-  depends_on = [null_resource.argocd_port_forward]
-  repo       = local.registry_mirror_repo_url
-  type       = "git"
+  repo = local.registry_mirror_repo_url
+  type = "git"
 }
 
 resource "argocd_repository" "litellm_repo" {
-  depends_on = [null_resource.argocd_port_forward]
-  repo       = local.litellm_chart_repo_url
-  type       = "git"
+  repo = local.litellm_chart_repo_url
+  type = "git"
 }
 
 resource "argocd_repository" "platform" {
-  depends_on = [null_resource.argocd_port_forward]
-  repo       = var.platform_repo_url
-  type       = "git"
-  username   = trimspace(var.platform_repo_username) == "" ? null : var.platform_repo_username
-  password   = trimspace(var.platform_repo_password) == "" ? null : var.platform_repo_password
+  repo     = var.platform_repo_url
+  type     = "git"
+  username = trimspace(var.platform_repo_username) == "" ? null : var.platform_repo_username
+  password = trimspace(var.platform_repo_password) == "" ? null : var.platform_repo_password
 }
 
 resource "argocd_repository" "platform_stack" {
-  depends_on = [null_resource.argocd_port_forward]
-  repo       = var.platform_stack_repo_url
-  type       = "git"
-  username   = trimspace(var.platform_stack_repo_username) == "" ? null : var.platform_stack_repo_username
-  password   = trimspace(var.platform_stack_repo_password) == "" ? null : var.platform_stack_repo_password
+  repo     = var.platform_stack_repo_url
+  type     = "git"
+  username = trimspace(var.platform_stack_repo_username) == "" ? null : var.platform_stack_repo_username
+  password = trimspace(var.platform_stack_repo_password) == "" ? null : var.platform_stack_repo_password
 }
 
 resource "argocd_application" "platform_db" {
@@ -774,8 +766,6 @@ resource "argocd_application" "litellm_db" {
 }
 
 resource "argocd_application" "vault" {
-  depends_on = [null_resource.argocd_port_forward]
-
   metadata {
     name      = "vault"
     namespace = "argocd"
@@ -1002,7 +992,6 @@ resource "argocd_application" "litellm_bootstrap" {
 
 resource "argocd_application" "docker_runner" {
   depends_on = [argocd_repository.platform]
-
   metadata {
     name      = "docker-runner"
     namespace = "argocd"
@@ -1046,7 +1035,6 @@ resource "argocd_application" "docker_runner" {
 
 resource "argocd_application" "platform_server" {
   depends_on = [argocd_repository.platform]
-
   metadata {
     name      = "platform-server"
     namespace = "argocd"
@@ -1090,7 +1078,6 @@ resource "argocd_application" "platform_server" {
 
 resource "argocd_application" "platform_ui" {
   depends_on = [argocd_repository.platform]
-
   metadata {
     name      = "platform-ui"
     namespace = "argocd"
