@@ -9,8 +9,10 @@ locals {
   registry_mirror_repo_url       = "https://github.com/twuni/docker-registry.helm.git"
   registry_mirror_chart_path     = "."
   registry_mirror_chart_revision = "v2.2.2"
-  litellm_chart_repo_host        = "docker.litellm.ai"
-  litellm_chart_name             = "berriai/litellm-helm"
+  litellm_chart_repo_host        = "ghcr.io"
+  litellm_chart_repo_url         = "oci://ghcr.io/berriai/litellm-helm"
+  litellm_chart_name             = "litellm-helm"
+  litellm_chart_full_name        = replace(local.litellm_chart_repo_url, "oci://${local.litellm_chart_repo_host}/", "")
   litellm_chart_revision         = "1.81.12-stable.1"
 
   default_sync_options = [
@@ -256,6 +258,85 @@ locals {
       master_key="$(cat /tmp/master-key)"
     fi
     rm -f /tmp/master-key
+
+    db_pod="$${LITELLM_DB_POD:-litellm-db-0}"
+
+    echo "[litellm-bootstrap] waiting for database pod $db_pod..."
+    for i in $(seq 1 180); do
+      phase=$(kubectl -n "$namespace" get pod "$db_pod" -o jsonpath='{.status.phase}' 2>/dev/null || true)
+      if [ "$phase" = "Running" ]; then
+        ready=$(kubectl -n "$namespace" get pod "$db_pod" -o jsonpath='{.status.containerStatuses[0].ready}' 2>/dev/null || true)
+        if [ "$ready" = "true" ]; then
+          break
+        fi
+      fi
+      sleep 1
+      if [ "$i" = "180" ]; then
+        echo "[litellm-bootstrap] ERROR: database pod $db_pod not ready"
+        exit 1
+      fi
+    done
+
+    master_hash="$(printf '%s' "$master_key" | sha256sum | awk '{print $1}')"
+    seed_sql="$(mktemp)"
+    cat <<SQL >"$seed_sql"
+    INSERT INTO "LiteLLM_UserTable" (user_id, user_alias, user_role)
+    VALUES ('bootstrap-proxy-admin', 'bootstrap', 'proxy_admin')
+    ON CONFLICT (user_id) DO NOTHING;
+
+    INSERT INTO "LiteLLM_VerificationToken" (
+      token,
+      key_name,
+      key_alias,
+      user_id,
+      permissions,
+      models,
+      aliases,
+      config,
+      metadata,
+      model_spend,
+      model_max_budget,
+      router_settings,
+      policies,
+      access_group_ids
+    )
+    VALUES (
+      '$master_hash',
+      'master',
+      'bootstrap-master',
+      'bootstrap-proxy-admin',
+      jsonb_build_object('proxy_admin', true),
+      ARRAY[]::text[],
+      '{}'::jsonb,
+      '{}'::jsonb,
+      '{}'::jsonb,
+      '{}'::jsonb,
+      '{}'::jsonb,
+      '{}'::jsonb,
+      ARRAY[]::text[],
+      ARRAY[]::text[]
+    )
+    ON CONFLICT (token) DO UPDATE
+      SET user_id = EXCLUDED.user_id,
+          permissions = EXCLUDED.permissions;
+    SQL
+
+    seeded="false"
+    for i in $(seq 1 5); do
+      if kubectl -n "$namespace" exec -i "$db_pod" -- psql -U litellm -d litellm >/dev/null <"$seed_sql"; then
+        seeded="true"
+        break
+      fi
+      sleep 2
+    done
+    rm -f "$seed_sql"
+
+    if [ "$seeded" != "true" ]; then
+      echo "[litellm-bootstrap] ERROR: failed to seed verification token"
+      exit 1
+    fi
+
+    echo "[litellm-bootstrap] ensured proxy admin verification token"
 
     echo "[litellm-bootstrap] waiting for LiteLLM..."
     health_ready() {
@@ -516,7 +597,9 @@ locals {
       type = "ClusterIP"
       port = 4000
     }
-    environmentSecrets = ["litellm-master-key"]
+    masterkeySecretName = "litellm-master-key"
+    masterkeySecretKey  = "LITELLM_MASTER_KEY"
+    environmentSecrets  = ["litellm-master-key"]
     envVars = {
       DATABASE_URL = format("postgresql://litellm:%s@litellm-db:5432/litellm", var.litellm_db_password)
     }
@@ -944,8 +1027,8 @@ resource "kubernetes_secret" "litellm_master_key" {
   }
 
   data = {
-    LITELLM_MASTER_KEY = base64encode(var.litellm_master_key)
-    LITELLM_SALT_KEY   = base64encode(var.litellm_salt_key)
+    LITELLM_MASTER_KEY = var.litellm_master_key
+    LITELLM_SALT_KEY   = var.litellm_salt_key
   }
 
   type = "Opaque"
@@ -1362,6 +1445,18 @@ resource "kubernetes_role_v1" "litellm_bootstrap" {
     resources  = ["secrets"]
     verbs      = ["get", "create", "update", "patch"]
   }
+
+  rule {
+    api_groups = [""]
+    resources  = ["pods"]
+    verbs      = ["get", "list"]
+  }
+
+  rule {
+    api_groups = [""]
+    resources  = ["pods/exec"]
+    verbs      = ["create"]
+  }
 }
 
 resource "kubernetes_role_binding_v1" "litellm_bootstrap" {
@@ -1595,7 +1690,7 @@ resource "argocd_application" "litellm" {
 
     source {
       repo_url        = local.litellm_chart_repo_host
-      chart           = local.litellm_chart_name
+      chart           = local.litellm_chart_full_name
       target_revision = local.litellm_chart_revision
 
       helm {
