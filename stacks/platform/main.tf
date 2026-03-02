@@ -9,11 +9,9 @@ locals {
   registry_mirror_repo_url       = "https://github.com/twuni/docker-registry.helm.git"
   registry_mirror_chart_path     = "."
   registry_mirror_chart_revision = "v2.2.2"
-  litellm_chart_repo_url         = "https://github.com/BerriAI/litellm.git"
-  litellm_chart_path             = "deploy/charts/litellm-helm"
-  litellm_chart_revision         = "adb9d94833cfc38d615e92ca12cef58a5897817a"
-  litellm_image_repository       = "ghcr.io/berriai/litellm-database"
-  litellm_image_tag              = "main-1.80.15-stable.1"
+  litellm_chart_repo_host        = "docker.litellm.ai"
+  litellm_chart_name             = "berriai/litellm-helm"
+  litellm_chart_revision         = "1.81.12-stable.1"
 
   default_sync_options = [
     "CreateNamespace=true",
@@ -512,22 +510,15 @@ locals {
   litellm_values = yamlencode({
     fullnameOverride = "litellm"
     image = {
-      repository = local.litellm_image_repository
-      tag        = local.litellm_image_tag
       pullPolicy = "IfNotPresent"
     }
     service = {
-      port = 4000
       type = "ClusterIP"
+      port = 4000
     }
-    db = {
-      deployStandalone = false
-      useExisting      = false
-    }
+    environmentSecrets = ["litellm-master-key"]
     envVars = {
-      LITELLM_MASTER_KEY = var.litellm_master_key
-      LITELLM_SALT_KEY   = var.litellm_salt_key
-      DATABASE_URL       = format("postgresql://litellm:%s@litellm-db:5432/litellm", var.litellm_db_password)
+      DATABASE_URL = format("postgresql://litellm:%s@litellm-db:5432/litellm", var.litellm_db_password)
     }
     proxy_config = {
       model_list = [
@@ -543,8 +534,16 @@ locals {
         master_key = "os.environ/LITELLM_MASTER_KEY"
       }
     }
+    db = {
+      deployStandalone = false
+    }
     migrationJob = {
       enabled = true
+      hooks = {
+        argocd = {
+          enabled = true
+        }
+      }
     }
   })
 
@@ -946,6 +945,7 @@ resource "kubernetes_secret" "litellm_master_key" {
 
   data = {
     LITELLM_MASTER_KEY = base64encode(var.litellm_master_key)
+    LITELLM_SALT_KEY   = base64encode(var.litellm_salt_key)
   }
 
   type = "Opaque"
@@ -1469,8 +1469,9 @@ resource "argocd_repository" "twuni_docker_registry" {
 }
 
 resource "argocd_repository" "litellm_repo" {
-  repo = local.litellm_chart_repo_url
-  type = "git"
+  repo       = local.litellm_chart_repo_host
+  type       = "helm"
+  enable_oci = true
 }
 
 resource "argocd_repository" "platform" {
@@ -1593,9 +1594,9 @@ resource "argocd_application" "litellm" {
     project = "default"
 
     source {
-      repo_url        = local.litellm_chart_repo_url
+      repo_url        = local.litellm_chart_repo_host
+      chart           = local.litellm_chart_name
       target_revision = local.litellm_chart_revision
-      path            = local.litellm_chart_path
 
       helm {
         values = local.litellm_values
