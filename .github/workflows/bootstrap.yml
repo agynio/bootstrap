@@ -5,9 +5,14 @@ on:
   push:
     branches: [ main ]
 
+concurrency:
+  group: ${{ github.event_name == 'pull_request' && format('bootstrap-pr-{0}', github.event.pull_request.number) || 'bootstrap-main' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   full-apply:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -15,6 +20,16 @@ jobs:
       - name: Verify Docker
         run: |
           docker version || (echo "Docker is required" && exit 1)
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: v1.28.7
+
+      - name: Install jq
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
 
       - name: Install k3d
         run: |
@@ -37,6 +52,22 @@ jobs:
         run: |
           terraform init -input=false
           terraform apply -auto-approve -input=false
+
+      - name: Apply platform stack
+        working-directory: stacks/platform
+        run: |
+          terraform init -input=false
+          terraform apply -auto-approve -input=false
+
+      - name: Verify platform workloads and Argo CD health
+        run: ./.github/scripts/verify_platform_health.sh
+
+      - name: Destroy platform stack (PR only)
+        if: ${{ always() && github.event_name == 'pull_request' }}
+        working-directory: stacks/platform
+        run: |
+          terraform init -input=false
+          terraform destroy -auto-approve -input=false
 
       - name: Destroy system stack (PR only)
         if: ${{ always() && github.event_name == 'pull_request' }}
