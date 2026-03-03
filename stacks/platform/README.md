@@ -18,7 +18,20 @@ terraform validate
 terraform apply
 ```
 
-After the system stack is applied, the Argo CD server `Service` is exposed as a `LoadBalancer`. Ensure your local cluster forwards the load balancer listener to the host (for k3d use `--port 8080:8080@loadbalancer`). Terraform connects to Argo CD directly on `http://localhost:8080` using the default `admin/admin` credentials during the apply, and the UI is available at the same address for manual verification.
+After the system stack is applied, Istio exposes a single ingress listener on port 8080 and routes traffic by hostname. Ensure the following hostnames resolve to `127.0.0.1` on your workstation (for example via `/etc/hosts`):
+
+- `agyn.dev`
+- `api.agyn.dev`
+- `argocd.agyn.dev`
+- `litellm.agyn.dev`
+- `vault.agyn.dev`
+
+Terraform connects to Argo CD through the ingress at `http://argocd.agyn.dev:8080` (default credentials `admin/admin`). The same listener serves the application endpoints:
+
+- Platform UI: `http://agyn.dev:8080`
+- Platform API: `http://api.agyn.dev:8080`
+- LiteLLM API: `http://litellm.agyn.dev:8080`
+- Vault UI/API: `http://vault.agyn.dev:8080`
 
 ### Repository authentication
 

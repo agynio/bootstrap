@@ -3,6 +3,7 @@ provider "argocd" {
   username    = var.argocd_admin_username
   password    = var.argocd_admin_password
   insecure    = true
+  plain_text  = true
 }
 
 provider "kubernetes" {

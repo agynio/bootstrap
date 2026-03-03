@@ -1,0 +1,46 @@
+{{- $gateway := .Values.gateway -}}
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: {{ $gateway.name }}
+  namespace: {{ $gateway.namespace }}
+spec:
+  selector:
+{{- range $key, $value := $gateway.selector }}
+    {{ $key }}: {{ $value | quote }}
+{{- end }}
+  servers:
+    - port:
+        number: {{ $gateway.port.number }}
+        name: {{ $gateway.port.name }}
+        protocol: {{ $gateway.port.protocol }}
+      hosts:
+{{- range $gateway.hosts }}
+        - {{ . | quote }}
+{{- end }}
+{{- range $index, $vs := .Values.virtualServices }}
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: {{ $vs.name }}
+  namespace: {{ $vs.namespace | default $gateway.namespace }}
+spec:
+  hosts:
+{{- range $vs.hosts }}
+    - {{ . | quote }}
+{{- end }}
+  gateways:
+    - {{ printf "%s/%s" ($vs.gatewayNamespace | default $gateway.namespace) ($vs.gatewayName | default $gateway.name) }}
+  http:
+    - route:
+        - destination:
+            host: {{ $vs.destination.host }}
+            port:
+              number: {{ $vs.destination.port }}
+{{- if $vs.headers }}
+          headers:
+{{ toYaml $vs.headers | indent 12 }}
+{{- end }}
+      timeout: {{ $vs.timeout | default "60s" }}
+{{- end }}

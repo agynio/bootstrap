@@ -46,15 +46,12 @@ resource "helm_release" "istio_gateway" {
     yamlencode({
       name = "istio-ingressgateway",
       service = {
-        type = "ClusterIP",
+        type = "LoadBalancer",
         ports = [{
-          name       = "http2",
-          port       = 80,
-          targetPort = 8080
-          }, {
-          name       = "https",
-          port       = 443,
-          targetPort = 8443
+          name       = "http-8080",
+          port       = 8080,
+          targetPort = 8080,
+          protocol   = "TCP"
         }]
       }
     })
@@ -73,12 +70,15 @@ resource "helm_release" "argo_cd" {
     yamlencode({
       server = {
         service = {
-          type             = "LoadBalancer"
+          type             = "ClusterIP"
           servicePortHttp  = 8080
           servicePortHttps = 8443
         }
       }
       configs = {
+        params = {
+          "server.insecure" = true
+        }
         cm = {
           admin = {
             enabled = true
@@ -90,5 +90,19 @@ resource "helm_release" "argo_cd" {
         }
       }
     })
+  ]
+}
+
+resource "helm_release" "istio_routing" {
+  name      = "istio-routing"
+  chart     = "${path.module}/charts/istio-routing"
+  namespace = kubernetes_namespace.istio_gateway.metadata[0].name
+  version   = "0.1.1"
+
+  depends_on = [
+    helm_release.istio_base,
+    helm_release.istiod,
+    helm_release.istio_gateway,
+    helm_release.argo_cd,
   ]
 }
