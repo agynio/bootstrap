@@ -41,10 +41,6 @@ jobs:
         with:
           terraform_version: 1.6.6
 
-      - name: Export kubeconfig for kubectl
-        run: |
-          echo "KUBECONFIG=${{ github.workspace }}/stacks/k8s/.kube/agyn-local-kubeconfig.yaml" >> "$GITHUB_ENV"
-
       - name: Apply k8s stack
         working-directory: stacks/k8s
         run: |
@@ -64,12 +60,7 @@ jobs:
           terraform apply -auto-approve -input=false
 
       - name: Verify platform workloads and Argo CD health
-        run: |
-          TOTAL_TIMEOUT=900 \
-          POLL_INTERVAL=10 \
-          PLATFORM_NAMESPACE=platform \
-          ARGO_NAMESPACE=argocd \
-          ./.github/scripts/verify_platform_health.sh
+        run: ./.github/scripts/verify_platform_health.sh
 
       - name: Destroy platform stack (PR only)
         if: ${{ always() && github.event_name == 'pull_request' }}

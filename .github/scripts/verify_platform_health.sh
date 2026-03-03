@@ -7,6 +7,15 @@ POLL_INTERVAL=${POLL_INTERVAL:-10}
 PLATFORM_NAMESPACE=${PLATFORM_NAMESPACE:-platform}
 ARGO_NAMESPACE=${ARGO_NAMESPACE:-argocd}
 
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+REPO_ROOT=$(cd "$SCRIPT_DIR/../.." && pwd)
+readonly KUBECONFIG_PATH="$REPO_ROOT/stacks/k8s/.kube/agyn-local-kubeconfig.yaml"
+
+if [[ ! -f "$KUBECONFIG_PATH" ]]; then
+  printf 'Unable to locate kubeconfig at %s\n' "$KUBECONFIG_PATH" >&2
+  exit 1
+fi
+
 REQUIRED_APPS_JSON='["vault","registry-mirror","litellm","docker-runner","platform-server","platform-ui"]'
 
 deadline=$((SECONDS + TOTAL_TIMEOUT))
@@ -27,11 +36,11 @@ join_lines() {
 while (( SECONDS < deadline )); do
   time_left=$((deadline - SECONDS))
 
-  jobs_json=$(kubectl -n "$PLATFORM_NAMESPACE" get jobs -o json 2>/dev/null || echo '{"items": []}')
-  deployments_json=$(kubectl -n "$PLATFORM_NAMESPACE" get deployments -o json 2>/dev/null || echo '{"items": []}')
-  sts_json=$(kubectl -n "$PLATFORM_NAMESPACE" get statefulsets -o json 2>/dev/null || echo '{"items": []}')
-  pods_json=$(kubectl -n "$PLATFORM_NAMESPACE" get pods -o json 2>/dev/null || echo '{"items": []}')
-  apps_json=$(kubectl -n "$ARGO_NAMESPACE" get applications.argoproj.io -o json 2>/dev/null || echo '{"items": []}')
+  jobs_json=$(kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$PLATFORM_NAMESPACE" get jobs -o json 2>/dev/null || echo '{"items": []}')
+  deployments_json=$(kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$PLATFORM_NAMESPACE" get deployments -o json 2>/dev/null || echo '{"items": []}')
+  sts_json=$(kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$PLATFORM_NAMESPACE" get statefulsets -o json 2>/dev/null || echo '{"items": []}')
+  pods_json=$(kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$PLATFORM_NAMESPACE" get pods -o json 2>/dev/null || echo '{"items": []}')
+  apps_json=$(kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$ARGO_NAMESPACE" get applications.argoproj.io -o json 2>/dev/null || echo '{"items": []}')
 
   degraded_apps=$(jq -r --argjson required "$REQUIRED_APPS_JSON" '
     [.items[]? | select(.metadata.name as $n | $required | index($n) != null)
