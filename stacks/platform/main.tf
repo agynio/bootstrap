@@ -4,8 +4,8 @@ locals {
   resolved_platform_ui_image_tag     = local.resolved_platform_server_image_tag
   argocd_server_addr_normalized      = replace(replace(var.argocd_server_addr, "https://", ""), "http://", "")
 
-  postgres_chart_repo            = "oci://ghcr.io/agynio/charts"
-  postgres_chart_name            = "postgres-helm"
+  postgres_chart_repo_host       = "ghcr.io"
+  postgres_chart_full_name       = "agynio/charts/postgres-helm"
   postgres_chart_version         = "0.1.0"
   vault_chart_version            = "0.28.1"
   registry_mirror_repo_url       = "https://github.com/twuni/docker-registry.helm.git"
@@ -1432,8 +1432,8 @@ resource "argocd_application" "platform_db" {
     project = "default"
 
     source {
-      repo_url        = local.postgres_chart_repo
-      chart           = local.postgres_chart_name
+      repo_url        = local.postgres_chart_repo_host
+      chart           = local.postgres_chart_full_name
       target_revision = local.postgres_chart_version
 
       helm {
@@ -1477,8 +1477,8 @@ resource "argocd_application" "litellm_db" {
     project = "default"
 
     source {
-      repo_url        = local.postgres_chart_repo
-      chart           = local.postgres_chart_name
+      repo_url        = local.postgres_chart_repo_host
+      chart           = local.postgres_chart_full_name
       target_revision = local.postgres_chart_version
 
       helm {
