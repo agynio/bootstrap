@@ -51,6 +51,10 @@ jobs:
         working-directory: stacks/system
         run: |
           terraform init -input=false
+          terraform apply -auto-approve -input=false \
+            -target=helm_release.istio_base \
+            -target=helm_release.istiod \
+            -target=helm_release.istio_gateway
           terraform apply -auto-approve -input=false
 
       - name: Apply platform stack
