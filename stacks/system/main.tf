@@ -60,6 +60,11 @@ resource "helm_release" "istiod" {
   ]
 }
 
+resource "time_sleep" "wait_for_istio_crds" {
+  depends_on      = [helm_release.istio_base]
+  create_duration = "30s"
+}
+
 # Istio gateway (minimal)
 resource "helm_release" "istio_gateway" {
   name       = "istio-gateway"
@@ -115,7 +120,7 @@ resource "kubernetes_manifest" "istio_gateway_http" {
     }
   }
 
-  depends_on = [helm_release.istio_gateway, helm_release.istio_base, helm_release.istiod]
+  depends_on = [time_sleep.wait_for_istio_crds, helm_release.istio_gateway, helm_release.istiod]
 }
 
 resource "kubernetes_manifest" "virtual_service_argocd" {
