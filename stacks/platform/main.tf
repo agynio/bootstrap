@@ -16,6 +16,7 @@ locals {
   litellm_chart_name             = "litellm-helm"
   litellm_chart_full_name        = replace(local.litellm_chart_repo_url, "oci://${local.litellm_chart_repo_host}/", "")
   litellm_chart_revision         = "1.81.12-stable.1"
+  istio_gateway_reference        = "istio-gateway/platform-http"
 
   default_sync_options = [
     "CreateNamespace=true",
@@ -1891,4 +1892,128 @@ resource "argocd_application" "platform_ui" {
       sync_options = local.default_sync_options
     }
   }
+}
+
+resource "kubernetes_manifest" "virtual_service_platform_ui" {
+  manifest = {
+    apiVersion = "networking.istio.io/v1beta1"
+    kind       = "VirtualService"
+    metadata = {
+      name      = "platform-ui-http"
+      namespace = kubernetes_namespace.platform.metadata[0].name
+    }
+    spec = {
+      hosts    = ["agyn.dev"]
+      gateways = [local.istio_gateway_reference]
+      http = [
+        {
+          route = [
+            {
+              destination = {
+                host = "platform-ui.platform.svc.cluster.local"
+                port = {
+                  number = 3000
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+
+  depends_on = [kubernetes_namespace.platform]
+}
+
+resource "kubernetes_manifest" "virtual_service_platform_api" {
+  manifest = {
+    apiVersion = "networking.istio.io/v1beta1"
+    kind       = "VirtualService"
+    metadata = {
+      name      = "platform-api-http"
+      namespace = kubernetes_namespace.platform.metadata[0].name
+    }
+    spec = {
+      hosts    = ["api.agyn.dev"]
+      gateways = [local.istio_gateway_reference]
+      http = [
+        {
+          route = [
+            {
+              destination = {
+                host = "platform-server.platform.svc.cluster.local"
+                port = {
+                  number = 3010
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+
+  depends_on = [kubernetes_namespace.platform]
+}
+
+resource "kubernetes_manifest" "virtual_service_vault" {
+  manifest = {
+    apiVersion = "networking.istio.io/v1beta1"
+    kind       = "VirtualService"
+    metadata = {
+      name      = "vault-http"
+      namespace = kubernetes_namespace.platform.metadata[0].name
+    }
+    spec = {
+      hosts    = ["vault.agyn.dev"]
+      gateways = [local.istio_gateway_reference]
+      http = [
+        {
+          route = [
+            {
+              destination = {
+                host = "vault.platform.svc.cluster.local"
+                port = {
+                  number = 8200
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+
+  depends_on = [kubernetes_namespace.platform]
+}
+
+resource "kubernetes_manifest" "virtual_service_litellm" {
+  manifest = {
+    apiVersion = "networking.istio.io/v1beta1"
+    kind       = "VirtualService"
+    metadata = {
+      name      = "litellm-http"
+      namespace = kubernetes_namespace.platform.metadata[0].name
+    }
+    spec = {
+      hosts    = ["litellm.agyn.dev"]
+      gateways = [local.istio_gateway_reference]
+      http = [
+        {
+          route = [
+            {
+              destination = {
+                host = "litellm.platform.svc.cluster.local"
+                port = {
+                  number = 4000
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+
+  depends_on = [kubernetes_namespace.platform]
 }
