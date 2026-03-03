@@ -590,6 +590,7 @@ locals {
 
   litellm_values = yamlencode({
     fullnameOverride = "litellm"
+    replicaCount     = 1
     image = {
       pullPolicy = "IfNotPresent"
     }
