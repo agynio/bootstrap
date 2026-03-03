@@ -1,6 +1,6 @@
 # Platform stack
 
-Deploy platform workloads via Argo CD applications sourced from [agynio/platform](https://github.com/agynio/platform) alongside Terraform-managed PostgreSQL databases, bootstrap jobs, and supporting configuration.
+Deploy platform workloads via Argo CD applications sourced from [agynio/platform](https://github.com/agynio/platform) alongside Terraform-managed bootstrap jobs and supporting configuration. PostgreSQL databases are provisioned through the shared [agynio/postgres-helm](https://github.com/agynio/postgres-helm) chart published to GHCR.
 
 ## Prerequisites
 
@@ -35,11 +35,9 @@ Any GitHub personal access token with `repo` scope works. The credentials are pa
 
 | Component | Kind | Purpose | Notes |
 |-----------|------|---------|-------|
-| `platform-db` | `StatefulSet` + `Service` | Primary PostgreSQL for platform workloads | Runs `postgres:16.6-alpine`, credentials `agents` / `TF_VAR_platform_db_password`, data stored under `/var/lib/postgresql/data` |
-| `litellm-db` | `StatefulSet` + `Service` | PostgreSQL backing LiteLLM | Runs `postgres:16.6-alpine`, credentials `litellm` / `TF_VAR_litellm_db_password` |
 | `vault-auto-init` | `ConfigMap` | Provides the init/unseal script used by Vault sidecar | Script now supports optional persistence flags and one-shot execution |
 | `vault-init-unseal` | `Job` | Mounts Vault data PVC and performs initial init/unseal | Uses the shared script with `EXIT_AFTER_UNSEAL=true`; no keys are written to Kubernetes Secrets |
-| `litellm-bootstrap-default-key` | `Job` | Generates/reconciles the default LiteLLM key secret | Uses in-cluster RBAC scoped to `secrets` writes in the `platform` namespace |
+| `litellm-bootstrap-default-key` | `Job` | Generates/reconciles the default LiteLLM key secret | Uses in-cluster RBAC scoped to `secrets` writes in the `platform` namespace; waits for the `litellm-db` Application |
 
 The jobs wait for successful completion during `terraform apply` to ensure bootstrap steps finish before dependent services roll out.
 
@@ -48,8 +46,10 @@ The jobs wait for successful completion during `terraform apply` to ensure boots
 | Sync wave | Application        | Purpose                             | Notes |
 |-----------|--------------------|-------------------------------------|-------|
 | 1         | `registry-mirror`  | Twuni docker-registry proxy         | Proxies Docker Hub with persistent storage |
+| 5         | `platform-db`      | PostgreSQL for platform workloads   | Uses chart `oci://ghcr.io/agynio/charts/postgres-helm` with inline Helm values |
+| 6         | `litellm-db`       | PostgreSQL backing LiteLLM          | Same chart with LiteLLM-specific credentials and PVC sizing |
 | 10        | `vault`            | HashiCorp Vault in standalone mode  | Sidecar consumes the Terraform-managed script and PVC for init/unseal |
-| 12        | `litellm`          | LiteLLM API deployment              | Connects to Terraform-managed `litellm-db`; master key sourced from `litellm-master-key` secret |
+| 12        | `litellm`          | LiteLLM API deployment              | Connects to Argo CD-managed `litellm-db`; master key sourced from `litellm-master-key` secret |
 | 18        | `docker-runner`    | Platform workspace runner           | Uses shared secret and exposes gRPC on 7071 |
 | 20        | `platform-server`  | Core platform API                   | Depends on `platform-db`, LiteLLM bootstrap, and Vault dev-root token |
 | 25        | `platform-ui`      | Platform web UI                     | Connects to `platform-server` |

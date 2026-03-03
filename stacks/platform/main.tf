@@ -4,7 +4,9 @@ locals {
   resolved_platform_ui_image_tag     = local.resolved_platform_server_image_tag
   argocd_server_addr_normalized      = replace(replace(var.argocd_server_addr, "https://", ""), "http://", "")
 
-  postgres_image                 = "postgres:16.6-alpine"
+  postgres_chart_repo_host       = "ghcr.io"
+  postgres_chart_full_name       = "agynio/charts/postgres-helm"
+  postgres_chart_version         = "0.1.1"
   vault_chart_version            = "0.28.1"
   registry_mirror_repo_url       = "https://github.com/twuni/docker-registry.helm.git"
   registry_mirror_chart_path     = "."
@@ -585,6 +587,120 @@ locals {
     proxy = {
       enabled   = true
       remoteurl = "https://registry-1.docker.io"
+    }
+  })
+
+  platform_db_values = yamlencode({
+    nameOverride     = "platform-db"
+    fullnameOverride = "platform-db"
+    image = {
+      repository = "postgres"
+      tag        = "16.6-alpine"
+    }
+    postgres = {
+      database = "agents"
+      username = "agents"
+      password = var.platform_db_password
+      pgdata   = "/var/lib/postgresql/data/pgdata"
+    }
+    probes = {
+      readiness = {
+        enabled             = true
+        execCommand         = ["pg_isready", "-U", "agents", "-d", "agents"]
+        initialDelaySeconds = 5
+        periodSeconds       = 10
+        timeoutSeconds      = 5
+        failureThreshold    = 6
+      }
+      liveness = {
+        enabled             = true
+        execCommand         = ["pg_isready", "-U", "agents", "-d", "agents"]
+        initialDelaySeconds = 30
+        periodSeconds       = 20
+        timeoutSeconds      = 5
+        failureThreshold    = 6
+      }
+    }
+    persistence = {
+      size                    = var.platform_db_pvc_size
+      accessModes             = ["ReadWriteOnce"]
+      volumeClaimTemplateName = "data"
+      mountPath               = "/var/lib/postgresql/data"
+    }
+    podSecurityContext = {
+      enabled             = true
+      runAsUser           = 70
+      runAsGroup          = 70
+      fsGroup             = 70
+      fsGroupChangePolicy = "OnRootMismatch"
+    }
+    securityContext = {
+      enabled                  = true
+      runAsNonRoot             = true
+      runAsUser                = 70
+      runAsGroup               = 70
+      allowPrivilegeEscalation = false
+      readOnlyRootFilesystem   = false
+      capabilities = {
+        drop = ["ALL"]
+      }
+    }
+  })
+
+  litellm_db_values = yamlencode({
+    nameOverride     = "litellm-db"
+    fullnameOverride = "litellm-db"
+    image = {
+      repository = "postgres"
+      tag        = "16.6-alpine"
+    }
+    postgres = {
+      database = "litellm"
+      username = "litellm"
+      password = var.litellm_db_password
+      pgdata   = "/var/lib/postgresql/data/pgdata"
+    }
+    probes = {
+      readiness = {
+        enabled             = true
+        execCommand         = ["pg_isready", "-U", "litellm", "-d", "litellm"]
+        initialDelaySeconds = 5
+        periodSeconds       = 10
+        timeoutSeconds      = 5
+        failureThreshold    = 6
+      }
+      liveness = {
+        enabled             = true
+        execCommand         = ["pg_isready", "-U", "litellm", "-d", "litellm"]
+        initialDelaySeconds = 30
+        periodSeconds       = 20
+        timeoutSeconds      = 5
+        failureThreshold    = 6
+      }
+    }
+    persistence = {
+      size                    = var.litellm_db_pvc_size
+      accessModes             = ["ReadWriteOnce"]
+      volumeClaimTemplateName = "data"
+      mountPath               = "/var/lib/postgresql/data"
+    }
+    podSecurityContext = {
+      enabled             = true
+      runAsUser           = 70
+      runAsGroup          = 70
+      fsGroup             = 70
+      fsGroupChangePolicy = "OnRootMismatch"
+    }
+    securityContext = {
+      enabled                  = true
+      runAsNonRoot             = true
+      runAsUser                = 70
+      runAsGroup               = 70
+      allowPrivilegeEscalation = false
+      readOnlyRootFilesystem   = false
+      capabilities = {
+        drop = ["ALL"]
+      }
     }
   })
 
@@ -1182,246 +1298,6 @@ resource "kubernetes_job_v1" "vault_init_unseal" {
   ]
 }
 
-resource "kubernetes_service_v1" "platform_db" {
-  metadata {
-    name      = "platform-db"
-    namespace = kubernetes_namespace.platform.metadata[0].name
-    labels = {
-      "app.kubernetes.io/name" = "platform-db"
-    }
-  }
-
-  spec {
-    selector = {
-      "app.kubernetes.io/name" = "platform-db"
-    }
-
-    port {
-      name        = "postgres"
-      port        = 5432
-      target_port = 5432
-      protocol    = "TCP"
-    }
-  }
-}
-
-resource "kubernetes_stateful_set_v1" "platform_db" {
-  metadata {
-    name      = "platform-db"
-    namespace = kubernetes_namespace.platform.metadata[0].name
-    labels = {
-      "app.kubernetes.io/name" = "platform-db"
-    }
-  }
-
-  spec {
-    service_name = kubernetes_service_v1.platform_db.metadata[0].name
-    replicas     = 1
-
-    selector {
-      match_labels = {
-        "app.kubernetes.io/name" = "platform-db"
-      }
-    }
-
-    template {
-      metadata {
-        labels = {
-          "app.kubernetes.io/name" = "platform-db"
-        }
-      }
-
-      spec {
-        termination_grace_period_seconds = 30
-
-        container {
-          name              = "postgres"
-          image             = local.postgres_image
-          image_pull_policy = "IfNotPresent"
-          env {
-            name  = "POSTGRES_DB"
-            value = "agents"
-          }
-          env {
-            name  = "POSTGRES_USER"
-            value = "agents"
-          }
-          env {
-            name  = "POSTGRES_PASSWORD"
-            value = var.platform_db_password
-          }
-          env {
-            name  = "PGDATA"
-            value = "/var/lib/postgresql/data/pgdata"
-          }
-
-          port {
-            name           = "postgres"
-            container_port = 5432
-          }
-
-          readiness_probe {
-            exec {
-              command = ["pg_isready", "-U", "agents", "-d", "agents"]
-            }
-            initial_delay_seconds = 5
-            period_seconds        = 10
-          }
-
-          liveness_probe {
-            exec {
-              command = ["pg_isready", "-U", "agents", "-d", "agents"]
-            }
-            initial_delay_seconds = 30
-            period_seconds        = 20
-          }
-
-          volume_mount {
-            name       = "data"
-            mount_path = "/var/lib/postgresql/data"
-          }
-        }
-      }
-    }
-
-    volume_claim_template {
-      metadata {
-        name = "data"
-      }
-
-      spec {
-        access_modes = ["ReadWriteOnce"]
-
-        resources {
-          requests = {
-            storage = var.platform_db_pvc_size
-          }
-        }
-      }
-    }
-  }
-}
-
-resource "kubernetes_service_v1" "litellm_db" {
-  metadata {
-    name      = "litellm-db"
-    namespace = kubernetes_namespace.platform.metadata[0].name
-    labels = {
-      "app.kubernetes.io/name" = "litellm-db"
-    }
-  }
-
-  spec {
-    selector = {
-      "app.kubernetes.io/name" = "litellm-db"
-    }
-
-    port {
-      name        = "postgres"
-      port        = 5432
-      target_port = 5432
-      protocol    = "TCP"
-    }
-  }
-}
-
-resource "kubernetes_stateful_set_v1" "litellm_db" {
-  metadata {
-    name      = "litellm-db"
-    namespace = kubernetes_namespace.platform.metadata[0].name
-    labels = {
-      "app.kubernetes.io/name" = "litellm-db"
-    }
-  }
-
-  spec {
-    service_name = kubernetes_service_v1.litellm_db.metadata[0].name
-    replicas     = 1
-
-    selector {
-      match_labels = {
-        "app.kubernetes.io/name" = "litellm-db"
-      }
-    }
-
-    template {
-      metadata {
-        labels = {
-          "app.kubernetes.io/name" = "litellm-db"
-        }
-      }
-
-      spec {
-        termination_grace_period_seconds = 30
-
-        container {
-          name              = "postgres"
-          image             = local.postgres_image
-          image_pull_policy = "IfNotPresent"
-          env {
-            name  = "POSTGRES_DB"
-            value = "litellm"
-          }
-          env {
-            name  = "POSTGRES_USER"
-            value = "litellm"
-          }
-          env {
-            name  = "POSTGRES_PASSWORD"
-            value = var.litellm_db_password
-          }
-          env {
-            name  = "PGDATA"
-            value = "/var/lib/postgresql/data/pgdata"
-          }
-
-          port {
-            name           = "postgres"
-            container_port = 5432
-          }
-
-          readiness_probe {
-            exec {
-              command = ["pg_isready", "-U", "litellm", "-d", "litellm"]
-            }
-            initial_delay_seconds = 5
-            period_seconds        = 10
-          }
-
-          liveness_probe {
-            exec {
-              command = ["pg_isready", "-U", "litellm", "-d", "litellm"]
-            }
-            initial_delay_seconds = 30
-            period_seconds        = 20
-          }
-
-          volume_mount {
-            name       = "data"
-            mount_path = "/var/lib/postgresql/data"
-          }
-        }
-      }
-    }
-
-    volume_claim_template {
-      metadata {
-        name = "data"
-      }
-
-      spec {
-        access_modes = ["ReadWriteOnce"]
-
-        resources {
-          requests = {
-            storage = var.litellm_db_pvc_size
-          }
-        }
-      }
-    }
-  }
-}
-
 resource "kubernetes_service_account_v1" "litellm_bootstrap" {
   metadata {
     name      = "litellm-bootstrap"
@@ -1554,7 +1430,7 @@ resource "kubernetes_job_v1" "litellm_bootstrap" {
   depends_on = [
     kubernetes_service_account_v1.litellm_bootstrap,
     kubernetes_secret.litellm_master_key,
-    kubernetes_stateful_set_v1.litellm_db,
+    argocd_application.litellm_db,
     argocd_application.litellm,
   ]
 }
@@ -1575,6 +1451,96 @@ resource "argocd_repository" "platform" {
   type     = "git"
   username = trimspace(var.platform_repo_username) == "" ? null : var.platform_repo_username
   password = trimspace(var.platform_repo_password) == "" ? null : var.platform_repo_password
+}
+
+resource "argocd_application" "platform_db" {
+  depends_on = [argocd_repository.litellm_repo]
+
+  metadata {
+    name      = "platform-db"
+    namespace = "argocd"
+    annotations = {
+      "argocd.argoproj.io/sync-wave" = "5"
+    }
+  }
+
+  spec {
+    project = "default"
+
+    source {
+      repo_url        = local.postgres_chart_repo_host
+      chart           = local.postgres_chart_full_name
+      target_revision = local.postgres_chart_version
+
+      helm {
+        release_name = "platform-db"
+        values       = local.platform_db_values
+      }
+    }
+
+    destination {
+      server    = var.destination_server
+      namespace = var.platform_namespace
+    }
+
+    sync_policy {
+      dynamic "automated" {
+        for_each = var.argocd_automated_sync_enabled ? [1] : []
+        content {
+          prune       = var.argocd_prune_enabled
+          self_heal   = var.argocd_self_heal_enabled
+          allow_empty = false
+        }
+      }
+
+      sync_options = local.default_sync_options
+    }
+  }
+}
+
+resource "argocd_application" "litellm_db" {
+  depends_on = [argocd_repository.litellm_repo]
+
+  metadata {
+    name      = "litellm-db"
+    namespace = "argocd"
+    annotations = {
+      "argocd.argoproj.io/sync-wave" = "6"
+    }
+  }
+
+  spec {
+    project = "default"
+
+    source {
+      repo_url        = local.postgres_chart_repo_host
+      chart           = local.postgres_chart_full_name
+      target_revision = local.postgres_chart_version
+
+      helm {
+        release_name = "litellm-db"
+        values       = local.litellm_db_values
+      }
+    }
+
+    destination {
+      server    = var.destination_server
+      namespace = var.platform_namespace
+    }
+
+    sync_policy {
+      dynamic "automated" {
+        for_each = var.argocd_automated_sync_enabled ? [1] : []
+        content {
+          prune       = var.argocd_prune_enabled
+          self_heal   = var.argocd_self_heal_enabled
+          allow_empty = false
+        }
+      }
+
+      sync_options = local.default_sync_options
+    }
+  }
 }
 
 resource "argocd_application" "vault" {
@@ -1676,7 +1642,7 @@ resource "argocd_application" "registry_mirror" {
 resource "argocd_application" "litellm" {
   depends_on = [
     argocd_repository.litellm_repo,
-    kubernetes_stateful_set_v1.litellm_db,
+    argocd_application.litellm_db,
   ]
   metadata {
     name      = "litellm"
@@ -1765,7 +1731,7 @@ resource "argocd_application" "docker_runner" {
 resource "argocd_application" "platform_server" {
   depends_on = [
     argocd_repository.platform,
-    kubernetes_stateful_set_v1.platform_db,
+    argocd_application.platform_db,
     kubernetes_job_v1.litellm_bootstrap,
   ]
   metadata {
