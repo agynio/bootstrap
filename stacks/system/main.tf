@@ -69,7 +69,7 @@ resource "helm_release" "istio_gateway" {
   namespace  = kubernetes_namespace.istio_gateway.metadata[0].name
 
   depends_on = [helm_release.istiod]
-  wait       = false
+  wait       = true
 
   values = [
     yamlencode({
@@ -77,12 +77,6 @@ resource "helm_release" "istio_gateway" {
       service = {
         type = "LoadBalancer",
         ports = [
-          {
-            name       = "status-port"
-            port       = 15021
-            targetPort = 15021
-            protocol   = "TCP"
-          },
           {
             name       = "http-8080"
             nodePort   = 8080
@@ -121,7 +115,7 @@ resource "kubernetes_manifest" "istio_gateway_http" {
     }
   }
 
-  depends_on = [helm_release.istio_gateway]
+  depends_on = [helm_release.istio_gateway, helm_release.istio_base, helm_release.istiod]
 }
 
 resource "kubernetes_manifest" "virtual_service_argocd" {
