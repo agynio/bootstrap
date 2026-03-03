@@ -13,30 +13,6 @@ jobs:
   full-apply:
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    env:
-      TF_VAR_argocd_server_addr: localhost:8080
-      TF_VAR_argocd_admin_username: admin
-      TF_VAR_argocd_admin_password: admin
-      TF_VAR_platform_repo_url: https://github.com/agynio/platform.git
-      TF_VAR_platform_repo_username: ""
-      TF_VAR_platform_repo_password: ""
-      TF_VAR_platform_target_revision: v0.15.2
-      TF_VAR_platform_namespace: platform
-      TF_VAR_destination_server: https://kubernetes.default.svc
-      TF_VAR_platform_server_image_tag: 0.15.2
-      TF_VAR_docker_runner_image_tag: 0.15.2
-      TF_VAR_docker_runner_replica_count: "1"
-      TF_VAR_argocd_automated_sync_enabled: "true"
-      TF_VAR_argocd_prune_enabled: "true"
-      TF_VAR_argocd_self_heal_enabled: "true"
-      TF_VAR_platform_db_password: agents
-      TF_VAR_platform_db_pvc_size: 5Gi
-      TF_VAR_litellm_db_password: change-me
-      TF_VAR_litellm_db_pvc_size: 5Gi
-      TF_VAR_litellm_master_key: sk-dev-master
-      TF_VAR_litellm_salt_key: sk-dev-salt
-      TF_VAR_docker_runner_shared_secret: change-me
-      TF_VAR_vault_pvc_size: 5Gi
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -65,10 +41,9 @@ jobs:
         with:
           terraform_version: 1.6.6
 
-      - name: Export kubeconfig for Terraform and kubectl
+      - name: Export kubeconfig for kubectl
         run: |
           echo "KUBECONFIG=${{ github.workspace }}/stacks/k8s/.kube/agyn-local-kubeconfig.yaml" >> "$GITHUB_ENV"
-          echo "TF_VAR_kubeconfig_path=${{ github.workspace }}/stacks/k8s/.kube/agyn-local-kubeconfig.yaml" >> "$GITHUB_ENV"
 
       - name: Apply k8s stack
         working-directory: stacks/k8s
