@@ -6,7 +6,7 @@ locals {
 
   postgres_chart_repo_host       = "ghcr.io"
   postgres_chart_full_name       = "agynio/charts/postgres-helm"
-  postgres_chart_version         = "0.1.0"
+  postgres_chart_version         = "0.1.1"
   vault_chart_version            = "0.28.1"
   registry_mirror_repo_url       = "https://github.com/twuni/docker-registry.helm.git"
   registry_mirror_chart_path     = "."
@@ -627,6 +627,24 @@ locals {
       volumeClaimTemplateName = "data"
       mountPath               = "/var/lib/postgresql/data"
     }
+    podSecurityContext = {
+      enabled             = true
+      runAsUser           = 70
+      runAsGroup          = 70
+      fsGroup             = 70
+      fsGroupChangePolicy = "OnRootMismatch"
+    }
+    securityContext = {
+      enabled                  = true
+      runAsNonRoot             = true
+      runAsUser                = 70
+      runAsGroup               = 70
+      allowPrivilegeEscalation = false
+      readOnlyRootFilesystem   = false
+      capabilities = {
+        drop = ["ALL"]
+      }
+    }
   })
 
   litellm_db_values = yamlencode({
@@ -665,6 +683,24 @@ locals {
       accessModes             = ["ReadWriteOnce"]
       volumeClaimTemplateName = "data"
       mountPath               = "/var/lib/postgresql/data"
+    }
+    podSecurityContext = {
+      enabled             = true
+      runAsUser           = 70
+      runAsGroup          = 70
+      fsGroup             = 70
+      fsGroupChangePolicy = "OnRootMismatch"
+    }
+    securityContext = {
+      enabled                  = true
+      runAsNonRoot             = true
+      runAsUser                = 70
+      runAsGroup               = 70
+      allowPrivilegeEscalation = false
+      readOnlyRootFilesystem   = false
+      capabilities = {
+        drop = ["ALL"]
+      }
     }
   })
 
