@@ -66,12 +66,6 @@ variable "platform_server_image_tag" {
   default     = "0.15.2"
 }
 
-variable "platform_server_replica_count" {
-  type        = number
-  description = "Replica count for the platform-server deployment"
-  default     = 2
-}
-
 variable "docker_runner_image_tag" {
   type        = string
   description = "Optional override for the docker-runner image tag"

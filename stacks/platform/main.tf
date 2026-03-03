@@ -727,7 +727,7 @@ locals {
   })
 
   platform_server_values = yamlencode({
-    replicaCount = var.platform_server_replica_count
+    replicaCount = 1
     image = {
       repository = "ghcr.io/agynio/platform-server"
       tag        = local.resolved_platform_server_image_tag

@@ -8,7 +8,6 @@ platform_namespace       = "platform"
 platform_repo_url        = "https://github.com/agynio/platform.git"
 platform_target_revision = "v0.15.2"
 platform_server_image_tag     = "0.15.2"
-platform_server_replica_count = 2
 docker_runner_image_tag       = "0.15.2"
 docker_runner_replica_count   = 1
 
