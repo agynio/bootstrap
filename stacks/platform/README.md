@@ -1,45 +1,57 @@
 # Platform stack
 
-Deploy platform workloads via Argo CD applications that reference the Helm charts in [agynio/platform](https://github.com/agynio/platform) plus their runtime dependencies.
+Deploy platform workloads via Argo CD applications sourced from [agynio/platform](https://github.com/agynio/platform) alongside Terraform-managed PostgreSQL databases, bootstrap jobs, and supporting configuration.
 
 ## Prerequisites
 
-- `stacks/k8s` and `stacks/system` applied so that Argo CD is installed in the cluster.
-- Argo CD authentication token with permissions to manage applications.
-- Persistent storage classes available for PostgreSQL, Vault, and registry mirror PVCs.
+- `stacks/k8s` and `stacks/system` applied so that Argo CD, Istio, and Vault are running in the cluster.
+- Local `kubectl` access to the target cluster (the stack uses the kubeconfig defined by `kubeconfig_path`).
+- Persistent storage classes available for PostgreSQL, Vault, and registry mirror PVCs (stateful components rely on dynamic provisioning).
 
 ## Usage
 
 ```bash
 cd stacks/platform
 cp terraform.tfvars.example terraform.tfvars
-# edit terraform.tfvars with your Argo CD details
 terraform init
 terraform validate
 terraform apply
 ```
 
-For local clusters, Argo CD is typically reached via port-forwarding:
+After the system stack is applied, the Argo CD server `Service` is exposed as a `LoadBalancer`. Ensure your local cluster forwards the load balancer listener to the host (for k3d use `--port 8080:8080@loadbalancer`). Terraform connects to Argo CD directly on `http://localhost:8080` using the default `admin/admin` credentials during the apply, and the UI is available at the same address for manual verification.
+
+### Repository authentication
+
+If the platform Helm charts are private, supply credentials via Terraform variables (environment variables shown below) before running `terraform apply`:
 
 ```bash
-kubectl -n argocd port-forward svc/argocd-server 8080:80
+export TF_VAR_platform_repo_username="x-access-token"
+export TF_VAR_platform_repo_password="$GITHUB_TOKEN"
 ```
 
-Use the forwarded host and port (`localhost:8080`) along with an Argo CD token in `terraform.tfvars` when running this stack.
+Any GitHub personal access token with `repo` scope works. The credentials are passed to Argo CD as basic-auth values and are not stored in Kubernetes secrets by this stack. Override them per environment as needed.
+
+## Terraform-managed components
+
+| Component | Kind | Purpose | Notes |
+|-----------|------|---------|-------|
+| `platform-db` | `StatefulSet` + `Service` | Primary PostgreSQL for platform workloads | Runs `postgres:16.6-alpine`, credentials `agents` / `TF_VAR_platform_db_password`, data stored under `/var/lib/postgresql/data` |
+| `litellm-db` | `StatefulSet` + `Service` | PostgreSQL backing LiteLLM | Runs `postgres:16.6-alpine`, credentials `litellm` / `TF_VAR_litellm_db_password` |
+| `vault-auto-init` | `ConfigMap` | Provides the init/unseal script used by Vault sidecar | Script now supports optional persistence flags and one-shot execution |
+| `vault-init-unseal` | `Job` | Mounts Vault data PVC and performs initial init/unseal | Uses the shared script with `EXIT_AFTER_UNSEAL=true`; no keys are written to Kubernetes Secrets |
+| `litellm-bootstrap-default-key` | `Job` | Generates/reconciles the default LiteLLM key secret | Uses in-cluster RBAC scoped to `secrets` writes in the `platform` namespace |
+
+The jobs wait for successful completion during `terraform apply` to ensure bootstrap steps finish before dependent services roll out.
 
 ## Applications deployed
 
 | Sync wave | Application        | Purpose                             | Notes |
 |-----------|--------------------|-------------------------------------|-------|
-| 0         | `platform-db`      | Bitnami PostgreSQL for platform     | Auth defaults: `agents` user/password, database `agents` |
-| 0         | `litellm-db`       | Bitnami PostgreSQL for LiteLLM      | Auth defaults: `litellm` user, password `change-me` |
 | 1         | `registry-mirror`  | Twuni docker-registry proxy         | Proxies Docker Hub with persistent storage |
-| 10        | `vault`            | HashiCorp Vault in standalone mode  | PVC size configurable via `vault_pvc_size` |
-| 11        | `vault-init`       | Vault initialization/unseal job     | Creates/updates `vault-root-token` with root and unseal keys |
-| 12        | `litellm`          | LiteLLM API deployment              | Connects to `litellm-db` using provided secrets |
-| 13        | `litellm-bootstrap` | LiteLLM default key bootstrap job   | Generates default alias and writes `litellm-default-key` secret |
+| 10        | `vault`            | HashiCorp Vault in standalone mode  | Sidecar consumes the Terraform-managed script and PVC for init/unseal |
+| 12        | `litellm`          | LiteLLM API deployment              | Connects to Terraform-managed `litellm-db`; master key sourced from `litellm-master-key` secret |
 | 18        | `docker-runner`    | Platform workspace runner           | Uses shared secret and exposes gRPC on 7071 |
-| 20        | `platform-server`  | Core platform API                   | Reads Vault token and LiteLLM client key from Kubernetes secrets |
+| 20        | `platform-server`  | Core platform API                   | Depends on `platform-db`, LiteLLM bootstrap, and Vault dev-root token |
 | 25        | `platform-ui`      | Platform web UI                     | Connects to `platform-server` |
 
 All chart versions, image tags, and critical secrets are pinned via Terraform variables for reproducibility. Adjust the defaults in `terraform.tfvars` to match your environment before applying.

@@ -1,17 +1,19 @@
-kubeconfig_path   = "../k8s/.kube/agyn-local-kubeconfig.yaml"
-argocd_server_addr = "localhost:8080"
-argocd_auth_token  = "REPLACE_WITH_ARGOCD_TOKEN"
-argocd_insecure    = true
+kubeconfig_path = "../k8s/.kube/agyn-local-kubeconfig.yaml"
+# Optional override if Argo CD is exposed on a different host/port
+# argocd_server_addr    = "localhost:8080"
+# argocd_admin_username = "admin"
+# argocd_admin_password = "admin"
 
-platform_namespace            = "platform"
-platform_repo_url             = "https://github.com/agynio/platform.git"
-platform_stack_repo_url       = "https://github.com/agynio/bootstrap_v2.git"
-platform_stack_target_revision = "main"
-platform_target_revision      = "v0.15.2"
+platform_namespace       = "platform"
+platform_repo_url        = "https://github.com/agynio/platform.git"
+platform_target_revision = "v0.15.2"
 platform_server_image_tag     = "0.15.2"
-platform_server_replica_count = 2
 docker_runner_image_tag       = "0.15.2"
 docker_runner_replica_count   = 1
+
+# Optional: supply credentials for private Git repositories
+# platform_repo_username = "x-access-token"
+# platform_repo_password = "ghp_example"
 
 platform_db_password        = "agents"
 platform_db_pvc_size        = "5Gi"

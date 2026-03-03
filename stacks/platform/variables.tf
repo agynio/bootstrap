@@ -6,19 +6,21 @@ variable "kubeconfig_path" {
 
 variable "argocd_server_addr" {
   type        = string
-  description = "Argo CD API server address (e.g. http://localhost:8080 when port-forwarding)"
+  description = "Argo CD API host:port for Terraform to reach"
+  default     = "localhost:8080"
 }
 
-variable "argocd_auth_token" {
+variable "argocd_admin_username" {
   type        = string
-  description = "Argo CD authentication token with permissions to manage applications"
-  sensitive   = true
+  description = "Admin username used for Argo CD provider authentication"
+  default     = "admin"
 }
 
-variable "argocd_insecure" {
-  type        = bool
-  description = "Allow insecure TLS or plaintext connections to the Argo CD API"
-  default     = true
+variable "argocd_admin_password" {
+  type        = string
+  description = "Admin password used for Argo CD provider authentication"
+  default     = "admin"
+  sensitive   = true
 }
 
 variable "platform_repo_url" {
@@ -27,29 +29,17 @@ variable "platform_repo_url" {
   default     = "https://github.com/agynio/platform.git"
 }
 
-variable "platform_stack_repo_url" {
+variable "platform_repo_username" {
   type        = string
-  description = "Git repository URL containing raw Kubernetes manifests managed in this stack"
-  default     = "https://github.com/agynio/bootstrap_v2.git"
-}
-
-variable "platform_stack_repo_username" {
-  type        = string
-  description = "Optional basic-auth username for accessing the platform stack repository"
+  description = "Optional basic-auth username for accessing the platform Helm repository"
   default     = ""
 }
 
-variable "platform_stack_repo_password" {
+variable "platform_repo_password" {
   type        = string
-  description = "Optional basic-auth password/token for accessing the platform stack repository"
+  description = "Optional basic-auth password/token for accessing the platform Helm repository"
   default     = ""
   sensitive   = true
-}
-
-variable "platform_stack_target_revision" {
-  type        = string
-  description = "Git revision for raw Kubernetes manifests managed in this stack"
-  default     = "main"
 }
 
 variable "platform_target_revision" {
@@ -74,12 +64,6 @@ variable "platform_server_image_tag" {
   type        = string
   description = "Optional override for the platform-server image tag"
   default     = "0.15.2"
-}
-
-variable "platform_server_replica_count" {
-  type        = number
-  description = "Replica count for the platform-server deployment"
-  default     = 2
 }
 
 variable "docker_runner_image_tag" {

@@ -73,7 +73,9 @@ resource "helm_release" "argo_cd" {
     yamlencode({
       server = {
         service = {
-          type = "ClusterIP"
+          type             = "LoadBalancer"
+          servicePortHttp  = 8080
+          servicePortHttps = 8443
         }
       }
       configs = {
@@ -81,7 +83,6 @@ resource "helm_release" "argo_cd" {
           admin = {
             enabled = true
           }
-          "accounts.admin" = "apiKey,login"
         }
         secret = {
           argocdServerAdminPassword      = "$2a$10$hR1GwTdUGuvKqOZBrM2ctu8eAwE70ItpOXOHgslxBqG6UHIRhRrzK"
