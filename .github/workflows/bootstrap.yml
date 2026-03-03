@@ -120,20 +120,18 @@ jobs:
               echo "No StatefulSets to verify"
               return
             fi
-
-            while IFS=$'\t' read -r name strategy; do
-              if [ -z "$name" ]; then
-                continue
-              fi
-              if [ "$strategy" = "RollingUpdate" ]; then
-                echo "Waiting for rollout of statefulset.apps/${name}"
-                kubectl -n platform rollout status "statefulset/${name}" --timeout=900s
-              else
-                echo "Skipping rollout status for statefulset.apps/${name} (strategy=${strategy})"
-              fi
-            done <<EOF_ROLLOUTS
-$(printf '%s' "$sts_json" | jq -r '.items[] | [.metadata.name, (.spec.updateStrategy.type // "RollingUpdate")] | @tsv')
-EOF_ROLLOUTS
+            printf '%s' "$sts_json" | jq -r '.items[] | [.metadata.name, (.spec.updateStrategy.type // "RollingUpdate")] | @tsv' |
+              while IFS=$'\t' read -r name strategy; do
+                if [ -z "$name" ]; then
+                  continue
+                fi
+                if [ "$strategy" = "RollingUpdate" ]; then
+                  echo "Waiting for rollout of statefulset.apps/${name}"
+                  kubectl -n platform rollout status "statefulset/${name}" --timeout=900s
+                else
+                  echo "Skipping rollout status for statefulset.apps/${name} (strategy=${strategy})"
+                fi
+              done
           }
 
           wait_for_pods() {
