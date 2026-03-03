@@ -27,7 +27,7 @@ Common endpoints served through the gateway:
 - LiteLLM API: `http://litellm.agyn.dev:8080`
 - Vault UI/API: `http://vault.agyn.dev:8080`
 
-Each workload now exposes an Istio `VirtualService` bound to the shared `platform-gateway` (`istio-gateway/platform-gateway`). Requests enter via the gateway's HTTP 8080 listener and route by hostname to the target ClusterIP services; Kubernetes `Ingress` objects are no longer used in this stack.
+Each workload publishes a Kubernetes `Ingress` with `ingressClassName: istio`. Requests enter via the Istio ingress gateway's HTTP 8080 listener and route by hostname to the target ClusterIP services. Access services over plain HTTP at `http://<host>:8080` as listed above.
 
 ## Inotify requirements for DinD (k3d/k3s)
 

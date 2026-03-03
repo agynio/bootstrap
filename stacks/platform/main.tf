@@ -481,7 +481,15 @@ locals {
         config  = trimspace(local.vault_standalone_config)
       }
       ingress = {
-        enabled = false
+        enabled          = true
+        ingressClassName = "istio"
+        pathType         = "Prefix"
+        hosts = [
+          {
+            host  = "vault.agyn.dev"
+            paths = ["/"]
+          }
+        ]
       }
       podSecurityContext = {
         runAsNonRoot = false
@@ -718,7 +726,22 @@ locals {
       port = 4000
     }
     ingress = {
-      enabled = false
+      enabled   = true
+      className = "istio"
+      hosts = [
+        {
+          host = "litellm.agyn.dev"
+          paths = [
+            {
+              path     = "/"
+              pathType = "Prefix"
+            }
+          ]
+        }
+      ]
+      tls         = []
+      annotations = {}
+      labels      = {}
     }
     masterkeySecretName = "litellm-master-key"
     masterkeySecretKey  = "LITELLM_MASTER_KEY"
@@ -870,7 +893,21 @@ locals {
       ]
     }
     ingress = {
-      enabled = false
+      enabled          = true
+      ingressClassName = "istio"
+      hosts = [
+        {
+          host = "api.agyn.dev"
+          paths = [
+            {
+              path        = "/"
+              pathType    = "Prefix"
+              servicePort = "http"
+            }
+          ]
+        }
+      ]
+      tls = []
     }
     securityContext = {
       enabled                  = true
@@ -1102,7 +1139,21 @@ locals {
       ]
     }
     ingress = {
-      enabled = false
+      enabled          = true
+      ingressClassName = "istio"
+      hosts = [
+        {
+          host = "agyn.dev"
+          paths = [
+            {
+              path        = "/"
+              pathType    = "Prefix"
+              servicePort = "http"
+            }
+          ]
+        }
+      ]
+      tls = []
     }
     extraVolumes = [
       {
@@ -1153,76 +1204,6 @@ locals {
       }
     ]
   })
-}
-
-locals {
-  platform_virtual_services = {
-    vault = {
-      host    = "vault.agyn.dev"
-      service = "vault"
-      port    = 8200
-    }
-    "platform-server" = {
-      host    = "api.agyn.dev"
-      service = "platform-server"
-      port    = 3010
-    }
-    "platform-ui" = {
-      host    = "agyn.dev"
-      service = "platform-ui"
-      port    = 3000
-    }
-    litellm = {
-      host    = "litellm.agyn.dev"
-      service = "litellm"
-      port    = 4000
-    }
-  }
-}
-
-resource "kubernetes_manifest" "platform_virtual_service" {
-  for_each = local.platform_virtual_services
-
-  manifest = {
-    apiVersion = "networking.istio.io/v1beta1"
-    kind       = "VirtualService"
-    metadata = {
-      name      = each.key
-      namespace = var.platform_namespace
-    }
-    spec = {
-      hosts    = [each.value.host]
-      gateways = ["istio-gateway/platform-gateway"]
-      http = [
-        {
-          match = [
-            {
-              uri = {
-                prefix = "/"
-              }
-            }
-          ]
-          route = [
-            {
-              destination = {
-                host = format("%s.%s.svc.cluster.local", each.value.service, var.platform_namespace)
-                port = {
-                  number = each.value.port
-                }
-              }
-            }
-          ]
-        }
-      ]
-    }
-  }
-
-  depends_on = [
-    argocd_application.vault,
-    argocd_application.platform_server,
-    argocd_application.platform_ui,
-    argocd_application.litellm,
-  ]
 }
 
 resource "kubernetes_namespace" "platform" {

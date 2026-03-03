@@ -4,7 +4,6 @@ provider "argocd" {
   password    = var.argocd_admin_password
   insecure    = true
   plain_text  = true
-  grpc_web    = true
 }
 
 provider "kubernetes" {

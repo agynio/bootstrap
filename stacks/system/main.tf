@@ -13,6 +13,7 @@ resource "helm_release" "istio_base" {
   namespace  = kubernetes_namespace.istio_system.metadata[0].name
 }
 
+# Istio ingress class for Kubernetes Ingress resources
 resource "kubernetes_ingress_class_v1" "istio" {
   metadata {
     name = "istio"
@@ -38,6 +39,11 @@ resource "helm_release" "istiod" {
       pilot = {
         traceSampling = 1.0
       }
+      meshConfig = {
+        ingressClass    = "istio"
+        ingressSelector = "ingressgateway"
+        ingressService  = "istio-ingressgateway"
+      }
     })
   ]
 }
@@ -51,6 +57,7 @@ resource "helm_release" "istio_gateway" {
   namespace  = kubernetes_namespace.istio_gateway.metadata[0].name
 
   depends_on = [helm_release.istiod]
+  wait       = false
 
   values = [
     yamlencode({
@@ -58,40 +65,14 @@ resource "helm_release" "istio_gateway" {
       service = {
         type = "LoadBalancer",
         ports = [{
-          name       = "http-8080",
-          port       = 8080,
-          targetPort = 8080,
+          name       = "http-80",
+          port       = 80,
+          targetPort = 80,
           protocol   = "TCP"
         }]
       }
     })
   ]
-}
-
-resource "kubernetes_manifest" "platform_gateway" {
-  manifest = {
-    apiVersion = "networking.istio.io/v1beta1"
-    kind       = "Gateway"
-    metadata = {
-      name      = "platform-gateway"
-      namespace = kubernetes_namespace.istio_gateway.metadata[0].name
-    }
-    spec = {
-      selector = {
-        istio = "ingressgateway"
-      }
-      servers = [{
-        port = {
-          number   = 8080
-          name     = "http-8080"
-          protocol = "HTTP"
-        }
-        hosts = ["*.agyn.dev", "agyn.dev"]
-      }]
-    }
-  }
-
-  depends_on = [helm_release.istio_gateway]
 }
 
 # Argo CD
@@ -101,9 +82,6 @@ resource "helm_release" "argo_cd" {
   chart      = "argo-cd"
   version    = var.argocd_chart_version
   namespace  = kubernetes_namespace.argocd.metadata[0].name
-  wait       = false
-
-  depends_on = [kubernetes_manifest.platform_gateway]
 
   values = [
     yamlencode({
@@ -115,15 +93,15 @@ resource "helm_release" "argo_cd" {
           servicePortHttps = 8443
         }
         ingress = {
-          enabled = false
+          enabled          = true
+          ingressClassName = "istio"
+          hostname         = "argocd.agyn.dev"
+          tls              = false
         }
-      }
-      dex = {
-        enabled = false
       }
       configs = {
         params = {
-          "server.insecure" = "true"
+          "server.insecure" = true
         }
         cm = {
           admin = {
@@ -131,44 +109,10 @@ resource "helm_release" "argo_cd" {
           }
         }
         secret = {
-          argocdServerAdminPassword      = "$2y$10$gE/JaT4x8KfNOkChbr8/AOP4PLOclnWYYFQVMeax3dg3H7UHfmtgK"
-          argocdServerAdminPasswordMtime = "2026-03-03T12:00:00Z"
+          argocdServerAdminPassword      = "$2a$10$hR1GwTdUGuvKqOZBrM2ctu8eAwE70ItpOXOHgslxBqG6UHIRhRrzK"
+          argocdServerAdminPasswordMtime = "2026-02-27T14:54:31Z"
         }
       }
     })
   ]
-}
-
-resource "kubernetes_manifest" "argocd_virtual_service" {
-  manifest = {
-    apiVersion = "networking.istio.io/v1beta1"
-    kind       = "VirtualService"
-    metadata = {
-      name      = "argocd"
-      namespace = kubernetes_namespace.argocd.metadata[0].name
-    }
-    spec = {
-      hosts = ["argocd.agyn.dev"]
-      gateways = [
-        "${kubernetes_namespace.istio_gateway.metadata[0].name}/platform-gateway"
-      ]
-      http = [{
-        match = [{
-          uri = {
-            prefix = "/"
-          }
-        }]
-        route = [{
-          destination = {
-            host = "argo-cd-argocd-server.argocd.svc.cluster.local"
-            port = {
-              number = 8080
-            }
-          }
-        }]
-      }]
-    }
-  }
-
-  depends_on = [helm_release.argo_cd, kubernetes_manifest.platform_gateway]
 }

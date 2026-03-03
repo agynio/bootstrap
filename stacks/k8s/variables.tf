@@ -49,7 +49,7 @@ variable "ports" {
   description = "Additional port mappings for cluster ingress/services"
   default = [
     {
-      container_port = 8080
+      container_port = 80
       host_port      = 8080
       protocol       = "tcp"
     }
