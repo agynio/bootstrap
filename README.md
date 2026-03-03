@@ -27,6 +27,8 @@ Common endpoints served through the gateway:
 - LiteLLM API: `http://litellm.agyn.dev:8080`
 - Vault UI/API: `http://vault.agyn.dev:8080`
 
+Each workload now exposes an Istio `VirtualService` bound to the shared `platform-gateway` (`istio-gateway/platform-gateway`). Requests enter via the gateway's HTTP 8080 listener and route by hostname to the target ClusterIP services; Kubernetes `Ingress` objects are no longer used in this stack.
+
 ## Inotify requirements for DinD (k3d/k3s)
 
 Running k3d/k3s inside Docker-in-Docker relies on the host kernel's inotify limits - those sysctls are not namespaced. These fs.inotify sysctls are host-level and are not adjusted automatically by the sandbox; you must change them on the host. If `fs.inotify.max_user_instances` remains at distribution defaults, containerd's CRI plugin can fail with errors such as `unknown service runtime.v1.RuntimeService` and `fsnotify: too many open files`.

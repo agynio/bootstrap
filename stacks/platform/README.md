@@ -26,12 +26,14 @@ After the system stack is applied, Istio exposes a single ingress listener on po
 - `litellm.agyn.dev`
 - `vault.agyn.dev`
 
-Terraform connects to Argo CD through the ingress at `http://argocd.agyn.dev:8080` (default credentials `admin/admin`). The same listener serves the application endpoints:
+Terraform connects to Argo CD through the ingress at `http://argocd.agyn.dev:8080` (default credentials `admin/localdev123`). The same listener serves the application endpoints:
 
 - Platform UI: `http://agyn.dev:8080`
 - Platform API: `http://api.agyn.dev:8080`
 - LiteLLM API: `http://litellm.agyn.dev:8080`
 - Vault UI/API: `http://vault.agyn.dev:8080`
+
+Each application chart publishes an Istio `VirtualService` that targets the shared `platform-gateway` (`istio-gateway/platform-gateway`), so HTTP routing is entirely handled by Istio Gateway primitives—no Kubernetes `Ingress` objects are created by this stack.
 
 ### Repository authentication
 

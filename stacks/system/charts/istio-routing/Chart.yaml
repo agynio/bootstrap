@@ -1,6 +1,0 @@
-apiVersion: v2
-name: istio-routing
-description: Istio gateway and virtual services for local ingress
-type: application
-version: 0.1.1
-appVersion: "1.0.0"
