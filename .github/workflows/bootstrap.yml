@@ -5,9 +5,41 @@ on:
   push:
     branches: [ main ]
 
+concurrency:
+  group: ${{ github.event_name == 'pull_request' && format('bootstrap-pr-%s', github.event.pull_request.number) || 'bootstrap-main' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   full-apply:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      KUBECONFIG: ${{ github.workspace }}/stacks/k8s/.kube/agyn-local-kubeconfig.yaml
+      TF_VAR_kubeconfig_path: ${{ github.workspace }}/stacks/k8s/.kube/agyn-local-kubeconfig.yaml
+      TF_VAR_argocd_server_addr: localhost:8080
+      TF_VAR_argocd_admin_username: admin
+      TF_VAR_argocd_admin_password: admin
+      TF_VAR_platform_repo_url: https://github.com/agynio/platform.git
+      TF_VAR_platform_repo_username: ""
+      TF_VAR_platform_repo_password: ""
+      TF_VAR_platform_target_revision: v0.15.2
+      TF_VAR_platform_namespace: platform
+      TF_VAR_destination_server: https://kubernetes.default.svc
+      TF_VAR_platform_server_image_tag: 0.15.2
+      TF_VAR_docker_runner_image_tag: 0.15.2
+      TF_VAR_docker_runner_replica_count: "1"
+      TF_VAR_argocd_automated_sync_enabled: "true"
+      TF_VAR_argocd_prune_enabled: "true"
+      TF_VAR_argocd_self_heal_enabled: "true"
+      TF_VAR_platform_db_password: agents
+      TF_VAR_platform_db_pvc_size: 5Gi
+      TF_VAR_litellm_db_password: change-me
+      TF_VAR_litellm_db_pvc_size: 5Gi
+      TF_VAR_litellm_master_key: sk-dev-master
+      TF_VAR_litellm_salt_key: sk-dev-salt
+      TF_VAR_docker_runner_shared_secret: change-me
+      TF_VAR_vault_pvc_size: 5Gi
+      TF_VAR_registry_mirror_pvc_size: 5Gi
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -15,6 +47,16 @@ jobs:
       - name: Verify Docker
         run: |
           docker version || (echo "Docker is required" && exit 1)
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: v1.28.7
+
+      - name: Install jq
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
 
       - name: Install k3d
         run: |
@@ -37,6 +79,130 @@ jobs:
         run: |
           terraform init -input=false
           terraform apply -auto-approve -input=false
+
+      - name: Apply platform stack
+        working-directory: stacks/platform
+        run: |
+          terraform init -input=false
+          terraform apply -auto-approve -input=false
+
+      - name: Validate platform workloads health
+        run: |
+          set -euo pipefail
+
+          wait_for_jobs() {
+            jobs=$(kubectl -n platform get jobs -o name 2>/dev/null || true)
+            if [ -z "$jobs" ]; then
+              echo "No Jobs found in platform namespace"
+              return
+            fi
+
+            for job in $jobs; do
+              echo "Waiting for ${job} to complete"
+              kubectl -n platform wait --for=condition=complete "$job" --timeout=900s
+            done
+          }
+
+          wait_for_rollouts() {
+            deployments=$(kubectl -n platform get deploy -o name 2>/dev/null || true)
+            if [ -n "$deployments" ]; then
+              for resource in $deployments; do
+                echo "Waiting for rollout of ${resource}"
+                kubectl -n platform rollout status "$resource" --timeout=900s
+              done
+            else
+              echo "No Deployments to verify"
+            fi
+
+            sts_json=$(kubectl -n platform get statefulset -o json 2>/dev/null || true)
+            sts_count=$(printf '%s' "$sts_json" | jq '.items | length')
+            if [ "$sts_count" -eq 0 ]; then
+              echo "No StatefulSets to verify"
+              return
+            fi
+
+            while IFS=$'\t' read -r name strategy; do
+              if [ -z "$name" ]; then
+                continue
+              fi
+              if [ "$strategy" = "RollingUpdate" ]; then
+                echo "Waiting for rollout of statefulset.apps/${name}"
+                kubectl -n platform rollout status "statefulset/${name}" --timeout=900s
+              else
+                echo "Skipping rollout status for statefulset.apps/${name} (strategy=${strategy})"
+              fi
+            done <<EOF_ROLLOUTS
+$(printf '%s' "$sts_json" | jq -r '.items[] | [.metadata.name, (.spec.updateStrategy.type // "RollingUpdate")] | @tsv')
+EOF_ROLLOUTS
+          }
+
+          wait_for_pods() {
+            deadline=$((SECONDS + 900))
+
+            while [ $SECONDS -lt $deadline ]; do
+              pods_json=$(kubectl -n platform get pods -o json)
+              pod_count=$(printf '%s' "$pods_json" | jq '.items | length')
+
+              if [ "$pod_count" -eq 0 ]; then
+                echo "No pods present yet in platform namespace"
+                sleep 10
+                continue
+              fi
+
+              failed=$(printf '%s' "$pods_json" | jq '[.items[] | select(.status.phase == "Failed" or .status.phase == "Unknown")] | length')
+              if [ "$failed" -gt 0 ]; then
+                kubectl -n platform get pods -o wide
+                echo "Detected pods in Failed/Unknown state" >&2
+                exit 1
+              fi
+
+              pending=$(printf '%s' "$pods_json" | jq '[.items[] | select(.status.phase == "Pending" or (.status.phase == "Running" and ([(.status.conditions[]? | select(.type == "Ready") | .status == "True")] | length) == 0))] | length')
+
+              if [ "$pending" -eq 0 ]; then
+                echo "All pods are Ready or Completed"
+                return
+              fi
+
+              echo "Waiting for pods to become Ready/Completed..."
+              sleep 10
+            done
+
+            kubectl -n platform get pods
+            echo "Timeout waiting for pods to become Ready/Completed" >&2
+            exit 1
+          }
+
+          wait_for_jobs
+          wait_for_rollouts
+          wait_for_pods
+
+      - name: Verify Argo CD Applications health (optional)
+        run: |
+          set -euo pipefail
+
+          applications=$(kubectl -n argocd get applications.argoproj.io -o json 2>/dev/null || true)
+          count=$(printf '%s' "$applications" | jq '.items | length')
+
+          if [ "$count" -eq 0 ]; then
+            echo "No Argo CD Applications detected; skipping health verification"
+            exit 0
+          fi
+
+          unhealthy=$(printf '%s' "$applications" | jq '[.items[] | select(.status.sync.status != "Synced" or .status.health.status != "Healthy")] | length')
+          if [ "$unhealthy" -gt 0 ]; then
+            kubectl -n argocd get applications.argoproj.io
+            echo "One or more Argo CD Applications are not Synced/Healthy" >&2
+            exit 1
+          fi
+
+          echo "All Argo CD Applications are Synced and Healthy"
+
+      - name: Destroy platform stack (PR only)
+        if: ${{ always() && github.event_name == 'pull_request' }}
+        working-directory: stacks/platform
+        run: |
+          terraform init -input=false
+          terraform destroy -auto-approve -input=false
 
       - name: Destroy system stack (PR only)
         if: ${{ always() && github.event_name == 'pull_request' }}
