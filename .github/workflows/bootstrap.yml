@@ -6,7 +6,7 @@ on:
     branches: [ main ]
 
 concurrency:
-  group: bootstrap-${{ github.event_name == 'pull_request' && github.event.pull_request.number || 'main' }}
+  group: bootstrap-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
