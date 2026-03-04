@@ -1,11 +1,3 @@
-data "terraform_remote_state" "system" {
-  backend = "local"
-
-  config = {
-    path = "../system/state/terraform.tfstate"
-  }
-}
-
 data "terraform_remote_state" "k8s" {
   backend = "local"
 

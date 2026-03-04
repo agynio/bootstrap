@@ -27,8 +27,8 @@ resource "kubernetes_manifest" "platform_gateway" {
             "credentialName" = local.istio_gateway_tls_secret_name
           }
           "hosts" = [
-            "agyn.dev",
-            "*.agyn.dev",
+            local.base_domain,
+            "*.${local.base_domain}",
           ]
         }
       ]
@@ -50,7 +50,7 @@ resource "kubernetes_manifest" "virtualservice_argocd" {
       "namespace" = local.istio_gateway_namespace
     }
     "spec" = {
-      "hosts"    = ["argocd.agyn.dev"]
+      "hosts"    = ["argocd.${local.base_domain}"]
       "gateways" = ["platform-gateway"]
       "http" = [
         {

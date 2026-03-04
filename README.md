@@ -11,7 +11,9 @@ All stacks use local directory backend state per stack.
 
 ## Gateway routing
 
-The system stack provisions a shared Istio `Gateway` (`platform-gateway`) that terminates TLS on port 443. When using the default k3d configuration, this listener is exposed on host port **8080** (`443/tcp` inside the cluster → `127.0.0.1:8080` on the host).
+The system stack provisions a shared Istio `Gateway` (`platform-gateway`) that terminates TLS on port 443. When using the default k3d configuration, this listener is exposed on host port **2496** (`443/tcp` inside the cluster → `127.0.0.1:2496` on the host, configurable via the k8s stack `port` variable).
+
+Apply `terraform -chdir=stacks/k8s apply` before other stacks so the chosen domain and ingress port are published through `terraform_remote_state`. The command prompts once for `domain` (default `agyn.dev`) and `port` (default `2496`). Override non-interactively with flags such as `terraform -chdir=stacks/k8s apply -var='domain=example.dev' -var='port=8443'` or via environment variables `TF_VAR_domain` / `TF_VAR_port`.
 
 Traffic is routed purely through Istio `VirtualService` objects—there are no Kubernetes `Ingress` resources in the platform stack. Ensure the following DNS entries resolve to `127.0.0.1` on your workstation (e.g. via `/etc/hosts`):
 
@@ -21,15 +23,17 @@ Traffic is routed purely through Istio `VirtualService` objects—there are no K
 - `litellm.agyn.dev`
 - `vault.agyn.dev`
 
+Update the hostnames accordingly if you override the base domain.
+
 Common HTTPS endpoints exposed through the gateway (accept the self-signed wildcard certificate locally):
 
-- Platform UI: `https://agyn.dev:8080`
-- Platform API: `https://api.agyn.dev:8080`
-- Argo CD UI/API: `https://argocd.agyn.dev:8080`
-- LiteLLM API: `https://litellm.agyn.dev:8080`
-- Vault UI/API: `https://vault.agyn.dev:8080`
+- Platform UI: `https://agyn.dev:2496`
+- Platform API: `https://api.agyn.dev:2496`
+- Argo CD UI/API: `https://argocd.agyn.dev:2496`
+- LiteLLM API: `https://litellm.agyn.dev:2496`
+- Vault UI/API: `https://vault.agyn.dev:2496`
 
-Verify routing after `terraform apply` with `curl -kI --resolve <host>:8080:127.0.0.1 https://<host>:8080/` (for example `curl -kI --resolve agyn.dev:8080:127.0.0.1 https://agyn.dev:8080/`).
+Verify routing after `terraform apply` with `curl -kI --resolve <host>:2496:127.0.0.1 https://<host>:2496/` (for example `curl -kI --resolve agyn.dev:2496:127.0.0.1 https://agyn.dev:2496/`).
 
 ## LiteLLM defaults
 

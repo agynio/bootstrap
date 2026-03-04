@@ -22,3 +22,13 @@ output "kube_api_endpoint" {
   value       = var.expose_api ? format("https://127.0.0.1:%d", var.api_port) : null
   description = "Local Kubernetes API endpoint (if exposed)"
 }
+
+output "domain" {
+  value       = var.domain
+  description = "Base domain to be consumed by dependent stacks"
+}
+
+output "ingress_port" {
+  value       = var.port
+  description = "Host port exposed for ingress traffic"
+}
