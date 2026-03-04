@@ -78,7 +78,6 @@ resource "helm_release" "istio_gateway" {
             port       = 443
             targetPort = 8443
             protocol   = "TCP"
-            nodePort   = 30443
           }
         ]
       }

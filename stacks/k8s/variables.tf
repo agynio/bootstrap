@@ -27,7 +27,6 @@ variable "k3s_extra_args" {
   description = "Additional k3s server args (e.g., --disable=traefik)"
   default = [
     "--disable=traefik",
-    "--disable=servicelb",
   ]
 }
 
@@ -53,10 +52,10 @@ variable "ports" {
   description = "Additional port mappings for cluster ingress/services"
   default = [
     {
-      container_port = 30443
+      container_port = 443
       host_port      = 8080
       protocol       = "tcp"
-      node_filters   = ["server:0"]
+      node_filters   = ["loadbalancer"]
     }
   ]
 }
