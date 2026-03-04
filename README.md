@@ -40,7 +40,7 @@ LiteLLM is deployed with the following development defaults:
 - Salt key: `sk-dev-salt-1234`
 - PostgreSQL password: `change-me`
 
-Terraform defaults expect Argo CD to be served at `argocd.agyn.dev:8080` (see `stacks/platform/terraform.tfvars.example`), matching the `argocd_server_addr` provider setting. If you must bootstrap against a direct port-forward to the Argo CD service (plain HTTP on port 8080), set `-var 'argocd_plain_text=true' -var 'argocd_server_addr=localhost:PORT'` for the `stacks/platform` Terraform runs.
+The platform stack now connects to Argo CD exclusively via `kubectl port-forward`. The `argocd` Terraform provider opens a tunnel directly to the in-cluster service in the `argocd` namespace, so no external DNS entry is required during bootstrap. Disable this behaviour only if you have a routable control-plane endpoint by setting `-var 'argocd_port_forward_enabled=false'` and providing a matching hostname/IP via `kubectl`'s current context.
 
 ## Trusting the generated certificate authority
 

@@ -2,7 +2,6 @@ locals {
   resolved_platform_server_image_tag = trimspace(var.platform_server_image_tag) != "" ? var.platform_server_image_tag : var.platform_target_revision
   resolved_docker_runner_image_tag   = trimspace(var.docker_runner_image_tag) != "" ? var.docker_runner_image_tag : var.platform_target_revision
   resolved_platform_ui_image_tag     = local.resolved_platform_server_image_tag
-  argocd_server_addr_normalized      = replace(replace(var.argocd_server_addr, "https://", ""), "http://", "")
 
   postgres_image                 = "postgres:16.6-alpine"
   vault_chart_version            = "0.28.1"

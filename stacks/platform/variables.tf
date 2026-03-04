@@ -4,12 +4,6 @@ variable "kubeconfig_path" {
   default     = "../k8s/.kube/agyn-local-kubeconfig.yaml"
 }
 
-variable "argocd_server_addr" {
-  type        = string
-  description = "Argo CD API host:port for Terraform to reach"
-  default     = "argocd.agyn.dev:8080"
-}
-
 variable "argocd_admin_username" {
   type        = string
   description = "Admin username used for Argo CD provider authentication"
@@ -21,6 +15,18 @@ variable "argocd_admin_password" {
   description = "Admin password used for Argo CD provider authentication"
   default     = "admin"
   sensitive   = true
+}
+
+variable "argocd_port_forward_enabled" {
+  type        = bool
+  description = "Use kubectl port forwarding for Argo CD provider connectivity"
+  default     = true
+}
+
+variable "argocd_port_forward_namespace" {
+  type        = string
+  description = "Namespace hosting the Argo CD server when port forwarding"
+  default     = "argocd"
 }
 
 variable "platform_repo_url" {
