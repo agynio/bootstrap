@@ -1031,51 +1031,6 @@ resource "kubernetes_manifest" "virtualservice_platform_ui" {
   ]
 }
 
-resource "kubernetes_manifest" "virtualservice_platform_server" {
-  manifest = {
-    "apiVersion" = "networking.istio.io/v1beta1"
-    "kind"       = "VirtualService"
-    "metadata" = {
-      "name"      = "platform-server"
-      "namespace" = local.istio_gateway_namespace
-    }
-    "spec" = {
-      "hosts"    = ["api.agyn.dev"]
-      "gateways" = ["platform-gateway"]
-      "http" = [
-        {
-          "match" = [
-            {
-              "uri" = {
-                "prefix" = "/"
-              }
-            }
-          ]
-          "route" = [
-            {
-              "destination" = {
-                "host" = "platform-server.platform.svc.cluster.local"
-                "port" = {
-                  "number" = 3010
-                }
-              }
-            }
-          ]
-        }
-      ]
-    }
-  }
-
-  computed_fields = [
-    "metadata.annotations",
-    "metadata.labels",
-  ]
-
-  depends_on = [
-    data.terraform_remote_state.system,
-  ]
-}
-
 resource "kubernetes_manifest" "virtualservice_litellm" {
   manifest = {
     "apiVersion" = "networking.istio.io/v1beta1"
