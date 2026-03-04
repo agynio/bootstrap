@@ -26,7 +26,19 @@ variable "argocd_admin_password" {
 variable "argocd_plain_text" {
   type        = bool
   description = "Use plaintext (non-TLS) connection for Argo CD provider"
-  default     = false
+  default     = true
+}
+
+variable "argocd_port_forward_enabled" {
+  type        = bool
+  description = "Use kubectl port forwarding for Argo CD provider connectivity"
+  default     = true
+}
+
+variable "argocd_port_forward_namespace" {
+  type        = string
+  description = "Namespace that hosts the Argo CD server when using port forwarding"
+  default     = "argocd"
 }
 
 variable "platform_repo_url" {

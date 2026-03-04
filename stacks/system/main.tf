@@ -96,44 +96,6 @@ resource "helm_release" "istio_gateway" {
   ]
 }
 
-resource "kubernetes_manifest" "platform_gateway" {
-  manifest = {
-    "apiVersion" = "networking.istio.io/v1beta1"
-    "kind"       = "Gateway"
-    "metadata" = {
-      "name"      = "platform-gateway"
-      "namespace" = kubernetes_namespace.istio_gateway.metadata[0].name
-    }
-    "spec" = {
-      "selector" = {
-        "istio" = "ingressgateway"
-      }
-      "servers" = [
-        {
-          "port" = {
-            "number"   = 443
-            "name"     = "https"
-            "protocol" = "HTTPS"
-          }
-          "tls" = {
-            "mode"           = "SIMPLE"
-            "credentialName" = kubernetes_secret_v1.wildcard_tls_gateway.metadata[0].name
-          }
-          "hosts" = [
-            "agyn.dev",
-            "*.agyn.dev"
-          ]
-        }
-      ]
-    }
-  }
-
-  depends_on = [
-    helm_release.istio_gateway,
-    kubernetes_secret_v1.wildcard_tls_gateway,
-  ]
-}
-
 # Certificate authority for agyn.dev
 resource "tls_private_key" "ca_agyn_dev" {
   algorithm = "RSA"

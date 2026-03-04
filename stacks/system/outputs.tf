@@ -28,3 +28,13 @@ output "wildcard_agyn_dev_private_key" {
   sensitive   = true
   description = "PEM-encoded private key for the agyn.dev wildcard certificate"
 }
+
+output "istio_gateway_namespace" {
+  value       = kubernetes_namespace.istio_gateway.metadata[0].name
+  description = "Namespace hosting the Istio ingress gateway"
+}
+
+output "wildcard_tls_gateway_secret_name" {
+  value       = kubernetes_secret_v1.wildcard_tls_gateway.metadata[0].name
+  description = "TLS secret name containing the agyn.dev wildcard certificate for the ingress gateway"
+}

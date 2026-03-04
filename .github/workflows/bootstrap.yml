@@ -41,48 +41,70 @@ jobs:
         with:
           terraform_version: 1.6.6
 
-      - name: Apply k8s stack
-        working-directory: stacks/k8s
+      - name: Configure local hostnames
         run: |
-          terraform init -input=false
-          terraform apply -auto-approve -input=false
+          sudo tee -a /etc/hosts >/dev/null <<'EOF'
+          127.0.0.1 argocd.agyn.dev
+          127.0.0.1 agyn.dev
+          127.0.0.1 platform.agyn.dev
+          127.0.0.1 vault.agyn.dev
+          127.0.0.1 litellm.agyn.dev
+          127.0.0.1 registry.agyn.dev
+          EOF
+
+      - name: Apply k8s stack
+        run: |
+          terraform -chdir=stacks/k8s init -input=false
+          terraform -chdir=stacks/k8s apply -auto-approve -input=false
+
+      - name: Export kubeconfig for kubectl
+        run: |
+          kubeconfig_path=$(terraform -chdir=stacks/k8s output -raw kubeconfig_path)
+          echo "KUBECONFIG=$(realpath "$kubeconfig_path")" >> $GITHUB_ENV
 
       - name: Apply system stack (Istio + Argo CD)
-        working-directory: stacks/system
         run: |
-          terraform init -input=false
-          terraform apply -auto-approve -input=false \
-            -target=helm_release.istio_base \
-            -target=helm_release.istiod \
-            -target=helm_release.istio_gateway
-          terraform apply -auto-approve -input=false
+          terraform -chdir=stacks/system init -input=false
+          terraform -chdir=stacks/system apply -auto-approve -input=false
+
+      - name: Wait for Argo CD API readiness
+        run: |
+          for attempt in {1..60}; do
+            if kubectl -n argocd get deployment argo-cd-argocd-server >/dev/null 2>&1; then
+              break
+            fi
+            echo "Waiting for argo-cd-argocd-server deployment to be created (${attempt}/60)..."
+            sleep 10
+          done
+          if ! kubectl -n argocd get deployment argo-cd-argocd-server >/dev/null 2>&1; then
+            echo "argo-cd-argocd-server deployment was not created within the expected time."
+            exit 1
+          fi
+          kubectl -n argocd wait --for=condition=Available deployment/argo-cd-argocd-server --timeout=300s
+          kubectl -n argocd wait --for=condition=Ready pod -l app.kubernetes.io/name=argocd-server --timeout=300s
 
       - name: Apply platform stack
-        working-directory: stacks/platform
         run: |
-          terraform init -input=false
-          terraform apply -auto-approve -input=false
+          terraform -chdir=stacks/platform init -input=false
+          terraform -chdir=stacks/platform apply -auto-approve -input=false
 
       - name: Verify platform workloads and Argo CD health
         run: ./.github/scripts/verify_platform_health.sh
 
       - name: Destroy platform stack (PR only)
         if: ${{ always() && github.event_name == 'pull_request' }}
-        working-directory: stacks/platform
         run: |
-          terraform init -input=false
-          terraform destroy -auto-approve -input=false
+          terraform -chdir=stacks/platform init -input=false
+          terraform -chdir=stacks/platform destroy -auto-approve -input=false
 
       - name: Destroy system stack (PR only)
         if: ${{ always() && github.event_name == 'pull_request' }}
-        working-directory: stacks/system
         run: |
-          terraform init -input=false
-          terraform destroy -auto-approve -input=false
+          terraform -chdir=stacks/system init -input=false
+          terraform -chdir=stacks/system destroy -auto-approve -input=false
 
       - name: Destroy k8s stack (PR only)
         if: ${{ always() && github.event_name == 'pull_request' }}
-        working-directory: stacks/k8s
         run: |
-          terraform init -input=false
-          terraform destroy -auto-approve -input=false
+          terraform -chdir=stacks/k8s init -input=false
+          terraform -chdir=stacks/k8s destroy -auto-approve -input=false

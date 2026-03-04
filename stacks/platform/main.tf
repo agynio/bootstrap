@@ -14,6 +14,8 @@ locals {
   litellm_chart_name             = "litellm-helm"
   litellm_chart_full_name        = replace(local.litellm_chart_repo_url, "oci://${local.litellm_chart_repo_host}/", "")
   litellm_chart_revision         = "1.81.12-stable.1"
+  istio_gateway_namespace        = data.terraform_remote_state.system.outputs.istio_gateway_namespace
+  istio_gateway_tls_secret_name  = data.terraform_remote_state.system.outputs.wildcard_tls_gateway_secret_name
 
   default_sync_options = [
     "CreateNamespace=true",
@@ -932,6 +934,48 @@ resource "kubernetes_job_v1" "vault_init_unseal" {
   depends_on = [
     kubernetes_config_map_v1.vault_auto_init,
     argocd_application.vault,
+  ]
+}
+
+resource "kubernetes_manifest" "platform_gateway" {
+  manifest = {
+    "apiVersion" = "networking.istio.io/v1beta1"
+    "kind"       = "Gateway"
+    "metadata" = {
+      "name"      = "platform-gateway"
+      "namespace" = local.istio_gateway_namespace
+    }
+    "spec" = {
+      "selector" = {
+        "istio" = "ingressgateway"
+      }
+      "servers" = [
+        {
+          "port" = {
+            "number"   = 443
+            "name"     = "https"
+            "protocol" = "HTTPS"
+          }
+          "tls" = {
+            "mode"           = "SIMPLE"
+            "credentialName" = local.istio_gateway_tls_secret_name
+          }
+          "hosts" = [
+            "agyn.dev",
+            "*.agyn.dev"
+          ]
+        }
+      ]
+    }
+  }
+
+  computed_fields = [
+    "metadata.annotations",
+    "metadata.labels",
+  ]
+
+  depends_on = [
+    data.terraform_remote_state.system,
   ]
 }
 
