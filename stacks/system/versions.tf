@@ -17,10 +17,6 @@ terraform {
       source  = "hashicorp/local"
       version = "~> 2.5"
     }
-    time = {
-      source  = "hashicorp/time"
-      version = "~> 0.11"
-    }
   }
   backend "local" {
     path = "./state/terraform.tfstate"

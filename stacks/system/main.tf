@@ -12,6 +12,7 @@ resource "helm_release" "istio_base" {
   chart      = "base"
   version    = var.istio_chart_version
   namespace  = kubernetes_namespace.istio_system.metadata[0].name
+  wait       = true
 }
 
 # Istio ingress class for Kubernetes Ingress resources
@@ -34,6 +35,7 @@ resource "helm_release" "istiod" {
   namespace  = kubernetes_namespace.istio_system.metadata[0].name
 
   depends_on = [helm_release.istio_base]
+  wait       = true
 
   values = [
     yamlencode({
@@ -66,7 +68,7 @@ resource "helm_release" "istio_gateway" {
     helm_release.istiod,
     kubernetes_secret_v1.wildcard_tls_gateway,
   ]
-  wait = false
+  wait = true
 
   values = [
     yamlencode({
@@ -218,7 +220,10 @@ resource "helm_release" "argo_cd" {
   chart      = "argo-cd"
   version    = var.argocd_chart_version
   namespace  = kubernetes_namespace.argocd.metadata[0].name
-  depends_on = [kubernetes_secret_v1.wildcard_tls_argocd]
+  depends_on = [
+    kubernetes_secret_v1.wildcard_tls_argocd,
+    helm_release.istio_gateway,
+  ]
 
   values = [
     yamlencode({
