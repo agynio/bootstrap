@@ -732,8 +732,9 @@ locals {
       port = 4000
     }
     ingress = {
-      enabled   = true
-      className = "istio"
+      enabled          = true
+      className        = "istio"
+      ingressClassName = "istio"
       hosts = [
         {
           host = "litellm.agyn.dev"

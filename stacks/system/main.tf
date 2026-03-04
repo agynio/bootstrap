@@ -71,14 +71,14 @@ resource "helm_release" "istio_gateway" {
     yamlencode({
       name = "istio-ingressgateway",
       service = {
-        type = "NodePort",
+        type = "LoadBalancer",
         ports = [
           {
             name       = "https"
             port       = 443
             targetPort = 8443
             protocol   = "TCP"
-            nodePort   = 32443
+            nodePort   = 30443
           }
         ]
       }
@@ -160,6 +160,7 @@ resource "helm_release" "argo_cd" {
           enabled          = true
           ingressClassName = "istio"
           hostname         = "argocd.agyn.dev"
+          https            = true
           tls              = false
           extraTls = [
             {

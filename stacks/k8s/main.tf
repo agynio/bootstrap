@@ -1,8 +1,8 @@
 locals {
-  kubeconfig_dir  = "${path.module}/.kube"
-  kubeconfig_path = "${local.kubeconfig_dir}/${var.cluster_name}-kubeconfig.yaml"
-
-  istio_node_port = 32443
+  kubeconfig_dir         = "${path.module}/.kube"
+  kubeconfig_path        = "${local.kubeconfig_dir}/${var.cluster_name}-kubeconfig.yaml"
+  ingress_container_port = 30443
+  ingress_host_port      = 8080
 }
 
 resource "k3d_cluster" "this" {
@@ -68,10 +68,10 @@ resource "null_resource" "configure_lb_port" {
       set -euo pipefail
       PATH=/workspace/bin:$PATH
       ports=$(docker ps --filter "name=k3d-${var.cluster_name}-serverlb" --format '{{.Ports}}' || true)
-      if echo "$ports" | grep -q "${local.istio_node_port}/tcp"; then
-        echo "Load balancer already exposes ${local.istio_node_port}/tcp"
+      if echo "$ports" | grep -q ":${local.ingress_host_port}->${local.ingress_container_port}/tcp"; then
+        echo "Load balancer already exposes host ${local.ingress_host_port} -> ${local.ingress_container_port}/tcp"
       else
-        k3d cluster edit ${var.cluster_name} --port-add 443:${local.istio_node_port}@loadbalancer
+        k3d cluster edit ${var.cluster_name} --port-add ${local.ingress_host_port}:${local.ingress_container_port}@loadbalancer
       fi
 
       mapfile -t nodes < <(k3d node list --no-headers | awk -v cluster="${var.cluster_name}" '$3==cluster && ($2=="agent" || $2=="server"){print $1}')
@@ -94,7 +94,7 @@ resource "null_resource" "configure_lb_port" {
         for n in "$${servers[@]}"; do
           echo "  - $${n}"
         done
-        echo "  ${local.istio_node_port}.tcp:"
+        echo "  ${local.ingress_container_port}.tcp:"
         for n in "$${nodes[@]}"; do
           echo "  - $${n}"
         done

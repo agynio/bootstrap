@@ -21,15 +21,15 @@ The system stack provisions an Istio ingress gateway that exposes a single LoadB
 
 Common endpoints served through the gateway:
 
-- Platform UI: `https://agyn.dev`
-- Platform API: `https://api.agyn.dev`
-- Argo CD UI/API: `https://argocd.agyn.dev`
-- LiteLLM API: `https://litellm.agyn.dev`
-- Vault UI/API: `https://vault.agyn.dev`
+- Platform UI: `https://agyn.dev:8080`
+- Platform API: `https://api.agyn.dev:8080`
+- Argo CD UI/API: `https://argocd.agyn.dev:8080`
+- LiteLLM API: `https://litellm.agyn.dev:8080`
+- Vault UI/API: `https://vault.agyn.dev:8080`
 
-Terraform defaults expect Argo CD to be served at `argocd.agyn.dev:443` (see `stacks/platform/terraform.tfvars.example`), matching the `argocd_server_addr` provider setting.
+Terraform defaults expect Argo CD to be served at `argocd.agyn.dev:8080` (see `stacks/platform/terraform.tfvars.example`), matching the `argocd_server_addr` provider setting.
 
-Each workload publishes a Kubernetes `Ingress` with `ingressClassName: istio`. Requests enter via the Istio ingress gateway's HTTPS 443 listener and route by hostname to the target ClusterIP services. Access services over TLS at `https://<host>` (accept the self-signed certificate locally with `curl -k`).
+Each workload publishes a Kubernetes `Ingress` with `ingressClassName: istio`. Requests enter via the Istio ingress gateway's HTTPS listener on port 443 (exposed locally on host port 8080) and route by hostname to the target ClusterIP services. Access services over TLS at `https://<host>:8080` (accept the self-signed certificate locally with `curl -k`).
 
 ## Inotify requirements for DinD (k3d/k3s)
 

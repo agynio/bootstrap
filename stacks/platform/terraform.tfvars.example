@@ -1,6 +1,6 @@
 kubeconfig_path = "../k8s/.kube/agyn-local-kubeconfig.yaml"
 # System ingress routes through Istio on port 443; Argo CD is reachable at https://argocd.agyn.dev
-argocd_server_addr    = "argocd.agyn.dev:443"
+argocd_server_addr    = "argocd.agyn.dev:8080"
 # argocd_admin_username = "admin"
 # argocd_admin_password = "admin"
 
