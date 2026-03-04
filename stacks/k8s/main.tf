@@ -1,15 +1,6 @@
 locals {
   kubeconfig_dir  = "${path.module}/.kube"
   kubeconfig_path = "${local.kubeconfig_dir}/${var.cluster_name}-kubeconfig.yaml"
-  k3s_required_extra_args = [for idx in range(var.servers) : {
-    arg          = "--service-node-port-range=80-32767"
-    node_filters = ["server:${idx}"]
-  }]
-  k3s_user_extra_args = [for arg in var.k3s_extra_args : {
-    arg          = arg
-    node_filters = []
-  }]
-  k3s_args = concat(local.k3s_required_extra_args, local.k3s_user_extra_args)
 }
 
 resource "k3d_cluster" "this" {
@@ -30,15 +21,14 @@ resource "k3d_cluster" "this" {
   }
 
   dynamic "k3s" {
-    for_each = length(local.k3s_args) > 0 ? [true] : []
+    for_each = length(var.k3s_extra_args) > 0 ? [true] : []
 
     content {
       dynamic "extra_args" {
-        for_each = local.k3s_args
+        for_each = var.k3s_extra_args
 
         content {
-          arg          = extra_args.value.arg
-          node_filters = extra_args.value.node_filters
+          arg = extra_args.value
         }
       }
     }

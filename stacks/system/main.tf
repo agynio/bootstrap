@@ -2,14 +2,6 @@
 locals {
   istio_repository_url = "https://istio-release.storage.googleapis.com/charts"
   argo_repository_url  = "https://argoproj.github.io/argo-helm"
-  platform_ingress_hosts = [
-    "argocd.agyn.dev",
-    "agyn.dev",
-    "api.agyn.dev",
-    "vault.agyn.dev",
-    "litellm.agyn.dev",
-  ]
-  istio_gateway_name = "platform-http"
 }
 
 # Istio base (CRDs)
@@ -48,21 +40,14 @@ resource "helm_release" "istiod" {
         traceSampling = 1.0
       }
       meshConfig = {
-        ingressClass            = "istio"
-        ingressSelector         = "ingressgateway"
-        ingressService          = "istio-ingressgateway"
+        ingressServiceNamespace = kubernetes_namespace.istio_gateway.metadata[0].name
         ingressServicePort      = 8080
-        ingressServicePortName  = "http-8080"
+        ingressServicePortName  = "http2"
         ingressListenerPort     = 8080
-        ingressListenerPortName = "http-8080"
+        ingressListenerPortName = "http2"
       }
     })
   ]
-}
-
-resource "time_sleep" "wait_for_istio_crds" {
-  depends_on      = [helm_release.istio_base]
-  create_duration = "30s"
 }
 
 # Istio gateway (minimal)
@@ -83,77 +68,15 @@ resource "helm_release" "istio_gateway" {
         type = "LoadBalancer",
         ports = [
           {
-            name       = "http-8080"
-            nodePort   = 8080
+            name       = "http2"
             port       = 8080
-            targetPort = 8080
+            targetPort = 80
             protocol   = "TCP"
           }
         ]
       }
     })
   ]
-}
-
-resource "kubernetes_manifest" "istio_gateway_http" {
-  manifest = {
-    apiVersion = "networking.istio.io/v1beta1"
-    kind       = "Gateway"
-    metadata = {
-      name      = local.istio_gateway_name
-      namespace = kubernetes_namespace.istio_gateway.metadata[0].name
-    }
-    spec = {
-      selector = {
-        istio = "ingressgateway"
-      }
-      servers = [
-        {
-          port = {
-            number   = 8080
-            name     = "http-8080"
-            protocol = "HTTP"
-          }
-          hosts = local.platform_ingress_hosts
-        }
-      ]
-    }
-  }
-
-  depends_on = [time_sleep.wait_for_istio_crds, helm_release.istio_gateway, helm_release.istiod]
-}
-
-resource "kubernetes_manifest" "virtual_service_argocd" {
-  manifest = {
-    apiVersion = "networking.istio.io/v1beta1"
-    kind       = "VirtualService"
-    metadata = {
-      name      = "argocd-http"
-      namespace = kubernetes_namespace.argocd.metadata[0].name
-    }
-    spec = {
-      hosts = ["argocd.agyn.dev"]
-      gateways = [
-        format("%s/%s", kubernetes_namespace.istio_gateway.metadata[0].name, local.istio_gateway_name)
-      ]
-      http = [
-        {
-          route = [
-            {
-              destination = {
-                host = "argo-cd-argocd-server.argocd.svc.cluster.local"
-                port = {
-                  number = 8080
-                }
-              }
-            }
-          ]
-        }
-      ]
-    }
-  }
-
-  depends_on = [kubernetes_manifest.istio_gateway_http, helm_release.argo_cd]
 }
 
 # Argo CD

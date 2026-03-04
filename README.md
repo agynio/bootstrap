@@ -27,6 +27,8 @@ Common endpoints served through the gateway:
 - LiteLLM API: `http://litellm.agyn.dev:8080`
 - Vault UI/API: `http://vault.agyn.dev:8080`
 
+Terraform defaults expect Argo CD to be served at `argocd.agyn.dev:8080` (see `stacks/platform/terraform.tfvars.example`), matching the `argocd_server_addr` provider setting.
+
 Each workload publishes a Kubernetes `Ingress` with `ingressClassName: istio`. Requests enter via the Istio ingress gateway's HTTP 8080 listener and route by hostname to the target ClusterIP services. Access services over plain HTTP at `http://<host>:8080` as listed above.
 
 ## Inotify requirements for DinD (k3d/k3s)
