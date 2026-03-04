@@ -35,6 +35,15 @@ Terraform connects to Argo CD through the ingress at `https://argocd.agyn.dev:80
 
 Each application chart enables a Kubernetes `Ingress` with `ingressClassName: istio`, routing hostnames through the Istio ingress gateway's HTTPS listener (exposed on host port 8080). No additional ingress controller is required; ensure the hostnames above resolve locally and use `curl -k` or your browser to trust the self-signed certificates.
 
+### LiteLLM defaults
+
+For development parity with bootstrap v1, LiteLLM deploys with:
+
+- UI credentials: `admin` / `admin`
+- Master key: `sk-dev-master-1234`
+- Salt key: `sk-dev-salt-1234`
+- PostgreSQL password: `change-me`
+
 ### Repository authentication
 
 If the platform Helm charts are private, supply credentials via Terraform variables (environment variables shown below) before running `terraform apply`:

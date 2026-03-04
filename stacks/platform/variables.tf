@@ -125,14 +125,14 @@ variable "litellm_db_pvc_size" {
 variable "litellm_master_key" {
   type        = string
   description = "LiteLLM master key used by platform workloads"
-  default     = "sk-dev-master"
+  default     = "sk-dev-master-1234"
   sensitive   = true
 }
 
 variable "litellm_salt_key" {
   type        = string
   description = "LiteLLM salt key used by platform workloads"
-  default     = "sk-dev-salt"
+  default     = "sk-dev-salt-1234"
   sensitive   = true
 }
 

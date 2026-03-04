@@ -27,6 +27,15 @@ Common endpoints served through the gateway:
 - LiteLLM API: `https://litellm.agyn.dev:8080`
 - Vault UI/API: `https://vault.agyn.dev:8080`
 
+## LiteLLM defaults
+
+LiteLLM is deployed with the following development defaults:
+
+- UI credentials: `admin` / `admin`
+- Master key: `sk-dev-master-1234`
+- Salt key: `sk-dev-salt-1234`
+- PostgreSQL password: `change-me`
+
 Terraform defaults expect Argo CD to be served at `argocd.agyn.dev:8080` (see `stacks/platform/terraform.tfvars.example`), matching the `argocd_server_addr` provider setting.
 
 Each workload publishes a Kubernetes `Ingress` with `ingressClassName: istio`. Requests enter via the Istio ingress gateway's HTTPS listener on port 443 (exposed locally on host port 8080) and route by hostname to the target ClusterIP services. Access services over TLS at `https://<host>:8080` (accept the self-signed certificate locally with `curl -k`).
