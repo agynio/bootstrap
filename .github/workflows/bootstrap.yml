@@ -17,19 +17,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Verify Docker
-        run: |
-          docker version || (echo "Docker is required" && exit 1)
-
       - name: Install kubectl
         uses: azure/setup-kubectl@v4
         with:
           version: v1.28.7
-
-      - name: Install jq
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y jq
 
       - name: Install k3d
         run: |
@@ -40,17 +31,6 @@ jobs:
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.6.6
-
-      - name: Configure local hostnames
-        run: |
-          sudo tee -a /etc/hosts >/dev/null <<'EOF'
-          127.0.0.1 argocd.agyn.dev
-          127.0.0.1 agyn.dev
-          127.0.0.1 platform.agyn.dev
-          127.0.0.1 vault.agyn.dev
-          127.0.0.1 litellm.agyn.dev
-          127.0.0.1 registry.agyn.dev
-          EOF
 
       - name: Apply k8s stack
         run: |
@@ -66,22 +46,6 @@ jobs:
         run: |
           terraform -chdir=stacks/system init -input=false
           terraform -chdir=stacks/system apply -auto-approve -input=false
-
-      - name: Wait for Argo CD API readiness
-        run: |
-          for attempt in {1..60}; do
-            if kubectl -n argocd get deployment argo-cd-argocd-server >/dev/null 2>&1; then
-              break
-            fi
-            echo "Waiting for argo-cd-argocd-server deployment to be created (${attempt}/60)..."
-            sleep 10
-          done
-          if ! kubectl -n argocd get deployment argo-cd-argocd-server >/dev/null 2>&1; then
-            echo "argo-cd-argocd-server deployment was not created within the expected time."
-            exit 1
-          fi
-          kubectl -n argocd wait --for=condition=Available deployment/argo-cd-argocd-server --timeout=300s
-          kubectl -n argocd wait --for=condition=Ready pod -l app.kubernetes.io/name=argocd-server --timeout=300s
 
       - name: Apply platform stack
         run: |
