@@ -37,11 +37,6 @@ jobs:
           terraform -chdir=stacks/k8s init -input=false
           terraform -chdir=stacks/k8s apply -auto-approve -input=false
 
-      - name: Export kubeconfig for kubectl
-        run: |
-          kubeconfig_path=$(terraform -chdir=stacks/k8s output -raw kubeconfig_path)
-          echo "KUBECONFIG=$(realpath "$kubeconfig_path")" >> $GITHUB_ENV
-
       - name: Apply system stack (Istio + Argo CD)
         run: |
           terraform -chdir=stacks/system init -input=false

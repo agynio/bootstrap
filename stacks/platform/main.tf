@@ -238,6 +238,9 @@ locals {
         enabled = true
         config  = trimspace(local.vault_standalone_config)
       }
+      ingress = {
+        enabled = false
+      }
       podSecurityContext = {
         runAsNonRoot = false
         runAsUser    = 0
@@ -353,6 +356,9 @@ locals {
     replicaCount     = 1
     image = {
       pullPolicy = "IfNotPresent"
+    }
+    ingress = {
+      enabled = false
     }
     service = {
       type = "ClusterIP"
@@ -495,6 +501,9 @@ locals {
       pullPolicy = "IfNotPresent"
     }
     fullnameOverride = "platform-server"
+    ingress = {
+      enabled = false
+    }
     securityContext = {
       enabled                  = true
       runAsNonRoot             = true
@@ -708,6 +717,9 @@ locals {
       pullPolicy = "IfNotPresent"
     }
     fullnameOverride = "platform-ui"
+    ingress = {
+      enabled = false
+    }
     service = {
       type = "NodePort"
       ports = [
@@ -976,6 +988,235 @@ resource "kubernetes_manifest" "platform_gateway" {
 
   depends_on = [
     data.terraform_remote_state.system,
+  ]
+}
+
+resource "kubernetes_manifest" "virtualservice_platform_ui" {
+  manifest = {
+    "apiVersion" = "networking.istio.io/v1beta1"
+    "kind"       = "VirtualService"
+    "metadata" = {
+      "name"      = "platform-ui"
+      "namespace" = local.istio_gateway_namespace
+    }
+    "spec" = {
+      "hosts"    = ["agyn.dev"]
+      "gateways" = ["platform-gateway"]
+      "http" = [
+        {
+          "match" = [
+            {
+              "uri" = {
+                "prefix" = "/"
+              }
+            }
+          ]
+          "route" = [
+            {
+              "destination" = {
+                "host" = "platform-ui.platform.svc.cluster.local"
+                "port" = {
+                  "number" = 3000
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+
+  computed_fields = [
+    "metadata.annotations",
+    "metadata.labels",
+  ]
+
+  depends_on = [
+    kubernetes_manifest.platform_gateway,
+    argocd_application.platform_ui,
+  ]
+}
+
+resource "kubernetes_manifest" "virtualservice_platform_server" {
+  manifest = {
+    "apiVersion" = "networking.istio.io/v1beta1"
+    "kind"       = "VirtualService"
+    "metadata" = {
+      "name"      = "platform-server"
+      "namespace" = local.istio_gateway_namespace
+    }
+    "spec" = {
+      "hosts"    = ["api.agyn.dev"]
+      "gateways" = ["platform-gateway"]
+      "http" = [
+        {
+          "match" = [
+            {
+              "uri" = {
+                "prefix" = "/"
+              }
+            }
+          ]
+          "route" = [
+            {
+              "destination" = {
+                "host" = "platform-server.platform.svc.cluster.local"
+                "port" = {
+                  "number" = 3010
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+
+  computed_fields = [
+    "metadata.annotations",
+    "metadata.labels",
+  ]
+
+  depends_on = [
+    kubernetes_manifest.platform_gateway,
+    argocd_application.platform_server,
+  ]
+}
+
+resource "kubernetes_manifest" "virtualservice_argocd" {
+  manifest = {
+    "apiVersion" = "networking.istio.io/v1beta1"
+    "kind"       = "VirtualService"
+    "metadata" = {
+      "name"      = "argocd"
+      "namespace" = local.istio_gateway_namespace
+    }
+    "spec" = {
+      "hosts"    = ["argocd.agyn.dev"]
+      "gateways" = ["platform-gateway"]
+      "http" = [
+        {
+          "match" = [
+            {
+              "uri" = {
+                "prefix" = "/"
+              }
+            }
+          ]
+          "route" = [
+            {
+              "destination" = {
+                "host" = "argo-cd-argocd-server.argocd.svc.cluster.local"
+                "port" = {
+                  "number" = 8080
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+
+  computed_fields = [
+    "metadata.annotations",
+    "metadata.labels",
+  ]
+
+  depends_on = [
+    kubernetes_manifest.platform_gateway,
+  ]
+}
+
+resource "kubernetes_manifest" "virtualservice_litellm" {
+  manifest = {
+    "apiVersion" = "networking.istio.io/v1beta1"
+    "kind"       = "VirtualService"
+    "metadata" = {
+      "name"      = "litellm"
+      "namespace" = local.istio_gateway_namespace
+    }
+    "spec" = {
+      "hosts"    = ["litellm.agyn.dev"]
+      "gateways" = ["platform-gateway"]
+      "http" = [
+        {
+          "match" = [
+            {
+              "uri" = {
+                "prefix" = "/"
+              }
+            }
+          ]
+          "route" = [
+            {
+              "destination" = {
+                "host" = "litellm.platform.svc.cluster.local"
+                "port" = {
+                  "number" = 4000
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+
+  computed_fields = [
+    "metadata.annotations",
+    "metadata.labels",
+  ]
+
+  depends_on = [
+    kubernetes_manifest.platform_gateway,
+    argocd_application.litellm,
+  ]
+}
+
+resource "kubernetes_manifest" "virtualservice_vault" {
+  manifest = {
+    "apiVersion" = "networking.istio.io/v1beta1"
+    "kind"       = "VirtualService"
+    "metadata" = {
+      "name"      = "vault"
+      "namespace" = local.istio_gateway_namespace
+    }
+    "spec" = {
+      "hosts"    = ["vault.agyn.dev"]
+      "gateways" = ["platform-gateway"]
+      "http" = [
+        {
+          "match" = [
+            {
+              "uri" = {
+                "prefix" = "/"
+              }
+            }
+          ]
+          "route" = [
+            {
+              "destination" = {
+                "host" = "vault.platform.svc.cluster.local"
+                "port" = {
+                  "number" = 8200
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+
+  computed_fields = [
+    "metadata.annotations",
+    "metadata.labels",
+  ]
+
+  depends_on = [
+    kubernetes_manifest.platform_gateway,
+    argocd_application.vault,
   ]
 }
 
