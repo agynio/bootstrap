@@ -15,3 +15,9 @@ variable "argocd_chart_version" {
   description = "Argo CD chart version"
   default     = "9.4.3"
 }
+
+variable "save_private_keys" {
+  type        = bool
+  description = "Write generated private keys to local-certs when true"
+  default     = false
+}

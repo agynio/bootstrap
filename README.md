@@ -31,6 +31,17 @@ Terraform defaults expect Argo CD to be served at `argocd.agyn.dev:8080` (see `s
 
 Each workload publishes a Kubernetes `Ingress` with `ingressClassName: istio`. Requests enter via the Istio ingress gateway's HTTPS listener on port 443 (exposed locally on host port 8080) and route by hostname to the target ClusterIP services. Access services over TLS at `https://<host>:8080` (accept the self-signed certificate locally with `curl -k`).
 
+## Trusting the generated certificate authority
+
+Running `terraform -chdir=stacks/system apply` writes the generated CA and wildcard certificates to `local-certs/`. Import `local-certs/ca-agyn-dev.pem` into your host trust store to avoid browser warnings:
+
+- **macOS**: Keychain Access → *System* → *Certificates* → File → Import… → select `ca-agyn-dev.pem`, then double-click the certificate and set *Always Trust*.
+- **Ubuntu/Debian**: Copy the file to `/usr/local/share/ca-certificates/agyn-dev.crt` and run `sudo update-ca-certificates`.
+- **Fedora/RHEL**: Copy the file to `/etc/pki/ca-trust/source/anchors/ca-agyn-dev.pem` and run `sudo update-ca-trust`.
+- **Windows**: Open `mmc`, add the *Certificates* snap-in for *Local Computer*, navigate to *Trusted Root Certification Authorities*, and import `ca-agyn-dev.pem`.
+
+> Private keys are not written to disk unless `-var save_private_keys=true` is provided for the system stack.
+
 ## Inotify requirements for DinD (k3d/k3s)
 
 Running k3d/k3s inside Docker-in-Docker relies on the host kernel's inotify limits - those sysctls are not namespaced. These fs.inotify sysctls are host-level and are not adjusted automatically by the sandbox; you must change them on the host. If `fs.inotify.max_user_instances` remains at distribution defaults, containerd's CRI plugin can fail with errors such as `unknown service runtime.v1.RuntimeService` and `fsnotify: too many open files`.

@@ -18,7 +18,7 @@ output "releases" {
 }
 
 output "wildcard_agyn_dev_certificate" {
-  value       = tls_self_signed_cert.wildcard_agyn_dev.cert_pem
+  value       = tls_locally_signed_cert.wildcard_agyn_dev.cert_pem
   sensitive   = true
   description = "PEM-encoded wildcard TLS certificate for agyn.dev"
 }

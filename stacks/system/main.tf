@@ -2,6 +2,7 @@
 locals {
   istio_repository_url = "https://istio-release.storage.googleapis.com/charts"
   argo_repository_url  = "https://argoproj.github.io/argo-helm"
+  local_certs_dir      = abspath("${path.root}/../../local-certs")
 }
 
 # Istio base (CRDs)
@@ -85,13 +86,38 @@ resource "helm_release" "istio_gateway" {
   ]
 }
 
-# Wildcard TLS certificate for *.agyn.dev
+# Certificate authority for agyn.dev
+resource "tls_private_key" "ca_agyn_dev" {
+  algorithm = "RSA"
+  rsa_bits  = 2048
+}
+
+resource "tls_self_signed_cert" "ca_agyn_dev" {
+  private_key_pem       = tls_private_key.ca_agyn_dev.private_key_pem
+  is_ca_certificate     = true
+  validity_period_hours = 24 * 365
+  early_renewal_hours   = 24 * 30
+
+  subject {
+    common_name  = "Agyn Local CA"
+    organization = "Agyn"
+  }
+
+  allowed_uses = [
+    "cert_signing",
+    "crl_signing",
+    "key_encipherment",
+    "digital_signature",
+  ]
+}
+
+# Wildcard TLS certificate for *.agyn.dev signed by CA
 resource "tls_private_key" "wildcard_agyn_dev" {
   algorithm = "RSA"
   rsa_bits  = 2048
 }
 
-resource "tls_self_signed_cert" "wildcard_agyn_dev" {
+resource "tls_cert_request" "wildcard_agyn_dev" {
   private_key_pem = tls_private_key.wildcard_agyn_dev.private_key_pem
 
   subject {
@@ -99,14 +125,25 @@ resource "tls_self_signed_cert" "wildcard_agyn_dev" {
     organization = "Agyn"
   }
 
-  dns_names             = ["agyn.dev", "*.agyn.dev"]
+  dns_names = ["agyn.dev", "*.agyn.dev"]
+}
+
+resource "tls_locally_signed_cert" "wildcard_agyn_dev" {
+  cert_request_pem      = tls_cert_request.wildcard_agyn_dev.cert_request_pem
+  ca_private_key_pem    = tls_private_key.ca_agyn_dev.private_key_pem
+  ca_cert_pem           = tls_self_signed_cert.ca_agyn_dev.cert_pem
   validity_period_hours = 24 * 365
   early_renewal_hours   = 24 * 30
+
   allowed_uses = [
-    "key_encipherment",
     "digital_signature",
+    "key_encipherment",
     "server_auth",
   ]
+}
+
+locals {
+  wildcard_fullchain_pem = "${tls_locally_signed_cert.wildcard_agyn_dev.cert_pem}${tls_self_signed_cert.ca_agyn_dev.cert_pem}"
 }
 
 resource "kubernetes_secret_v1" "wildcard_tls_argocd" {
@@ -118,7 +155,7 @@ resource "kubernetes_secret_v1" "wildcard_tls_argocd" {
   type = "kubernetes.io/tls"
 
   data = {
-    "tls.crt" = tls_self_signed_cert.wildcard_agyn_dev.cert_pem
+    "tls.crt" = local.wildcard_fullchain_pem
     "tls.key" = tls_private_key.wildcard_agyn_dev.private_key_pem
   }
 }
@@ -132,9 +169,46 @@ resource "kubernetes_secret_v1" "wildcard_tls_gateway" {
   type = "kubernetes.io/tls"
 
   data = {
-    "tls.crt" = tls_self_signed_cert.wildcard_agyn_dev.cert_pem
+    "tls.crt" = local.wildcard_fullchain_pem
     "tls.key" = tls_private_key.wildcard_agyn_dev.private_key_pem
   }
+}
+
+resource "local_file" "ca_certificate" {
+  filename             = "${local.local_certs_dir}/ca-agyn-dev.pem"
+  content              = tls_self_signed_cert.ca_agyn_dev.cert_pem
+  file_permission      = "0644"
+  directory_permission = "0755"
+}
+
+resource "local_file" "wildcard_certificate" {
+  filename             = "${local.local_certs_dir}/wildcard-agyn-dev.crt"
+  content              = tls_locally_signed_cert.wildcard_agyn_dev.cert_pem
+  file_permission      = "0644"
+  directory_permission = "0755"
+}
+
+resource "local_file" "wildcard_fullchain" {
+  filename             = "${local.local_certs_dir}/wildcard-agyn-dev.fullchain.crt"
+  content              = local.wildcard_fullchain_pem
+  file_permission      = "0644"
+  directory_permission = "0755"
+}
+
+resource "local_file" "wildcard_private_key" {
+  count                = var.save_private_keys ? 1 : 0
+  filename             = "${local.local_certs_dir}/wildcard-agyn-dev.key"
+  sensitive_content    = tls_private_key.wildcard_agyn_dev.private_key_pem
+  file_permission      = "0600"
+  directory_permission = "0700"
+}
+
+resource "local_file" "ca_private_key" {
+  count                = var.save_private_keys ? 1 : 0
+  filename             = "${local.local_certs_dir}/ca-agyn-dev.key"
+  sensitive_content    = tls_private_key.ca_agyn_dev.private_key_pem
+  file_permission      = "0600"
+  directory_permission = "0700"
 }
 
 # Argo CD
