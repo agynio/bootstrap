@@ -17,19 +17,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Verify Docker
-        run: |
-          docker version || (echo "Docker is required" && exit 1)
-
       - name: Install kubectl
         uses: azure/setup-kubectl@v4
         with:
           version: v1.28.7
-
-      - name: Install jq
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y jq
 
       - name: Install k3d
         run: |
@@ -42,43 +33,49 @@ jobs:
           terraform_version: 1.6.6
 
       - name: Apply k8s stack
-        working-directory: stacks/k8s
         run: |
-          terraform init -input=false
-          terraform apply -auto-approve -input=false
+          terraform -chdir=stacks/k8s init -input=false
+          terraform -chdir=stacks/k8s apply -auto-approve -input=false
 
       - name: Apply system stack (Istio + Argo CD)
-        working-directory: stacks/system
         run: |
-          terraform init -input=false
-          terraform apply -auto-approve -input=false
+          terraform -chdir=stacks/system init -input=false
+          terraform -chdir=stacks/system apply -auto-approve -input=false
+
+      - name: Apply routing stack
+        run: |
+          terraform -chdir=stacks/routing init -input=false
+          terraform -chdir=stacks/routing apply -auto-approve -input=false
 
       - name: Apply platform stack
-        working-directory: stacks/platform
         run: |
-          terraform init -input=false
-          terraform apply -auto-approve -input=false
+          terraform -chdir=stacks/platform init -input=false
+          terraform -chdir=stacks/platform validate
+          terraform -chdir=stacks/platform apply -auto-approve -input=false
 
       - name: Verify platform workloads and Argo CD health
         run: ./.github/scripts/verify_platform_health.sh
 
       - name: Destroy platform stack (PR only)
         if: ${{ always() && github.event_name == 'pull_request' }}
-        working-directory: stacks/platform
         run: |
-          terraform init -input=false
-          terraform destroy -auto-approve -input=false
+          terraform -chdir=stacks/platform init -input=false
+          terraform -chdir=stacks/platform destroy -auto-approve -input=false
+
+      - name: Destroy routing stack (PR only)
+        if: ${{ always() && github.event_name == 'pull_request' }}
+        run: |
+          terraform -chdir=stacks/routing init -input=false
+          terraform -chdir=stacks/routing destroy -auto-approve -input=false
 
       - name: Destroy system stack (PR only)
         if: ${{ always() && github.event_name == 'pull_request' }}
-        working-directory: stacks/system
         run: |
-          terraform init -input=false
-          terraform destroy -auto-approve -input=false
+          terraform -chdir=stacks/system init -input=false
+          terraform -chdir=stacks/system destroy -auto-approve -input=false
 
       - name: Destroy k8s stack (PR only)
         if: ${{ always() && github.event_name == 'pull_request' }}
-        working-directory: stacks/k8s
         run: |
-          terraform init -input=false
-          terraform destroy -auto-approve -input=false
+          terraform -chdir=stacks/k8s init -input=false
+          terraform -chdir=stacks/k8s destroy -auto-approve -input=false

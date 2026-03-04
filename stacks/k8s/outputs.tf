@@ -4,7 +4,7 @@ output "cluster_name" {
 }
 
 output "kubeconfig_path" {
-  value       = local.kubeconfig_path
+  value       = abspath(local.kubeconfig_path)
   description = "Local kubeconfig path"
 }
 

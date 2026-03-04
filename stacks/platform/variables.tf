@@ -4,12 +4,6 @@ variable "kubeconfig_path" {
   default     = "../k8s/.kube/agyn-local-kubeconfig.yaml"
 }
 
-variable "argocd_server_addr" {
-  type        = string
-  description = "Argo CD API host:port for Terraform to reach"
-  default     = "localhost:8080"
-}
-
 variable "argocd_admin_username" {
   type        = string
   description = "Admin username used for Argo CD provider authentication"
@@ -125,14 +119,14 @@ variable "litellm_db_pvc_size" {
 variable "litellm_master_key" {
   type        = string
   description = "LiteLLM master key used by platform workloads"
-  default     = "sk-dev-master"
+  default     = "sk-dev-master-1234"
   sensitive   = true
 }
 
 variable "litellm_salt_key" {
   type        = string
   description = "LiteLLM salt key used by platform workloads"
-  default     = "sk-dev-salt"
+  default     = "sk-dev-salt-1234"
   sensitive   = true
 }
 

@@ -7,8 +7,9 @@ expose_api     = true
 api_port       = 6443
 ports = [
   {
-    container_port = 8080
+    container_port = 443
     host_port      = 8080
     protocol       = "tcp"
+    node_filters   = ["loadbalancer"]
   }
 ]

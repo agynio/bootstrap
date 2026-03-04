@@ -7,3 +7,7 @@ provider "helm" {
     config_path = var.kubeconfig_path
   }
 }
+
+provider "tls" {}
+
+provider "local" {}

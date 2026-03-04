@@ -2,11 +2,8 @@ locals {
   resolved_platform_server_image_tag = trimspace(var.platform_server_image_tag) != "" ? var.platform_server_image_tag : var.platform_target_revision
   resolved_docker_runner_image_tag   = trimspace(var.docker_runner_image_tag) != "" ? var.docker_runner_image_tag : var.platform_target_revision
   resolved_platform_ui_image_tag     = local.resolved_platform_server_image_tag
-  argocd_server_addr_normalized      = replace(replace(var.argocd_server_addr, "https://", ""), "http://", "")
 
-  postgres_chart_repo_host       = "ghcr.io"
-  postgres_chart_full_name       = "agynio/charts/postgres-helm"
-  postgres_chart_version         = "0.1.1"
+  postgres_image                 = "postgres:16.6-alpine"
   vault_chart_version            = "0.28.1"
   registry_mirror_repo_url       = "https://github.com/twuni/docker-registry.helm.git"
   registry_mirror_chart_path     = "."
@@ -16,6 +13,8 @@ locals {
   litellm_chart_name             = "litellm-helm"
   litellm_chart_full_name        = replace(local.litellm_chart_repo_url, "oci://${local.litellm_chart_repo_host}/", "")
   litellm_chart_revision         = "1.81.12-stable.1"
+  istio_gateway_namespace        = data.terraform_remote_state.system.outputs.istio_gateway_namespace
+  istio_gateway_tls_secret_name  = data.terraform_remote_state.system.outputs.wildcard_tls_gateway_secret_name
 
   default_sync_options = [
     "CreateNamespace=true",
@@ -222,248 +221,6 @@ locals {
     done
   EOT
 
-  litellm_bootstrap_script = <<-EOT
-    #!/bin/sh
-    set -euo pipefail
-
-    echo "[litellm-bootstrap] installing tooling"
-    apk add --no-cache ca-certificates curl jq >/dev/null
-
-    KUBECTL_VERSION="$${KUBECTL_VERSION:-}"
-    if [ -z "$KUBECTL_VERSION" ]; then
-      KUBECTL_VERSION="v1.29.2"
-    fi
-
-    if ! command -v kubectl >/dev/null 2>&1; then
-      curl -fsSL "$(printf 'https://dl.k8s.io/release/%s/bin/linux/amd64/kubectl' "$KUBECTL_VERSION")" -o /usr/local/bin/kubectl
-      chmod +x /usr/local/bin/kubectl
-    fi
-
-    api="$LITELLM_BASE_URL"
-    if [ -z "$api" ]; then
-      api="http://litellm:4000"
-    fi
-
-    alias="$LITELLM_DEFAULT_ALIAS"
-    if [ -z "$alias" ]; then
-      alias="agents/default"
-    fi
-
-    namespace="$NAMESPACE"
-    if [ -z "$namespace" ]; then
-      namespace="platform"
-    fi
-
-    raw_master="$LITELLM_MASTER_KEY"
-    master_key="$raw_master"
-    if printf '%s' "$raw_master" | base64 -d >/tmp/master-key 2>/dev/null; then
-      master_key="$(cat /tmp/master-key)"
-    fi
-    rm -f /tmp/master-key
-
-    db_pod="$${LITELLM_DB_POD:-litellm-db-0}"
-
-    echo "[litellm-bootstrap] waiting for database pod $db_pod..."
-    for i in $(seq 1 180); do
-      phase=$(kubectl -n "$namespace" get pod "$db_pod" -o jsonpath='{.status.phase}' 2>/dev/null || true)
-      if [ "$phase" = "Running" ]; then
-        ready=$(kubectl -n "$namespace" get pod "$db_pod" -o jsonpath='{.status.containerStatuses[0].ready}' 2>/dev/null || true)
-        if [ "$ready" = "true" ]; then
-          break
-        fi
-      fi
-      sleep 1
-      if [ "$i" = "180" ]; then
-        echo "[litellm-bootstrap] ERROR: database pod $db_pod not ready"
-        exit 1
-      fi
-    done
-
-    master_hash="$(printf '%s' "$master_key" | sha256sum | awk '{print $1}')"
-    seed_sql="$(mktemp)"
-    cat <<SQL >"$seed_sql"
-    INSERT INTO "LiteLLM_UserTable" (user_id, user_alias, user_role)
-    VALUES ('bootstrap-proxy-admin', 'bootstrap', 'proxy_admin')
-    ON CONFLICT (user_id) DO NOTHING;
-
-    INSERT INTO "LiteLLM_VerificationToken" (
-      token,
-      key_name,
-      key_alias,
-      user_id,
-      permissions,
-      models,
-      aliases,
-      config,
-      metadata,
-      model_spend,
-      model_max_budget,
-      router_settings,
-      policies,
-      access_group_ids
-    )
-    VALUES (
-      '$master_hash',
-      'master',
-      'bootstrap-master',
-      'bootstrap-proxy-admin',
-      jsonb_build_object('proxy_admin', true),
-      ARRAY[]::text[],
-      '{}'::jsonb,
-      '{}'::jsonb,
-      '{}'::jsonb,
-      '{}'::jsonb,
-      '{}'::jsonb,
-      '{}'::jsonb,
-      ARRAY[]::text[],
-      ARRAY[]::text[]
-    )
-    ON CONFLICT (token) DO UPDATE
-      SET user_id = EXCLUDED.user_id,
-          permissions = EXCLUDED.permissions;
-    SQL
-
-    seeded="false"
-    for i in $(seq 1 5); do
-      if kubectl -n "$namespace" exec -i "$db_pod" -- psql -U litellm -d litellm >/dev/null <"$seed_sql"; then
-        seeded="true"
-        break
-      fi
-      sleep 2
-    done
-    rm -f "$seed_sql"
-
-    if [ "$seeded" != "true" ]; then
-      echo "[litellm-bootstrap] ERROR: failed to seed verification token"
-      exit 1
-    fi
-
-    echo "[litellm-bootstrap] ensured proxy admin verification token"
-
-    echo "[litellm-bootstrap] waiting for LiteLLM..."
-    health_ready() {
-      url="$1"
-      code=$(curl -s -o /dev/null -w '%%{http_code}' "$url" 2>/dev/null || true)
-      if [ -z "$code" ]; then
-        code="000"
-      fi
-      code=$(echo "$code" | tr -d '\r\n')
-      case "$code" in
-        200|401|403) return 0 ;;
-        *) return 1 ;;
-      esac
-    }
-
-    for i in $(seq 1 180); do
-      if health_ready "$api/health" || health_ready "$api/v1/health"; then
-        break
-      fi
-      sleep 1
-      if [ "$i" = "180" ]; then
-        echo "[litellm-bootstrap] ERROR: LiteLLM not reachable"
-        exit 1
-      fi
-    done
-
-    auth="Authorization: Bearer $master_key"
-    ct="Content-Type: application/json"
-    gen_body='{"key_alias":"'"$alias"'","duration":null,"metadata":{"bootstrap":true}}'
-
-    try_generate() {
-      base="$1"
-      url="$base/key/generate"
-      echo "[litellm-bootstrap] POST $url"
-      resp=$(curl -sS -w '\n%%{http_code}' -H "$auth" -H "$ct" -d "$gen_body" "$url" || true)
-      code=$(echo "$resp" | tail -n1)
-      body=$(echo "$resp" | sed '$d')
-      printf '%s' "$code" > /tmp/code
-      printf '%s' "$body" > /tmp/body
-    }
-
-    try_generate "$api"
-    code=$(cat /tmp/code)
-    body=$(cat /tmp/body)
-
-    if [ "$code" = "404" ]; then
-      try_generate "$api/v1"
-      code=$(cat /tmp/code)
-      body=$(cat /tmp/body)
-    fi
-
-    normalized="$(printf '%s' "$body" | tr '[:upper:]' '[:lower:]')"
-    status_reason="unknown"
-
-    case "$code" in
-      2??)
-        echo "[litellm-bootstrap] key generate response code=$code"
-        status_reason="generated"
-        ;;
-      409)
-        echo "[litellm-bootstrap] key generate response conflict code=$code"
-        status_reason="exists"
-        ;;
-      400)
-        if printf '%s' "$normalized" | grep -q 'alias' && printf '%s' "$normalized" | grep -q 'already exists'; then
-          echo "[litellm-bootstrap] key alias already exists (code=$code)"
-          status_reason="alias-exists"
-        else
-          echo "[litellm-bootstrap] ERROR: key generation failed code=$code body=$body"
-          exit 1
-        fi
-        ;;
-      *)
-        echo "[litellm-bootstrap] ERROR: key generation failed code=$code body=$body"
-        exit 1
-        ;;
-    esac
-
-    key=$(echo "$body" | tr -d '\n' | sed -n 's/.*"key"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n1 || true)
-    output_secret="$OUTPUT_SECRET_NAME"
-    if [ -z "$output_secret" ]; then
-      output_secret="litellm-default-key"
-    fi
-
-    output_key="$OUTPUT_SECRET_KEY"
-    if [ -z "$output_key" ]; then
-      output_key="OPENAI_API_KEY"
-    fi
-
-    if [ -n "$key" ]; then
-      echo "[litellm-bootstrap] got key; writing secret $namespace/$output_secret"
-      kubectl -n "$namespace" apply -f - <<EOF
-    apiVersion: v1
-    kind: Secret
-    metadata:
-      name: $output_secret
-      namespace: $namespace
-    type: Opaque
-    stringData:
-      $output_key: "$key"
-    EOF
-    else
-      echo "[litellm-bootstrap] no key returned ($status_reason); attempting to reuse existing secret $output_secret."
-      selector="$(printf '{.data.%s}' "$output_key")"
-      existing_b64="$(kubectl -n "$namespace" get secret "$output_secret" -o jsonpath="$selector" 2>/dev/null || true)"
-      if [ -z "$existing_b64" ]; then
-        existing_b64="$(kubectl -n "$namespace" get secret "$output_secret" -o jsonpath='{.data.LITELLM_DEFAULT_KEY}' 2>/dev/null || true)"
-      fi
-
-      if [ -n "$existing_b64" ]; then
-        existing_plain="$(printf '%s' "$existing_b64" | base64 -d 2>/dev/null || true)"
-        if [ -n "$existing_plain" ]; then
-          echo "[litellm-bootstrap] reusing stored key; enforcing $output_secret.$output_key."
-          patch_payload="$(printf '{"stringData":{"%s":"%s"}}' "$output_key" "$existing_plain")"
-          kubectl -n "$namespace" patch secret "$output_secret" --type merge -p "$patch_payload" >/dev/null
-        else
-          echo "[litellm-bootstrap] existing secret data unreadable; leaving $output_secret unchanged."
-        fi
-      else
-        echo "[litellm-bootstrap] no existing key to reuse; leaving $output_secret unchanged."
-      fi
-    fi
-
-    echo "[litellm-bootstrap] done"
-  EOT
 
   vault_values = yamlencode({
     fullnameOverride = "vault"
@@ -479,6 +236,9 @@ locals {
       standalone = {
         enabled = true
         config  = trimspace(local.vault_standalone_config)
+      }
+      ingress = {
+        enabled = false
       }
       podSecurityContext = {
         runAsNonRoot = false
@@ -590,125 +350,14 @@ locals {
     }
   })
 
-  platform_db_values = yamlencode({
-    nameOverride     = "platform-db"
-    fullnameOverride = "platform-db"
-    image = {
-      repository = "postgres"
-      tag        = "16.6-alpine"
-    }
-    postgres = {
-      database = "agents"
-      username = "agents"
-      password = var.platform_db_password
-      pgdata   = "/var/lib/postgresql/data/pgdata"
-    }
-    probes = {
-      readiness = {
-        enabled             = true
-        execCommand         = ["pg_isready", "-U", "agents", "-d", "agents"]
-        initialDelaySeconds = 5
-        periodSeconds       = 10
-        timeoutSeconds      = 5
-        failureThreshold    = 6
-      }
-      liveness = {
-        enabled             = true
-        execCommand         = ["pg_isready", "-U", "agents", "-d", "agents"]
-        initialDelaySeconds = 30
-        periodSeconds       = 20
-        timeoutSeconds      = 5
-        failureThreshold    = 6
-      }
-    }
-    persistence = {
-      size                    = var.platform_db_pvc_size
-      accessModes             = ["ReadWriteOnce"]
-      volumeClaimTemplateName = "data"
-      mountPath               = "/var/lib/postgresql/data"
-    }
-    podSecurityContext = {
-      enabled             = true
-      runAsUser           = 70
-      runAsGroup          = 70
-      fsGroup             = 70
-      fsGroupChangePolicy = "OnRootMismatch"
-    }
-    securityContext = {
-      enabled                  = true
-      runAsNonRoot             = true
-      runAsUser                = 70
-      runAsGroup               = 70
-      allowPrivilegeEscalation = false
-      readOnlyRootFilesystem   = false
-      capabilities = {
-        drop = ["ALL"]
-      }
-    }
-  })
-
-  litellm_db_values = yamlencode({
-    nameOverride     = "litellm-db"
-    fullnameOverride = "litellm-db"
-    image = {
-      repository = "postgres"
-      tag        = "16.6-alpine"
-    }
-    postgres = {
-      database = "litellm"
-      username = "litellm"
-      password = var.litellm_db_password
-      pgdata   = "/var/lib/postgresql/data/pgdata"
-    }
-    probes = {
-      readiness = {
-        enabled             = true
-        execCommand         = ["pg_isready", "-U", "litellm", "-d", "litellm"]
-        initialDelaySeconds = 5
-        periodSeconds       = 10
-        timeoutSeconds      = 5
-        failureThreshold    = 6
-      }
-      liveness = {
-        enabled             = true
-        execCommand         = ["pg_isready", "-U", "litellm", "-d", "litellm"]
-        initialDelaySeconds = 30
-        periodSeconds       = 20
-        timeoutSeconds      = 5
-        failureThreshold    = 6
-      }
-    }
-    persistence = {
-      size                    = var.litellm_db_pvc_size
-      accessModes             = ["ReadWriteOnce"]
-      volumeClaimTemplateName = "data"
-      mountPath               = "/var/lib/postgresql/data"
-    }
-    podSecurityContext = {
-      enabled             = true
-      runAsUser           = 70
-      runAsGroup          = 70
-      fsGroup             = 70
-      fsGroupChangePolicy = "OnRootMismatch"
-    }
-    securityContext = {
-      enabled                  = true
-      runAsNonRoot             = true
-      runAsUser                = 70
-      runAsGroup               = 70
-      allowPrivilegeEscalation = false
-      readOnlyRootFilesystem   = false
-      capabilities = {
-        drop = ["ALL"]
-      }
-    }
-  })
-
   litellm_values = yamlencode({
     fullnameOverride = "litellm"
     replicaCount     = 1
     image = {
       pullPolicy = "IfNotPresent"
+    }
+    ingress = {
+      enabled = false
     }
     service = {
       type = "ClusterIP"
@@ -851,6 +500,9 @@ locals {
       pullPolicy = "IfNotPresent"
     }
     fullnameOverride = "platform-server"
+    ingress = {
+      enabled = false
+    }
     securityContext = {
       enabled                  = true
       runAsNonRoot             = true
@@ -987,13 +639,8 @@ locals {
         value = "http://litellm:4000/v1"
       },
       {
-        name = "OPENAI_API_KEY"
-        valueFrom = {
-          secretKeyRef = {
-            name = "litellm-default-key"
-            key  = "OPENAI_API_KEY"
-          }
-        }
+        name  = "OPENAI_API_KEY"
+        value = var.litellm_master_key
       },
       {
         name  = "DOCKER_RUNNER_GRPC_HOST"
@@ -1069,6 +716,9 @@ locals {
       pullPolicy = "IfNotPresent"
     }
     fullnameOverride = "platform-ui"
+    ingress = {
+      enabled = false
+    }
     service = {
       type = "NodePort"
       ports = [
@@ -1298,142 +948,426 @@ resource "kubernetes_job_v1" "vault_init_unseal" {
   ]
 }
 
-resource "kubernetes_service_account_v1" "litellm_bootstrap" {
-  metadata {
-    name      = "litellm-bootstrap"
-    namespace = kubernetes_namespace.platform.metadata[0].name
-    labels = {
-      "app.kubernetes.io/name" = "litellm-bootstrap"
+resource "kubernetes_manifest" "virtualservice_platform_ui" {
+  manifest = {
+    "apiVersion" = "networking.istio.io/v1beta1"
+    "kind"       = "VirtualService"
+    "metadata" = {
+      "name"      = "platform-ui"
+      "namespace" = local.istio_gateway_namespace
+    }
+    "spec" = {
+      "hosts"    = ["agyn.dev"]
+      "gateways" = ["platform-gateway"]
+      "http" = [
+        {
+          "match" = [
+            {
+              "uri" = {
+                "prefix" = "/"
+              }
+            }
+          ]
+          "route" = [
+            {
+              "destination" = {
+                "host" = "platform-ui.platform.svc.cluster.local"
+                "port" = {
+                  "number" = 3000
+                }
+              }
+            }
+          ]
+        }
+      ]
     }
   }
+
+  computed_fields = [
+    "metadata.annotations",
+    "metadata.labels",
+  ]
+
+  depends_on = [
+    data.terraform_remote_state.system,
+  ]
 }
 
-resource "kubernetes_role_v1" "litellm_bootstrap" {
-  metadata {
-    name      = "litellm-bootstrap-secrets-writer"
-    namespace = kubernetes_namespace.platform.metadata[0].name
-    labels = {
-      "app.kubernetes.io/name" = "litellm-bootstrap"
+resource "kubernetes_manifest" "virtualservice_platform_server" {
+  manifest = {
+    "apiVersion" = "networking.istio.io/v1beta1"
+    "kind"       = "VirtualService"
+    "metadata" = {
+      "name"      = "platform-server"
+      "namespace" = local.istio_gateway_namespace
+    }
+    "spec" = {
+      "hosts"    = ["api.agyn.dev"]
+      "gateways" = ["platform-gateway"]
+      "http" = [
+        {
+          "match" = [
+            {
+              "uri" = {
+                "prefix" = "/"
+              }
+            }
+          ]
+          "route" = [
+            {
+              "destination" = {
+                "host" = "platform-server.platform.svc.cluster.local"
+                "port" = {
+                  "number" = 3010
+                }
+              }
+            }
+          ]
+        }
+      ]
     }
   }
 
-  rule {
-    api_groups = [""]
-    resources  = ["secrets"]
-    verbs      = ["get", "create", "update", "patch"]
-  }
+  computed_fields = [
+    "metadata.annotations",
+    "metadata.labels",
+  ]
 
-  rule {
-    api_groups = [""]
-    resources  = ["pods"]
-    verbs      = ["get", "list"]
-  }
-
-  rule {
-    api_groups = [""]
-    resources  = ["pods/exec"]
-    verbs      = ["create"]
-  }
+  depends_on = [
+    data.terraform_remote_state.system,
+  ]
 }
 
-resource "kubernetes_role_binding_v1" "litellm_bootstrap" {
-  metadata {
-    name      = "litellm-bootstrap-secrets-writer"
-    namespace = kubernetes_namespace.platform.metadata[0].name
-    labels = {
-      "app.kubernetes.io/name" = "litellm-bootstrap"
+resource "kubernetes_manifest" "virtualservice_litellm" {
+  manifest = {
+    "apiVersion" = "networking.istio.io/v1beta1"
+    "kind"       = "VirtualService"
+    "metadata" = {
+      "name"      = "litellm"
+      "namespace" = local.istio_gateway_namespace
+    }
+    "spec" = {
+      "hosts"    = ["litellm.agyn.dev"]
+      "gateways" = ["platform-gateway"]
+      "http" = [
+        {
+          "match" = [
+            {
+              "uri" = {
+                "prefix" = "/"
+              }
+            }
+          ]
+          "route" = [
+            {
+              "destination" = {
+                "host" = "litellm.platform.svc.cluster.local"
+                "port" = {
+                  "number" = 4000
+                }
+              }
+            }
+          ]
+        }
+      ]
     }
   }
 
-  role_ref {
-    api_group = "rbac.authorization.k8s.io"
-    kind      = "Role"
-    name      = kubernetes_role_v1.litellm_bootstrap.metadata[0].name
-  }
+  computed_fields = [
+    "metadata.annotations",
+    "metadata.labels",
+  ]
 
-  subject {
-    kind      = "ServiceAccount"
-    name      = kubernetes_service_account_v1.litellm_bootstrap.metadata[0].name
-    namespace = kubernetes_namespace.platform.metadata[0].name
-  }
+  depends_on = [
+    data.terraform_remote_state.system,
+  ]
 }
 
-resource "kubernetes_job_v1" "litellm_bootstrap" {
-  metadata {
-    name      = "litellm-bootstrap-default-key"
-    namespace = kubernetes_namespace.platform.metadata[0].name
-    labels = {
-      "app.kubernetes.io/name" = "litellm-bootstrap-default-key"
+resource "kubernetes_manifest" "virtualservice_vault" {
+  manifest = {
+    "apiVersion" = "networking.istio.io/v1beta1"
+    "kind"       = "VirtualService"
+    "metadata" = {
+      "name"      = "vault"
+      "namespace" = local.istio_gateway_namespace
+    }
+    "spec" = {
+      "hosts"    = ["vault.agyn.dev"]
+      "gateways" = ["platform-gateway"]
+      "http" = [
+        {
+          "match" = [
+            {
+              "uri" = {
+                "prefix" = "/"
+              }
+            }
+          ]
+          "route" = [
+            {
+              "destination" = {
+                "host" = "vault.platform.svc.cluster.local"
+                "port" = {
+                  "number" = 8200
+                }
+              }
+            }
+          ]
+        }
+      ]
     }
   }
 
-  wait_for_completion = false
+  computed_fields = [
+    "metadata.annotations",
+    "metadata.labels",
+  ]
+
+  depends_on = [
+    data.terraform_remote_state.system,
+  ]
+}
+
+resource "kubernetes_service_v1" "platform_db" {
+  metadata {
+    name      = "platform-db"
+    namespace = kubernetes_namespace.platform.metadata[0].name
+    labels = {
+      "app.kubernetes.io/name" = "platform-db"
+    }
+  }
 
   spec {
-    backoff_limit = 6
+    selector = {
+      "app.kubernetes.io/name" = "platform-db"
+    }
+
+    port {
+      name        = "postgres"
+      port        = 5432
+      target_port = 5432
+      protocol    = "TCP"
+    }
+  }
+}
+
+resource "kubernetes_stateful_set_v1" "platform_db" {
+  metadata {
+    name      = "platform-db"
+    namespace = kubernetes_namespace.platform.metadata[0].name
+    labels = {
+      "app.kubernetes.io/name" = "platform-db"
+    }
+  }
+
+  spec {
+    service_name = kubernetes_service_v1.platform_db.metadata[0].name
+    replicas     = 1
+
+    selector {
+      match_labels = {
+        "app.kubernetes.io/name" = "platform-db"
+      }
+    }
 
     template {
       metadata {
         labels = {
-          "app.kubernetes.io/name" = "litellm-bootstrap-default-key"
+          "app.kubernetes.io/name" = "platform-db"
         }
       }
 
       spec {
-        service_account_name = kubernetes_service_account_v1.litellm_bootstrap.metadata[0].name
-        restart_policy       = "Never"
+        termination_grace_period_seconds = 30
 
         container {
-          name              = "bootstrap"
-          image             = "public.ecr.aws/docker/library/alpine:3.19.1"
+          name              = "postgres"
+          image             = local.postgres_image
           image_pull_policy = "IfNotPresent"
-          command           = ["/bin/sh", "-ec", trimspace(local.litellm_bootstrap_script)]
           env {
-            name  = "LITELLM_BASE_URL"
-            value = "http://litellm:4000"
+            name  = "POSTGRES_DB"
+            value = "agents"
           }
           env {
-            name = "LITELLM_MASTER_KEY"
-            value_from {
-              secret_key_ref {
-                name = kubernetes_secret.litellm_master_key.metadata[0].name
-                key  = "LITELLM_MASTER_KEY"
-              }
+            name  = "POSTGRES_USER"
+            value = "agents"
+          }
+          env {
+            name  = "POSTGRES_PASSWORD"
+            value = var.platform_db_password
+          }
+          env {
+            name  = "PGDATA"
+            value = "/var/lib/postgresql/data/pgdata"
+          }
+
+          port {
+            name           = "postgres"
+            container_port = 5432
+          }
+
+          readiness_probe {
+            exec {
+              command = ["pg_isready", "-U", "agents", "-d", "agents"]
             }
+            initial_delay_seconds = 5
+            period_seconds        = 10
           }
-          env {
-            name  = "LITELLM_DEFAULT_ALIAS"
-            value = "agents/default"
-          }
-          env {
-            name  = "OUTPUT_SECRET_NAME"
-            value = "litellm-default-key"
-          }
-          env {
-            name  = "OUTPUT_SECRET_KEY"
-            value = "OPENAI_API_KEY"
-          }
-          env {
-            name = "NAMESPACE"
-            value_from {
-              field_ref {
-                field_path = "metadata.namespace"
-              }
+
+          liveness_probe {
+            exec {
+              command = ["pg_isready", "-U", "agents", "-d", "agents"]
             }
+            initial_delay_seconds = 30
+            period_seconds        = 20
+          }
+
+          volume_mount {
+            name       = "data"
+            mount_path = "/var/lib/postgresql/data"
           }
         }
       }
     }
 
+    volume_claim_template {
+      metadata {
+        name = "data"
+      }
+
+      spec {
+        access_modes = ["ReadWriteOnce"]
+
+        resources {
+          requests = {
+            storage = var.platform_db_pvc_size
+          }
+        }
+      }
+    }
+  }
+}
+
+resource "kubernetes_service_v1" "litellm_db" {
+  metadata {
+    name      = "litellm-db"
+    namespace = kubernetes_namespace.platform.metadata[0].name
+    labels = {
+      "app.kubernetes.io/name" = "litellm-db"
+    }
   }
 
-  depends_on = [
-    kubernetes_service_account_v1.litellm_bootstrap,
-    kubernetes_secret.litellm_master_key,
-    argocd_application.litellm_db,
-    argocd_application.litellm,
-  ]
+  spec {
+    selector = {
+      "app.kubernetes.io/name" = "litellm-db"
+    }
+
+    port {
+      name        = "postgres"
+      port        = 5432
+      target_port = 5432
+      protocol    = "TCP"
+    }
+  }
 }
+
+resource "kubernetes_stateful_set_v1" "litellm_db" {
+  metadata {
+    name      = "litellm-db"
+    namespace = kubernetes_namespace.platform.metadata[0].name
+    labels = {
+      "app.kubernetes.io/name" = "litellm-db"
+    }
+  }
+
+  spec {
+    service_name = kubernetes_service_v1.litellm_db.metadata[0].name
+    replicas     = 1
+
+    selector {
+      match_labels = {
+        "app.kubernetes.io/name" = "litellm-db"
+      }
+    }
+
+    template {
+      metadata {
+        labels = {
+          "app.kubernetes.io/name" = "litellm-db"
+        }
+      }
+
+      spec {
+        termination_grace_period_seconds = 30
+
+        container {
+          name              = "postgres"
+          image             = local.postgres_image
+          image_pull_policy = "IfNotPresent"
+          env {
+            name  = "POSTGRES_DB"
+            value = "litellm"
+          }
+          env {
+            name  = "POSTGRES_USER"
+            value = "litellm"
+          }
+          env {
+            name  = "POSTGRES_PASSWORD"
+            value = var.litellm_db_password
+          }
+          env {
+            name  = "PGDATA"
+            value = "/var/lib/postgresql/data/pgdata"
+          }
+
+          port {
+            name           = "postgres"
+            container_port = 5432
+          }
+
+          readiness_probe {
+            exec {
+              command = ["pg_isready", "-U", "litellm", "-d", "litellm"]
+            }
+            initial_delay_seconds = 5
+            period_seconds        = 10
+          }
+
+          liveness_probe {
+            exec {
+              command = ["pg_isready", "-U", "litellm", "-d", "litellm"]
+            }
+            initial_delay_seconds = 30
+            period_seconds        = 20
+          }
+
+          volume_mount {
+            name       = "data"
+            mount_path = "/var/lib/postgresql/data"
+          }
+        }
+      }
+    }
+
+    volume_claim_template {
+      metadata {
+        name = "data"
+      }
+
+      spec {
+        access_modes = ["ReadWriteOnce"]
+
+        resources {
+          requests = {
+            storage = var.litellm_db_pvc_size
+          }
+        }
+      }
+    }
+  }
+}
+
 
 resource "argocd_repository" "twuni_docker_registry" {
   repo = local.registry_mirror_repo_url
@@ -1451,96 +1385,6 @@ resource "argocd_repository" "platform" {
   type     = "git"
   username = trimspace(var.platform_repo_username) == "" ? null : var.platform_repo_username
   password = trimspace(var.platform_repo_password) == "" ? null : var.platform_repo_password
-}
-
-resource "argocd_application" "platform_db" {
-  depends_on = [argocd_repository.litellm_repo]
-
-  metadata {
-    name      = "platform-db"
-    namespace = "argocd"
-    annotations = {
-      "argocd.argoproj.io/sync-wave" = "5"
-    }
-  }
-
-  spec {
-    project = "default"
-
-    source {
-      repo_url        = local.postgres_chart_repo_host
-      chart           = local.postgres_chart_full_name
-      target_revision = local.postgres_chart_version
-
-      helm {
-        release_name = "platform-db"
-        values       = local.platform_db_values
-      }
-    }
-
-    destination {
-      server    = var.destination_server
-      namespace = var.platform_namespace
-    }
-
-    sync_policy {
-      dynamic "automated" {
-        for_each = var.argocd_automated_sync_enabled ? [1] : []
-        content {
-          prune       = var.argocd_prune_enabled
-          self_heal   = var.argocd_self_heal_enabled
-          allow_empty = false
-        }
-      }
-
-      sync_options = local.default_sync_options
-    }
-  }
-}
-
-resource "argocd_application" "litellm_db" {
-  depends_on = [argocd_repository.litellm_repo]
-
-  metadata {
-    name      = "litellm-db"
-    namespace = "argocd"
-    annotations = {
-      "argocd.argoproj.io/sync-wave" = "6"
-    }
-  }
-
-  spec {
-    project = "default"
-
-    source {
-      repo_url        = local.postgres_chart_repo_host
-      chart           = local.postgres_chart_full_name
-      target_revision = local.postgres_chart_version
-
-      helm {
-        release_name = "litellm-db"
-        values       = local.litellm_db_values
-      }
-    }
-
-    destination {
-      server    = var.destination_server
-      namespace = var.platform_namespace
-    }
-
-    sync_policy {
-      dynamic "automated" {
-        for_each = var.argocd_automated_sync_enabled ? [1] : []
-        content {
-          prune       = var.argocd_prune_enabled
-          self_heal   = var.argocd_self_heal_enabled
-          allow_empty = false
-        }
-      }
-
-      sync_options = local.default_sync_options
-    }
-  }
 }
 
 resource "argocd_application" "vault" {
@@ -1642,7 +1486,7 @@ resource "argocd_application" "registry_mirror" {
 resource "argocd_application" "litellm" {
   depends_on = [
     argocd_repository.litellm_repo,
-    argocd_application.litellm_db,
+    kubernetes_stateful_set_v1.litellm_db,
   ]
   metadata {
     name      = "litellm"
@@ -1731,8 +1575,7 @@ resource "argocd_application" "docker_runner" {
 resource "argocd_application" "platform_server" {
   depends_on = [
     argocd_repository.platform,
-    argocd_application.platform_db,
-    kubernetes_job_v1.litellm_bootstrap,
+    kubernetes_stateful_set_v1.platform_db,
   ]
   metadata {
     name      = "platform-server"

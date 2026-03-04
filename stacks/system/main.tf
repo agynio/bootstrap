@@ -2,6 +2,7 @@
 locals {
   istio_repository_url = "https://istio-release.storage.googleapis.com/charts"
   argo_repository_url  = "https://argoproj.github.io/argo-helm"
+  local_certs_dir      = abspath("${path.root}/../../local-certs")
 }
 
 # Istio base (CRDs)
@@ -11,6 +12,19 @@ resource "helm_release" "istio_base" {
   chart      = "base"
   version    = var.istio_chart_version
   namespace  = kubernetes_namespace.istio_system.metadata[0].name
+  wait       = true
+  atomic     = true
+}
+
+# Istio ingress class for Kubernetes Ingress resources
+resource "kubernetes_ingress_class_v1" "istio" {
+  metadata {
+    name = "istio"
+  }
+
+  spec {
+    controller = "istio.io/ingress-controller"
+  }
 }
 
 # Istio control plane
@@ -22,9 +36,16 @@ resource "helm_release" "istiod" {
   namespace  = kubernetes_namespace.istio_system.metadata[0].name
 
   depends_on = [helm_release.istio_base]
+  wait       = true
 
   values = [
     yamlencode({
+      meshConfig = {
+        ingressControllerMode   = "STRICT"
+        ingressClass            = "istio"
+        ingressService          = "istio-ingressgateway"
+        ingressServiceNamespace = kubernetes_namespace.istio_gateway.metadata[0].name
+      }
       pilot = {
         traceSampling = 1.0
       }
@@ -40,25 +61,165 @@ resource "helm_release" "istio_gateway" {
   version    = var.istio_chart_version
   namespace  = kubernetes_namespace.istio_gateway.metadata[0].name
 
-  depends_on = [helm_release.istiod]
+  depends_on = [
+    helm_release.istiod,
+    kubernetes_secret_v1.wildcard_tls_gateway,
+  ]
+  wait = true
 
   values = [
     yamlencode({
-      name = "istio-ingressgateway",
+      name = "istio-ingressgateway"
       service = {
-        type = "ClusterIP",
-        ports = [{
-          name       = "http2",
-          port       = 80,
-          targetPort = 8080
-          }, {
-          name       = "https",
-          port       = 443,
-          targetPort = 8443
-        }]
+        type = "LoadBalancer"
+        ports = [
+          {
+            name       = "status-port"
+            port       = 15021
+            protocol   = "TCP"
+            targetPort = 15021
+          },
+          {
+            name       = "http2"
+            port       = 80
+            protocol   = "TCP"
+            targetPort = 80
+          },
+          {
+            name       = "https"
+            port       = 443
+            protocol   = "TCP"
+            targetPort = 443
+          }
+        ]
       }
     })
   ]
+}
+
+# Certificate authority for agyn.dev
+resource "tls_private_key" "ca_agyn_dev" {
+  algorithm = "RSA"
+  rsa_bits  = 2048
+}
+
+resource "tls_self_signed_cert" "ca_agyn_dev" {
+  private_key_pem       = tls_private_key.ca_agyn_dev.private_key_pem
+  is_ca_certificate     = true
+  validity_period_hours = 24 * 365
+  early_renewal_hours   = 24 * 30
+
+  subject {
+    common_name  = "Agyn Local CA"
+    organization = "Agyn"
+  }
+
+  allowed_uses = [
+    "cert_signing",
+    "crl_signing",
+    "key_encipherment",
+    "digital_signature",
+  ]
+}
+
+# Wildcard TLS certificate for *.agyn.dev signed by CA
+resource "tls_private_key" "wildcard_agyn_dev" {
+  algorithm = "RSA"
+  rsa_bits  = 2048
+}
+
+resource "tls_cert_request" "wildcard_agyn_dev" {
+  private_key_pem = tls_private_key.wildcard_agyn_dev.private_key_pem
+
+  subject {
+    common_name  = "agyn.dev"
+    organization = "Agyn"
+  }
+
+  dns_names = ["agyn.dev", "*.agyn.dev"]
+}
+
+resource "tls_locally_signed_cert" "wildcard_agyn_dev" {
+  cert_request_pem      = tls_cert_request.wildcard_agyn_dev.cert_request_pem
+  ca_private_key_pem    = tls_private_key.ca_agyn_dev.private_key_pem
+  ca_cert_pem           = tls_self_signed_cert.ca_agyn_dev.cert_pem
+  validity_period_hours = 24 * 365
+  early_renewal_hours   = 24 * 30
+
+  allowed_uses = [
+    "digital_signature",
+    "key_encipherment",
+    "server_auth",
+  ]
+}
+
+locals {
+  wildcard_fullchain_pem = "${tls_locally_signed_cert.wildcard_agyn_dev.cert_pem}${tls_self_signed_cert.ca_agyn_dev.cert_pem}"
+}
+
+resource "kubernetes_secret_v1" "wildcard_tls_argocd" {
+  metadata {
+    name      = "wildcard-agyn-dev-tls"
+    namespace = kubernetes_namespace.argocd.metadata[0].name
+  }
+
+  type = "kubernetes.io/tls"
+
+  data = {
+    "tls.crt" = local.wildcard_fullchain_pem
+    "tls.key" = tls_private_key.wildcard_agyn_dev.private_key_pem
+  }
+}
+
+resource "kubernetes_secret_v1" "wildcard_tls_gateway" {
+  metadata {
+    name      = "wildcard-agyn-dev-tls"
+    namespace = kubernetes_namespace.istio_gateway.metadata[0].name
+  }
+
+  type = "kubernetes.io/tls"
+
+  data = {
+    "tls.crt" = local.wildcard_fullchain_pem
+    "tls.key" = tls_private_key.wildcard_agyn_dev.private_key_pem
+  }
+}
+
+resource "local_file" "ca_certificate" {
+  filename             = "${local.local_certs_dir}/ca-agyn-dev.pem"
+  content              = tls_self_signed_cert.ca_agyn_dev.cert_pem
+  file_permission      = "0644"
+  directory_permission = "0755"
+}
+
+resource "local_file" "wildcard_certificate" {
+  filename             = "${local.local_certs_dir}/wildcard-agyn-dev.crt"
+  content              = tls_locally_signed_cert.wildcard_agyn_dev.cert_pem
+  file_permission      = "0644"
+  directory_permission = "0755"
+}
+
+resource "local_file" "wildcard_fullchain" {
+  filename             = "${local.local_certs_dir}/wildcard-agyn-dev.fullchain.crt"
+  content              = local.wildcard_fullchain_pem
+  file_permission      = "0644"
+  directory_permission = "0755"
+}
+
+resource "local_file" "wildcard_private_key" {
+  count                = var.save_private_keys ? 1 : 0
+  filename             = "${local.local_certs_dir}/wildcard-agyn-dev.key"
+  sensitive_content    = tls_private_key.wildcard_agyn_dev.private_key_pem
+  file_permission      = "0600"
+  directory_permission = "0700"
+}
+
+resource "local_file" "ca_private_key" {
+  count                = var.save_private_keys ? 1 : 0
+  filename             = "${local.local_certs_dir}/ca-agyn-dev.key"
+  sensitive_content    = tls_private_key.ca_agyn_dev.private_key_pem
+  file_permission      = "0600"
+  directory_permission = "0700"
 }
 
 # Argo CD
@@ -68,17 +229,28 @@ resource "helm_release" "argo_cd" {
   chart      = "argo-cd"
   version    = var.argocd_chart_version
   namespace  = kubernetes_namespace.argocd.metadata[0].name
+  depends_on = [
+    kubernetes_secret_v1.wildcard_tls_argocd,
+    helm_release.istio_gateway,
+  ]
 
   values = [
     yamlencode({
       server = {
+        insecure = true
         service = {
-          type             = "LoadBalancer"
+          type             = "ClusterIP"
           servicePortHttp  = 8080
           servicePortHttps = 8443
         }
+        ingress = {
+          enabled = false
+        }
       }
       configs = {
+        params = {
+          "server.insecure" = true
+        }
         cm = {
           admin = {
             enabled = true

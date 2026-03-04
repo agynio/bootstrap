@@ -1,8 +1,10 @@
 provider "argocd" {
-  server_addr = local.argocd_server_addr_normalized
+  server_addr = "argocd.agyn.dev:8080"
   username    = var.argocd_admin_username
   password    = var.argocd_admin_password
   insecure    = true
+  plain_text  = false
+  grpc_web    = true
 }
 
 provider "kubernetes" {

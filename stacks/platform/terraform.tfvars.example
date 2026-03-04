@@ -1,6 +1,6 @@
 kubeconfig_path = "../k8s/.kube/agyn-local-kubeconfig.yaml"
-# Optional override if Argo CD is exposed on a different host/port
-# argocd_server_addr    = "localhost:8080"
+# Argo CD Terraform provider uses kubectl port-forwarding by default.
+# Override credentials here if needed.
 # argocd_admin_username = "admin"
 # argocd_admin_password = "admin"
 

@@ -9,6 +9,14 @@ terraform {
       source  = "hashicorp/helm"
       version = "~> 2.13"
     }
+    tls = {
+      source  = "hashicorp/tls"
+      version = "~> 4.0"
+    }
+    local = {
+      source  = "hashicorp/local"
+      version = "~> 2.5"
+    }
   }
   backend "local" {
     path = "./state/terraform.tfstate"

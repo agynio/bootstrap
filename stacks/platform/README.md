@@ -18,7 +18,31 @@ terraform validate
 terraform apply
 ```
 
-After the system stack is applied, the Argo CD server `Service` is exposed as a `LoadBalancer`. Ensure your local cluster forwards the load balancer listener to the host (for k3d use `--port 8080:8080@loadbalancer`). Terraform connects to Argo CD directly on `http://localhost:8080` using the default `admin/admin` credentials during the apply, and the UI is available at the same address for manual verification.
+After the system stack is applied, Istio exposes a single ingress listener on port 8080 and routes traffic by hostname. Ensure the following hostnames resolve to `127.0.0.1` on your workstation (for example via `/etc/hosts`):
+
+- `agyn.dev`
+- `api.agyn.dev`
+- `argocd.agyn.dev`
+- `litellm.agyn.dev`
+- `vault.agyn.dev`
+
+Terraform connects to Argo CD through the ingress at `https://argocd.agyn.dev:8080` (default credentials `admin/admin`; accept the self-signed certificate). The same listener serves the application endpoints:
+
+- Platform UI: `https://agyn.dev:8080`
+- Platform API: `https://api.agyn.dev:8080`
+- LiteLLM API: `https://litellm.agyn.dev:8080`
+- Vault UI/API: `https://vault.agyn.dev:8080`
+
+Each application chart enables a Kubernetes `Ingress` with `ingressClassName: istio`, routing hostnames through the Istio ingress gateway's HTTPS listener (exposed on host port 8080). No additional ingress controller is required; ensure the hostnames above resolve locally and use `curl -k` or your browser to trust the self-signed certificates.
+
+### LiteLLM defaults
+
+For development parity with bootstrap v1, LiteLLM deploys with:
+
+- UI credentials: `admin` / `admin`
+- Master key: `sk-dev-master-1234`
+- Salt key: `sk-dev-salt-1234`
+- PostgreSQL password: `change-me`
 
 ### Repository authentication
 

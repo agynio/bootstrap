@@ -28,7 +28,8 @@ resource "k3d_cluster" "this" {
         for_each = var.k3s_extra_args
 
         content {
-          arg = extra_args.value
+          arg          = extra_args.value
+          node_filters = ["server:*"]
         }
       }
     }
@@ -42,8 +43,10 @@ resource "k3d_cluster" "this" {
       host_port      = port.value.host_port
       container_port = port.value.container_port
       protocol       = upper(port.value.protocol)
+      node_filters   = try(port.value.node_filters, [])
     }
   }
+
 }
 
 resource "local_sensitive_file" "kubeconfig" {
