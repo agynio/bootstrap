@@ -482,15 +482,7 @@ locals {
         config  = trimspace(local.vault_standalone_config)
       }
       ingress = {
-        enabled          = true
-        ingressClassName = "istio"
-        pathType         = "Prefix"
-        hosts = [
-          {
-            host  = "vault.agyn.dev"
-            paths = ["/"]
-          }
-        ]
+        enabled = false
       }
       podSecurityContext = {
         runAsNonRoot = false
@@ -727,22 +719,7 @@ locals {
       port = 4000
     }
     ingress = {
-      enabled   = true
-      className = "istio"
-      hosts = [
-        {
-          host = "litellm.agyn.dev"
-          paths = [
-            {
-              path     = "/"
-              pathType = "Prefix"
-            }
-          ]
-        }
-      ]
-      tls         = []
-      annotations = {}
-      labels      = {}
+      enabled = false
     }
     masterkeySecretName = "litellm-master-key"
     masterkeySecretKey  = "LITELLM_MASTER_KEY"
@@ -894,21 +871,7 @@ locals {
       ]
     }
     ingress = {
-      enabled          = true
-      ingressClassName = "istio"
-      hosts = [
-        {
-          host = "api.agyn.dev"
-          paths = [
-            {
-              path        = "/"
-              pathType    = "Prefix"
-              servicePort = "http"
-            }
-          ]
-        }
-      ]
-      tls = []
+      enabled = false
     }
     securityContext = {
       enabled                  = true
@@ -1140,21 +1103,7 @@ locals {
       ]
     }
     ingress = {
-      enabled          = true
-      ingressClassName = "istio"
-      hosts = [
-        {
-          host = "agyn.dev"
-          paths = [
-            {
-              path        = "/"
-              pathType    = "Prefix"
-              servicePort = "http"
-            }
-          ]
-        }
-      ]
-      tls = []
+      enabled = false
     }
     extraVolumes = [
       {
