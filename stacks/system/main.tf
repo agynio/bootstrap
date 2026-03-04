@@ -41,6 +41,7 @@ resource "helm_release" "istiod" {
     yamlencode({
       meshConfig = {
         ingressClass            = "istio"
+        ingressSelector         = "ingressgateway"
         ingressControllerMode   = "STRICT"
         ingressServiceNamespace = kubernetes_namespace.istio_gateway.metadata[0].name
         ingressService          = "istio-ingressgateway"
@@ -237,9 +238,12 @@ resource "helm_release" "argo_cd" {
         ingress = {
           enabled          = true
           ingressClassName = "istio"
-          hostname         = "argocd.agyn.dev"
-          https            = true
-          tls              = false
+          annotations = {
+            "kubernetes.io/ingress.class" = "istio"
+          }
+          hostname = "argocd.agyn.dev"
+          https    = true
+          tls      = false
           extraTls = [
             {
               hosts      = ["argocd.agyn.dev"]

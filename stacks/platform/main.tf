@@ -483,7 +483,10 @@ locals {
       ingress = {
         enabled          = true
         ingressClassName = "istio"
-        pathType         = "Prefix"
+        annotations = {
+          "kubernetes.io/ingress.class" = "istio"
+        }
+        pathType = "Prefix"
         hosts = [
           {
             host  = "vault.agyn.dev"
@@ -735,6 +738,9 @@ locals {
       enabled          = true
       className        = "istio"
       ingressClassName = "istio"
+      annotations = {
+        "kubernetes.io/ingress.class" = "istio"
+      }
       hosts = [
         {
           host = "litellm.agyn.dev"
@@ -909,6 +915,9 @@ locals {
     ingress = {
       enabled          = true
       ingressClassName = "istio"
+      annotations = {
+        "kubernetes.io/ingress.class" = "istio"
+      }
       hosts = [
         {
           host = "api.agyn.dev"
@@ -1160,6 +1169,9 @@ locals {
     ingress = {
       enabled          = true
       ingressClassName = "istio"
+      annotations = {
+        "kubernetes.io/ingress.class" = "istio"
+      }
       hosts = [
         {
           host = "agyn.dev"
