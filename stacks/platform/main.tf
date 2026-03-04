@@ -964,6 +964,44 @@ resource "kubernetes_manifest" "virtualservice_platform_ui" {
           "match" = [
             {
               "uri" = {
+                "prefix" = "/api"
+              }
+            }
+          ]
+          "route" = [
+            {
+              "destination" = {
+                "host" = "platform-server.platform.svc.cluster.local"
+                "port" = {
+                  "number" = 3010
+                }
+              }
+            }
+          ]
+        },
+        {
+          "match" = [
+            {
+              "uri" = {
+                "prefix" = "/socket.io"
+              }
+            }
+          ]
+          "route" = [
+            {
+              "destination" = {
+                "host" = "platform-server.platform.svc.cluster.local"
+                "port" = {
+                  "number" = 3010
+                }
+              }
+            }
+          ]
+        },
+        {
+          "match" = [
+            {
+              "uri" = {
                 "prefix" = "/"
               }
             }
