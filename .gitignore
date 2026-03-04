@@ -1,2 +1,12 @@
 local-certs/*
 !local-certs/.gitkeep
+
+# Local kubeconfig
+.kube/
+
+# Terraform working directories
+**/.terraform/
+
+# Terraform state files (do not ignore lockfiles)
+**/*.tfstate
+**/*.tfstate.*
