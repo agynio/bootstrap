@@ -481,7 +481,22 @@ locals {
         config  = trimspace(local.vault_standalone_config)
       }
       ingress = {
-        enabled = false
+        enabled          = true
+        ingressClassName = "istio"
+        pathType         = "Prefix"
+        servicePort      = 8200
+        hosts = [
+          {
+            host  = "vault.agyn.dev"
+            paths = ["/"]
+          }
+        ]
+        tls = [
+          {
+            hosts      = ["vault.agyn.dev"]
+            secretName = "wildcard-agyn-dev-tls"
+          }
+        ]
       }
       podSecurityContext = {
         runAsNonRoot = false
@@ -718,7 +733,27 @@ locals {
       port = 4000
     }
     ingress = {
-      enabled     = false
+      enabled          = true
+      className        = "istio"
+      ingressClassName = "istio"
+      hosts = [
+        {
+          host = "litellm.agyn.dev"
+          paths = [
+            {
+              path        = "/"
+              pathType    = "Prefix"
+              servicePort = "http"
+            }
+          ]
+        }
+      ]
+      tls = [
+        {
+          hosts      = ["litellm.agyn.dev"]
+          secretName = "wildcard-agyn-dev-tls"
+        }
+      ]
       annotations = {}
       labels      = {}
     }
@@ -874,7 +909,26 @@ locals {
       ]
     }
     ingress = {
-      enabled = false
+      enabled          = true
+      ingressClassName = "istio"
+      hosts = [
+        {
+          host = "api.agyn.dev"
+          paths = [
+            {
+              path        = "/"
+              pathType    = "Prefix"
+              servicePort = "http"
+            }
+          ]
+        }
+      ]
+      tls = [
+        {
+          hosts      = ["api.agyn.dev"]
+          secretName = "wildcard-agyn-dev-tls"
+        }
+      ]
     }
     securityContext = {
       enabled                  = true
@@ -1106,7 +1160,26 @@ locals {
       ]
     }
     ingress = {
-      enabled = false
+      enabled          = true
+      ingressClassName = "istio"
+      hosts = [
+        {
+          host = "agyn.dev"
+          paths = [
+            {
+              path        = "/"
+              pathType    = "Prefix"
+              servicePort = "http"
+            }
+          ]
+        }
+      ]
+      tls = [
+        {
+          hosts      = ["agyn.dev"]
+          secretName = "wildcard-agyn-dev-tls"
+        }
+      ]
     }
     extraVolumes = [
       {
@@ -1177,166 +1250,6 @@ resource "kubernetes_secret_v1" "wildcard_tls" {
     "tls.crt" = base64encode(data.terraform_remote_state.system.outputs["wildcard_agyn_dev_certificate"])
     "tls.key" = base64encode(data.terraform_remote_state.system.outputs["wildcard_agyn_dev_private_key"])
   }
-}
-
-resource "kubernetes_ingress_v1" "platform_ui" {
-  metadata {
-    name      = "platform-ui"
-    namespace = kubernetes_namespace.platform.metadata[0].name
-    labels = {
-      "app.kubernetes.io/name" = "platform-ui"
-    }
-  }
-
-  spec {
-    ingress_class_name = "istio"
-
-    tls {
-      secret_name = kubernetes_secret_v1.wildcard_tls.metadata[0].name
-      hosts       = ["agyn.dev"]
-    }
-
-    rule {
-      host = "agyn.dev"
-
-      http {
-        path {
-          path      = "/"
-          path_type = "Prefix"
-          backend {
-            service {
-              name = "platform-ui"
-              port {
-                number = 3000
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-
-  depends_on = [argocd_application.platform_ui]
-}
-
-resource "kubernetes_ingress_v1" "platform_server" {
-  metadata {
-    name      = "platform-server"
-    namespace = kubernetes_namespace.platform.metadata[0].name
-    labels = {
-      "app.kubernetes.io/name" = "platform-server"
-    }
-  }
-
-  spec {
-    ingress_class_name = "istio"
-
-    tls {
-      secret_name = kubernetes_secret_v1.wildcard_tls.metadata[0].name
-      hosts       = ["api.agyn.dev"]
-    }
-
-    rule {
-      host = "api.agyn.dev"
-
-      http {
-        path {
-          path      = "/"
-          path_type = "Prefix"
-          backend {
-            service {
-              name = "platform-server"
-              port {
-                number = 3010
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-
-  depends_on = [argocd_application.platform_server]
-}
-
-resource "kubernetes_ingress_v1" "litellm" {
-  metadata {
-    name      = "litellm"
-    namespace = kubernetes_namespace.platform.metadata[0].name
-    labels = {
-      "app.kubernetes.io/name" = "litellm"
-    }
-  }
-
-  spec {
-    ingress_class_name = "istio"
-
-    tls {
-      secret_name = kubernetes_secret_v1.wildcard_tls.metadata[0].name
-      hosts       = ["litellm.agyn.dev"]
-    }
-
-    rule {
-      host = "litellm.agyn.dev"
-
-      http {
-        path {
-          path      = "/"
-          path_type = "Prefix"
-          backend {
-            service {
-              name = "litellm"
-              port {
-                number = 4000
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-
-  depends_on = [argocd_application.litellm]
-}
-
-resource "kubernetes_ingress_v1" "vault" {
-  metadata {
-    name      = "vault"
-    namespace = kubernetes_namespace.platform.metadata[0].name
-    labels = {
-      "app.kubernetes.io/name" = "vault"
-    }
-  }
-
-  spec {
-    ingress_class_name = "istio"
-
-    tls {
-      secret_name = kubernetes_secret_v1.wildcard_tls.metadata[0].name
-      hosts       = ["vault.agyn.dev"]
-    }
-
-    rule {
-      host = "vault.agyn.dev"
-
-      http {
-        path {
-          path      = "/"
-          path_type = "Prefix"
-          backend {
-            service {
-              name = "vault"
-              port {
-                number = 8200
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-
-  depends_on = [argocd_application.vault]
 }
 
 resource "kubernetes_secret" "litellm_master_key" {
