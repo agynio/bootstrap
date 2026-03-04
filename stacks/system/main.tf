@@ -13,6 +13,7 @@ resource "helm_release" "istio_base" {
   version    = var.istio_chart_version
   namespace  = kubernetes_namespace.istio_system.metadata[0].name
   wait       = true
+  atomic     = true
 }
 
 # Istio ingress class for Kubernetes Ingress resources

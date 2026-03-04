@@ -948,48 +948,6 @@ resource "kubernetes_job_v1" "vault_init_unseal" {
   ]
 }
 
-resource "kubernetes_manifest" "platform_gateway" {
-  manifest = {
-    "apiVersion" = "networking.istio.io/v1beta1"
-    "kind"       = "Gateway"
-    "metadata" = {
-      "name"      = "platform-gateway"
-      "namespace" = local.istio_gateway_namespace
-    }
-    "spec" = {
-      "selector" = {
-        "istio" = "ingressgateway"
-      }
-      "servers" = [
-        {
-          "port" = {
-            "number"   = 443
-            "name"     = "https"
-            "protocol" = "HTTPS"
-          }
-          "tls" = {
-            "mode"           = "SIMPLE"
-            "credentialName" = local.istio_gateway_tls_secret_name
-          }
-          "hosts" = [
-            "agyn.dev",
-            "*.agyn.dev"
-          ]
-        }
-      ]
-    }
-  }
-
-  computed_fields = [
-    "metadata.annotations",
-    "metadata.labels",
-  ]
-
-  depends_on = [
-    data.terraform_remote_state.system,
-  ]
-}
-
 resource "kubernetes_manifest" "virtualservice_platform_ui" {
   manifest = {
     "apiVersion" = "networking.istio.io/v1beta1"
@@ -1031,8 +989,7 @@ resource "kubernetes_manifest" "virtualservice_platform_ui" {
   ]
 
   depends_on = [
-    kubernetes_manifest.platform_gateway,
-    argocd_application.platform_ui,
+    data.terraform_remote_state.system,
   ]
 }
 
@@ -1077,53 +1034,7 @@ resource "kubernetes_manifest" "virtualservice_platform_server" {
   ]
 
   depends_on = [
-    kubernetes_manifest.platform_gateway,
-    argocd_application.platform_server,
-  ]
-}
-
-resource "kubernetes_manifest" "virtualservice_argocd" {
-  manifest = {
-    "apiVersion" = "networking.istio.io/v1beta1"
-    "kind"       = "VirtualService"
-    "metadata" = {
-      "name"      = "argocd"
-      "namespace" = local.istio_gateway_namespace
-    }
-    "spec" = {
-      "hosts"    = ["argocd.agyn.dev"]
-      "gateways" = ["platform-gateway"]
-      "http" = [
-        {
-          "match" = [
-            {
-              "uri" = {
-                "prefix" = "/"
-              }
-            }
-          ]
-          "route" = [
-            {
-              "destination" = {
-                "host" = "argo-cd-argocd-server.argocd.svc.cluster.local"
-                "port" = {
-                  "number" = 8080
-                }
-              }
-            }
-          ]
-        }
-      ]
-    }
-  }
-
-  computed_fields = [
-    "metadata.annotations",
-    "metadata.labels",
-  ]
-
-  depends_on = [
-    kubernetes_manifest.platform_gateway,
+    data.terraform_remote_state.system,
   ]
 }
 
@@ -1168,8 +1079,7 @@ resource "kubernetes_manifest" "virtualservice_litellm" {
   ]
 
   depends_on = [
-    kubernetes_manifest.platform_gateway,
-    argocd_application.litellm,
+    data.terraform_remote_state.system,
   ]
 }
 
@@ -1214,8 +1124,7 @@ resource "kubernetes_manifest" "virtualservice_vault" {
   ]
 
   depends_on = [
-    kubernetes_manifest.platform_gateway,
-    argocd_application.vault,
+    data.terraform_remote_state.system,
   ]
 }
 

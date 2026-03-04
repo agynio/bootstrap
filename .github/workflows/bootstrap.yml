@@ -42,9 +42,15 @@ jobs:
           terraform -chdir=stacks/system init -input=false
           terraform -chdir=stacks/system apply -auto-approve -input=false
 
+      - name: Apply routing stack
+        run: |
+          terraform -chdir=stacks/routing init -input=false
+          terraform -chdir=stacks/routing apply -auto-approve -input=false
+
       - name: Apply platform stack
         run: |
           terraform -chdir=stacks/platform init -input=false
+          terraform -chdir=stacks/platform validate
           terraform -chdir=stacks/platform apply -auto-approve -input=false
 
       - name: Verify platform workloads and Argo CD health
@@ -55,6 +61,12 @@ jobs:
         run: |
           terraform -chdir=stacks/platform init -input=false
           terraform -chdir=stacks/platform destroy -auto-approve -input=false
+
+      - name: Destroy routing stack (PR only)
+        if: ${{ always() && github.event_name == 'pull_request' }}
+        run: |
+          terraform -chdir=stacks/routing init -input=false
+          terraform -chdir=stacks/routing destroy -auto-approve -input=false
 
       - name: Destroy system stack (PR only)
         if: ${{ always() && github.event_name == 'pull_request' }}

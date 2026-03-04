@@ -1,9 +1,10 @@
 provider "argocd" {
-  username                    = var.argocd_admin_username
-  password                    = var.argocd_admin_password
-  insecure                    = true
-  plain_text                  = true
-  port_forward_with_namespace = var.argocd_port_forward_enabled ? var.argocd_port_forward_namespace : null
+  server_addr = "argocd.agyn.dev:8080"
+  username    = var.argocd_admin_username
+  password    = var.argocd_admin_password
+  insecure    = true
+  plain_text  = false
+  grpc_web    = true
 }
 
 provider "kubernetes" {
