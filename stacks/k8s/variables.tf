@@ -25,7 +25,10 @@ variable "k3s_version" {
 variable "k3s_extra_args" {
   type        = list(string)
   description = "Additional k3s server args (e.g., --disable=traefik)"
-  default     = []
+  default = [
+    "--disable=traefik",
+    "--disable=servicelb",
+  ]
 }
 
 variable "expose_api" {
@@ -45,13 +48,15 @@ variable "ports" {
     container_port = number
     host_port      = number
     protocol       = string
+    node_filters   = optional(list(string), [])
   }))
   description = "Additional port mappings for cluster ingress/services"
   default = [
     {
-      container_port = 8080
-      host_port      = 8080
+      container_port = 32443
+      host_port      = 443
       protocol       = "tcp"
+      node_filters   = ["server:0"]
     }
   ]
 }

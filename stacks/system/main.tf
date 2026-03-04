@@ -2,6 +2,46 @@
 locals {
   istio_repository_url = "https://istio-release.storage.googleapis.com/charts"
   argo_repository_url  = "https://argoproj.github.io/argo-helm"
+  ingress_hosts = [
+    "argocd.agyn.dev",
+    "agyn.dev",
+    "api.agyn.dev",
+    "vault.agyn.dev",
+    "litellm.agyn.dev",
+  ]
+
+  ingress_routes = [
+    {
+      name             = "argocd"
+      hosts            = ["argocd.agyn.dev"]
+      destination_host = "argo-cd-argocd-server.argocd.svc.cluster.local"
+      destination_port = 8080
+    },
+    {
+      name             = "platform-ui"
+      hosts            = ["agyn.dev"]
+      destination_host = "platform-ui.platform.svc.cluster.local"
+      destination_port = 3000
+    },
+    {
+      name             = "platform-server"
+      hosts            = ["api.agyn.dev"]
+      destination_host = "platform-server.platform.svc.cluster.local"
+      destination_port = 3010
+    },
+    {
+      name             = "vault"
+      hosts            = ["vault.agyn.dev"]
+      destination_host = "vault.platform.svc.cluster.local"
+      destination_port = 8200
+    },
+    {
+      name             = "litellm"
+      hosts            = ["litellm.agyn.dev"]
+      destination_host = "litellm.platform.svc.cluster.local"
+      destination_port = 4000
+    }
+  ]
 }
 
 # Istio base (CRDs)
@@ -36,15 +76,18 @@ resource "helm_release" "istiod" {
 
   values = [
     yamlencode({
+      meshConfig = {
+        ingressClass            = "istio"
+        ingressControllerMode   = "STRICT"
+        ingressServiceNamespace = kubernetes_namespace.istio_gateway.metadata[0].name
+        ingressService          = "istio-ingressgateway"
+        ingressServicePort      = 443
+        ingressServicePortName  = "https"
+        ingressListenerPort     = 443
+        ingressListenerPortName = "https"
+      }
       pilot = {
         traceSampling = 1.0
-      }
-      meshConfig = {
-        ingressServiceNamespace = kubernetes_namespace.istio_gateway.metadata[0].name
-        ingressServicePort      = 8080
-        ingressServicePortName  = "http2"
-        ingressListenerPort     = 8080
-        ingressListenerPortName = "http2"
       }
     })
   ]
@@ -59,24 +102,77 @@ resource "helm_release" "istio_gateway" {
   namespace  = kubernetes_namespace.istio_gateway.metadata[0].name
 
   depends_on = [helm_release.istiod]
-  wait       = true
+  wait       = false
 
   values = [
     yamlencode({
       name = "istio-ingressgateway",
       service = {
-        type = "LoadBalancer",
+        type = "NodePort",
         ports = [
           {
-            name       = "http2"
-            port       = 8080
-            targetPort = 80
+            name       = "https"
+            port       = 443
+            targetPort = 8443
             protocol   = "TCP"
+            nodePort   = 32443
           }
         ]
       }
     })
   ]
+}
+
+# Wildcard TLS certificate for *.agyn.dev
+resource "tls_private_key" "wildcard_agyn_dev" {
+  algorithm = "RSA"
+  rsa_bits  = 2048
+}
+
+resource "tls_self_signed_cert" "wildcard_agyn_dev" {
+  private_key_pem = tls_private_key.wildcard_agyn_dev.private_key_pem
+
+  subject {
+    common_name  = "agyn.dev"
+    organization = "Agyn"
+  }
+
+  dns_names             = ["agyn.dev", "*.agyn.dev"]
+  validity_period_hours = 24 * 365
+  early_renewal_hours   = 24 * 30
+  allowed_uses = [
+    "key_encipherment",
+    "digital_signature",
+    "server_auth",
+  ]
+}
+
+resource "kubernetes_secret_v1" "wildcard_tls_argocd" {
+  metadata {
+    name      = "wildcard-agyn-dev-tls"
+    namespace = kubernetes_namespace.argocd.metadata[0].name
+  }
+
+  type = "kubernetes.io/tls"
+
+  data = {
+    "tls.crt" = tls_self_signed_cert.wildcard_agyn_dev.cert_pem
+    "tls.key" = tls_private_key.wildcard_agyn_dev.private_key_pem
+  }
+}
+
+resource "kubernetes_secret_v1" "wildcard_tls_gateway" {
+  metadata {
+    name      = "wildcard-agyn-dev-tls"
+    namespace = kubernetes_namespace.istio_gateway.metadata[0].name
+  }
+
+  type = "kubernetes.io/tls"
+
+  data = {
+    "tls.crt" = tls_self_signed_cert.wildcard_agyn_dev.cert_pem
+    "tls.key" = tls_private_key.wildcard_agyn_dev.private_key_pem
+  }
 }
 
 # Argo CD
@@ -86,6 +182,7 @@ resource "helm_release" "argo_cd" {
   chart      = "argo-cd"
   version    = var.argocd_chart_version
   namespace  = kubernetes_namespace.argocd.metadata[0].name
+  depends_on = [kubernetes_secret_v1.wildcard_tls_argocd]
 
   values = [
     yamlencode({
@@ -97,10 +194,7 @@ resource "helm_release" "argo_cd" {
           servicePortHttps = 8443
         }
         ingress = {
-          enabled          = true
-          ingressClassName = "istio"
-          hostname         = "argocd.agyn.dev"
-          tls              = false
+          enabled = false
         }
       }
       configs = {
@@ -117,6 +211,38 @@ resource "helm_release" "argo_cd" {
           argocdServerAdminPasswordMtime = "2026-02-27T14:54:31Z"
         }
       }
+    })
+  ]
+}
+
+resource "helm_release" "istio_routing" {
+  name      = "istio-routing"
+  chart     = "./charts/istio-routing"
+  namespace = kubernetes_namespace.istio_gateway.metadata[0].name
+  depends_on = [
+    helm_release.istio_gateway,
+    kubernetes_secret_v1.wildcard_tls_gateway,
+  ]
+
+  values = [
+    yamlencode({
+      gateway = {
+        name          = "https-shared"
+        namespace     = kubernetes_namespace.istio_gateway.metadata[0].name
+        tlsSecretName = kubernetes_secret_v1.wildcard_tls_gateway.metadata[0].name
+        hosts         = local.ingress_hosts
+      }
+      routes = [
+        for route in local.ingress_routes : {
+          name      = route.name
+          hosts     = route.hosts
+          namespace = kubernetes_namespace.istio_gateway.metadata[0].name
+          destination = {
+            host = route.destination_host
+            port = route.destination_port
+          }
+        }
+      ]
     })
   ]
 }

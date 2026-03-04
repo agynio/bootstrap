@@ -16,3 +16,15 @@ output "releases" {
   ]
   description = "Installed Helm releases"
 }
+
+output "wildcard_agyn_dev_certificate" {
+  value       = tls_self_signed_cert.wildcard_agyn_dev.cert_pem
+  sensitive   = true
+  description = "PEM-encoded wildcard TLS certificate for agyn.dev"
+}
+
+output "wildcard_agyn_dev_private_key" {
+  value       = tls_private_key.wildcard_agyn_dev.private_key_pem
+  sensitive   = true
+  description = "PEM-encoded private key for the agyn.dev wildcard certificate"
+}

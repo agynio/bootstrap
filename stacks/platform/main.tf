@@ -490,6 +490,12 @@ locals {
             paths = ["/"]
           }
         ]
+        tls = [
+          {
+            hosts      = ["vault.agyn.dev"]
+            secretName = "wildcard-agyn-dev-tls"
+          }
+        ]
       }
       podSecurityContext = {
         runAsNonRoot = false
@@ -739,7 +745,12 @@ locals {
           ]
         }
       ]
-      tls         = []
+      tls = [
+        {
+          hosts      = ["litellm.agyn.dev"]
+          secretName = "wildcard-agyn-dev-tls"
+        }
+      ]
       annotations = {}
       labels      = {}
     }
@@ -907,7 +918,12 @@ locals {
           ]
         }
       ]
-      tls = []
+      tls = [
+        {
+          hosts      = ["api.agyn.dev"]
+          secretName = "wildcard-agyn-dev-tls"
+        }
+      ]
     }
     securityContext = {
       enabled                  = true
@@ -1153,7 +1169,12 @@ locals {
           ]
         }
       ]
-      tls = []
+      tls = [
+        {
+          hosts      = ["agyn.dev"]
+          secretName = "wildcard-agyn-dev-tls"
+        }
+      ]
     }
     extraVolumes = [
       {
@@ -1209,6 +1230,20 @@ locals {
 resource "kubernetes_namespace" "platform" {
   metadata {
     name = var.platform_namespace
+  }
+}
+
+resource "kubernetes_secret_v1" "wildcard_tls" {
+  metadata {
+    name      = "wildcard-agyn-dev-tls"
+    namespace = kubernetes_namespace.platform.metadata[0].name
+  }
+
+  type = "kubernetes.io/tls"
+
+  data = {
+    "tls.crt" = base64encode(data.terraform_remote_state.system.outputs["wildcard_agyn_dev_certificate"])
+    "tls.key" = base64encode(data.terraform_remote_state.system.outputs["wildcard_agyn_dev_private_key"])
   }
 }
 

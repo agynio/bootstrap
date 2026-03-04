@@ -7,7 +7,7 @@ variable "kubeconfig_path" {
 variable "argocd_server_addr" {
   type        = string
   description = "Argo CD API host:port for Terraform to reach"
-  default     = "argocd.agyn.dev:8080"
+  default     = "argocd.agyn.dev:443"
 }
 
 variable "argocd_admin_username" {
