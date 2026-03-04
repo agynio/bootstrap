@@ -16,6 +16,40 @@ locals {
   litellm_chart_name             = "litellm-helm"
   litellm_chart_full_name        = replace(local.litellm_chart_repo_url, "oci://${local.litellm_chart_repo_host}/", "")
   litellm_chart_revision         = "1.81.12-stable.1"
+  istio_gateway_namespace        = "istio-gateway"
+  platform_gateway_name          = "platform-gateway"
+  platform_virtual_services = {
+    platform_ui = {
+      name             = "platform-ui"
+      host             = "agyn.dev"
+      destination_host = "platform-ui.platform.svc.cluster.local"
+      destination_port = 3000
+    }
+    platform_server = {
+      name             = "platform-server"
+      host             = "api.agyn.dev"
+      destination_host = "platform-server.platform.svc.cluster.local"
+      destination_port = 3010
+    }
+    argocd = {
+      name             = "argocd"
+      host             = "argocd.agyn.dev"
+      destination_host = "argo-cd-argocd-server.argocd.svc.cluster.local"
+      destination_port = 8080
+    }
+    litellm = {
+      name             = "litellm"
+      host             = "litellm.agyn.dev"
+      destination_host = "litellm.platform.svc.cluster.local"
+      destination_port = 4000
+    }
+    vault = {
+      name             = "vault"
+      host             = "vault.agyn.dev"
+      destination_host = "vault.platform.svc.cluster.local"
+      destination_port = 8200
+    }
+  }
 
   default_sync_options = [
     "CreateNamespace=true",
@@ -481,22 +515,7 @@ locals {
         config  = trimspace(local.vault_standalone_config)
       }
       ingress = {
-        enabled          = true
-        ingressClassName = "istio"
-        pathType         = "Prefix"
-        servicePort      = 8200
-        hosts = [
-          {
-            host  = "vault.agyn.dev"
-            paths = ["/"]
-          }
-        ]
-        tls = [
-          {
-            hosts      = ["vault.agyn.dev"]
-            secretName = "wildcard-agyn-dev-tls"
-          }
-        ]
+        enabled = false
       }
       podSecurityContext = {
         runAsNonRoot = false
@@ -733,27 +752,7 @@ locals {
       port = 4000
     }
     ingress = {
-      enabled          = true
-      className        = "istio"
-      ingressClassName = "istio"
-      hosts = [
-        {
-          host = "litellm.agyn.dev"
-          paths = [
-            {
-              path        = "/"
-              pathType    = "Prefix"
-              servicePort = "http"
-            }
-          ]
-        }
-      ]
-      tls = [
-        {
-          hosts      = ["litellm.agyn.dev"]
-          secretName = "wildcard-agyn-dev-tls"
-        }
-      ]
+      enabled     = false
       annotations = {}
       labels      = {}
     }
@@ -909,26 +908,7 @@ locals {
       ]
     }
     ingress = {
-      enabled          = true
-      ingressClassName = "istio"
-      hosts = [
-        {
-          host = "api.agyn.dev"
-          paths = [
-            {
-              path        = "/"
-              pathType    = "Prefix"
-              servicePort = "http"
-            }
-          ]
-        }
-      ]
-      tls = [
-        {
-          hosts      = ["api.agyn.dev"]
-          secretName = "wildcard-agyn-dev-tls"
-        }
-      ]
+      enabled = false
     }
     securityContext = {
       enabled                  = true
@@ -1160,26 +1140,7 @@ locals {
       ]
     }
     ingress = {
-      enabled          = true
-      ingressClassName = "istio"
-      hosts = [
-        {
-          host = "agyn.dev"
-          paths = [
-            {
-              path        = "/"
-              pathType    = "Prefix"
-              servicePort = "http"
-            }
-          ]
-        }
-      ]
-      tls = [
-        {
-          hosts      = ["agyn.dev"]
-          secretName = "wildcard-agyn-dev-tls"
-        }
-      ]
+      enabled = false
     }
     extraVolumes = [
       {
@@ -1931,4 +1892,51 @@ resource "argocd_application" "platform_ui" {
       sync_options = local.default_sync_options
     }
   }
+}
+
+resource "kubernetes_manifest" "platform_virtual_services" {
+  for_each = local.platform_virtual_services
+
+  manifest = {
+    "apiVersion" = "networking.istio.io/v1beta1"
+    "kind"       = "VirtualService"
+    "metadata" = {
+      "name"      = each.value.name
+      "namespace" = local.istio_gateway_namespace
+    }
+    "spec" = {
+      "hosts" = [each.value.host]
+      "gateways" = [
+        "${local.istio_gateway_namespace}/${local.platform_gateway_name}"
+      ]
+      "http" = [
+        {
+          "match" = [
+            {
+              "uri" = {
+                "prefix" = "/"
+              }
+            }
+          ]
+          "route" = [
+            {
+              "destination" = {
+                "host" = each.value.destination_host
+                "port" = {
+                  "number" = each.value.destination_port
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+
+  depends_on = [
+    argocd_application.platform_ui,
+    argocd_application.platform_server,
+    argocd_application.litellm,
+    argocd_application.vault,
+  ]
 }

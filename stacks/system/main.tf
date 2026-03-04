@@ -68,19 +68,69 @@ resource "helm_release" "istio_gateway" {
 
   values = [
     yamlencode({
-      name = "istio-ingressgateway",
+      name = "istio-ingressgateway"
       service = {
-        type = "LoadBalancer",
+        type = "LoadBalancer"
         ports = [
+          {
+            name       = "status-port"
+            port       = 15021
+            protocol   = "TCP"
+            targetPort = 15021
+          },
+          {
+            name       = "http2"
+            port       = 80
+            protocol   = "TCP"
+            targetPort = 80
+          },
           {
             name       = "https"
             port       = 443
-            targetPort = 8443
             protocol   = "TCP"
+            targetPort = 443
           }
         ]
       }
     })
+  ]
+}
+
+resource "kubernetes_manifest" "platform_gateway" {
+  manifest = {
+    "apiVersion" = "networking.istio.io/v1beta1"
+    "kind"       = "Gateway"
+    "metadata" = {
+      "name"      = "platform-gateway"
+      "namespace" = kubernetes_namespace.istio_gateway.metadata[0].name
+    }
+    "spec" = {
+      "selector" = {
+        "istio" = "ingressgateway"
+      }
+      "servers" = [
+        {
+          "port" = {
+            "number"   = 443
+            "name"     = "https"
+            "protocol" = "HTTPS"
+          }
+          "tls" = {
+            "mode"           = "SIMPLE"
+            "credentialName" = kubernetes_secret_v1.wildcard_tls_gateway.metadata[0].name
+          }
+          "hosts" = [
+            "agyn.dev",
+            "*.agyn.dev"
+          ]
+        }
+      ]
+    }
+  }
+
+  depends_on = [
+    helm_release.istio_gateway,
+    kubernetes_secret_v1.wildcard_tls_gateway,
   ]
 }
 
@@ -231,18 +281,7 @@ resource "helm_release" "argo_cd" {
           servicePortHttps = 8443
         }
         ingress = {
-          enabled          = true
-          ingressClassName = "istio"
-          servicePort      = 8080
-          hostname         = "argocd.agyn.dev"
-          https            = true
-          tls              = false
-          extraTls = [
-            {
-              hosts      = ["argocd.agyn.dev"]
-              secretName = kubernetes_secret_v1.wildcard_tls_argocd.metadata[0].name
-            }
-          ]
+          enabled = false
         }
       }
       configs = {

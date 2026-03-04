@@ -23,6 +23,12 @@ variable "argocd_admin_password" {
   sensitive   = true
 }
 
+variable "argocd_plain_text" {
+  type        = bool
+  description = "Use plaintext (non-TLS) connection for Argo CD provider"
+  default     = false
+}
+
 variable "platform_repo_url" {
   type        = string
   description = "Git repository URL containing platform Helm charts"

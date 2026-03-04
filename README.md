@@ -9,9 +9,11 @@ Stacks (planned):
 
 All stacks use local directory backend state per stack.
 
-## Ingress routing
+## Gateway routing
 
-The system stack provisions an Istio ingress gateway that exposes a single LoadBalancer listener on port 8080. Traffic is routed by hostname; ensure the following DNS entries resolve to `127.0.0.1` on your workstation (e.g. via `/etc/hosts`):
+The system stack provisions a shared Istio `Gateway` (`platform-gateway`) that terminates TLS on port 443. When using the default k3d configuration, this listener is exposed on host port **8080** (`443/tcp` inside the cluster → `127.0.0.1:8080` on the host).
+
+Traffic is routed purely through Istio `VirtualService` objects—there are no Kubernetes `Ingress` resources in the platform stack. Ensure the following DNS entries resolve to `127.0.0.1` on your workstation (e.g. via `/etc/hosts`):
 
 - `agyn.dev`
 - `api.agyn.dev`
@@ -19,13 +21,15 @@ The system stack provisions an Istio ingress gateway that exposes a single LoadB
 - `litellm.agyn.dev`
 - `vault.agyn.dev`
 
-Common endpoints served through the gateway:
+Common HTTPS endpoints exposed through the gateway (accept the self-signed wildcard certificate locally):
 
 - Platform UI: `https://agyn.dev:8080`
 - Platform API: `https://api.agyn.dev:8080`
 - Argo CD UI/API: `https://argocd.agyn.dev:8080`
 - LiteLLM API: `https://litellm.agyn.dev:8080`
 - Vault UI/API: `https://vault.agyn.dev:8080`
+
+Verify routing after `terraform apply` with `curl -kI --resolve <host>:8080:127.0.0.1 https://<host>:8080/` (for example `curl -kI --resolve agyn.dev:8080:127.0.0.1 https://agyn.dev:8080/`).
 
 ## LiteLLM defaults
 
@@ -36,9 +40,7 @@ LiteLLM is deployed with the following development defaults:
 - Salt key: `sk-dev-salt-1234`
 - PostgreSQL password: `change-me`
 
-Terraform defaults expect Argo CD to be served at `argocd.agyn.dev:8080` (see `stacks/platform/terraform.tfvars.example`), matching the `argocd_server_addr` provider setting.
-
-Each workload publishes a Kubernetes `Ingress` with `ingressClassName: istio`. Requests enter via the Istio ingress gateway's HTTPS listener on port 443 (exposed locally on host port 8080) and route by hostname to the target ClusterIP services. Access services over TLS at `https://<host>:8080` (accept the self-signed certificate locally with `curl -k`).
+Terraform defaults expect Argo CD to be served at `argocd.agyn.dev:8080` (see `stacks/platform/terraform.tfvars.example`), matching the `argocd_server_addr` provider setting. If you must bootstrap against a direct port-forward to the Argo CD service (plain HTTP on port 8080), set `-var 'argocd_plain_text=true' -var 'argocd_server_addr=localhost:PORT'` for the `stacks/platform` Terraform runs.
 
 ## Trusting the generated certificate authority
 
