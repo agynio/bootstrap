@@ -40,15 +40,10 @@ resource "helm_release" "istiod" {
   values = [
     yamlencode({
       meshConfig = {
-        ingressClass            = "istio"
-        ingressSelector         = "ingressgateway"
         ingressControllerMode   = "STRICT"
-        ingressServiceNamespace = kubernetes_namespace.istio_gateway.metadata[0].name
+        ingressClass            = "istio"
         ingressService          = "istio-ingressgateway"
-        ingressServicePort      = 443
-        ingressServicePortName  = "https"
-        ingressListenerPort     = 443
-        ingressListenerPortName = "https"
+        ingressServiceNamespace = kubernetes_namespace.istio_gateway.metadata[0].name
       }
       pilot = {
         traceSampling = 1.0
@@ -238,12 +233,10 @@ resource "helm_release" "argo_cd" {
         ingress = {
           enabled          = true
           ingressClassName = "istio"
-          annotations = {
-            "kubernetes.io/ingress.class" = "istio"
-          }
-          hostname = "argocd.agyn.dev"
-          https    = true
-          tls      = false
+          servicePort      = 8080
+          hostname         = "argocd.agyn.dev"
+          https            = true
+          tls              = false
           extraTls = [
             {
               hosts      = ["argocd.agyn.dev"]
