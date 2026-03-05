@@ -396,6 +396,105 @@ locals {
     }
   })
 
+  ncps_chart_repo_host = "ghcr.io"
+  ncps_chart_name      = "agynio/charts/ncps"
+  ncps_chart_revision  = "v0.1.0"
+
+  ncps_values = yamlencode({
+    fullnameOverride = "ncps"
+    replicaCount     = 1
+    image = {
+      repository = "kalbasit/ncps"
+      tag        = "latest"
+      pullPolicy = "IfNotPresent"
+    }
+    command = ["/bin/ncps"]
+    args = [
+      "serve",
+      "--server-addr=0.0.0.0:8501",
+      "--cache-hostname=ncps",
+      "--cache-data-path=/storage",
+      "--cache-database-url=sqlite:/storage/var/ncps/db/db.sqlite",
+      "--upstream-cache=https://cache.nixos.org",
+      "--upstream-public-key=cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY="
+    ]
+    env = [
+      {
+        name  = "PROMETHEUS_ENABLED"
+        value = "true"
+      }
+    ]
+    initContainers = [
+      {
+        name  = "ncps-init"
+        image = "alpine:3.20"
+        command = [
+          "/bin/sh",
+          "-c",
+          "mkdir -m 0755 -p /storage/var && mkdir -m 0700 -p /storage/var/ncps && mkdir -m 0700 -p /storage/var/ncps/db"
+        ]
+        volumeMounts = [
+          {
+            name      = "storage"
+            mountPath = "/storage"
+          }
+        ]
+      }
+    ]
+    containerPorts = [
+      {
+        name          = "http"
+        containerPort = 8501
+        protocol      = "TCP"
+      }
+    ]
+    service = {
+      enabled = true
+      type    = "ClusterIP"
+      ports = [
+        {
+          name       = "http"
+          port       = 8501
+          targetPort = "http"
+        }
+      ]
+    }
+    persistence = {
+      enabled       = true
+      existingClaim = ""
+      mountPath     = "/storage"
+      accessModes   = ["ReadWriteOnce"]
+      size          = "10Gi"
+    }
+    livenessProbe = {
+      enabled = true
+      httpGet = {
+        path = "/nix-cache-info"
+        port = "http"
+      }
+      failureThreshold = 3
+      periodSeconds    = 30
+    }
+    readinessProbe = {
+      enabled = true
+      httpGet = {
+        path = "/nix-cache-info"
+        port = "http"
+      }
+      failureThreshold = 3
+      periodSeconds    = 10
+    }
+    startupProbe = {
+      enabled = true
+      httpGet = {
+        path = "/nix-cache-info"
+        port = "http"
+      }
+      failureThreshold = 12
+      periodSeconds    = 5
+    }
+  })
+
   docker_runner_values = yamlencode({
     replicaCount = var.docker_runner_replica_count
     image = {
@@ -1499,6 +1598,49 @@ resource "argocd_application" "litellm" {
 
       helm {
         values = local.litellm_values
+      }
+    }
+
+    destination {
+      server    = var.destination_server
+      namespace = var.platform_namespace
+    }
+
+    sync_policy {
+      dynamic "automated" {
+        for_each = var.argocd_automated_sync_enabled ? [1] : []
+        content {
+          prune       = var.argocd_prune_enabled
+          self_heal   = var.argocd_self_heal_enabled
+          allow_empty = false
+        }
+      }
+
+      sync_options = local.default_sync_options
+    }
+  }
+}
+
+resource "argocd_application" "ncps" {
+  depends_on = [argocd_repository.litellm_repo]
+  metadata {
+    name      = "ncps"
+    namespace = "argocd"
+    annotations = {
+      "argocd.argoproj.io/sync-wave" = "15"
+    }
+  }
+
+  spec {
+    project = "default"
+
+    source {
+      repo_url        = local.ncps_chart_repo_host
+      chart           = local.ncps_chart_name
+      target_revision = local.ncps_chart_revision
+
+      helm {
+        values = local.ncps_values
       }
     }
 
