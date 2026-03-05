@@ -398,7 +398,7 @@ locals {
 
   ncps_chart_repo_host = "ghcr.io"
   ncps_chart_name      = "agynio/charts/ncps"
-  ncps_chart_revision  = "0.1.1"
+  ncps_chart_revision  = "0.1.3"
 
   ncps_values = yamlencode({
     fullnameOverride = "ncps"
@@ -407,6 +407,9 @@ locals {
       repository = "kalbasit/ncps"
       tag        = "latest"
       pullPolicy = "IfNotPresent"
+    }
+    securityContext = {
+      runAsNonRoot = false
     }
     command = ["/bin/ncps"]
     args = [
@@ -492,6 +495,27 @@ locals {
       }
       failureThreshold = 12
       periodSeconds    = 5
+    }
+    migrationJob = {
+      enabled            = true
+      serviceAccountName = "default"
+      initContainers = [
+        {
+          name  = "ncps-migrate-init"
+          image = "alpine:3.20"
+          command = [
+            "/bin/sh",
+            "-c",
+            "mkdir -m 0755 -p /storage/var && mkdir -m 0700 -p /storage/var/ncps && mkdir -m 0700 -p /storage/var/ncps/db"
+          ]
+          volumeMounts = [
+            {
+              name      = "storage"
+              mountPath = "/storage"
+            }
+          ]
+        }
+      ]
     }
   })
 
