@@ -214,11 +214,12 @@ locals {
       fi
 
       log "enabling kv v2 secrets engine at path secret/"
-      if VAULT_TOKEN="$root_token" vault secrets enable -path=secret -version=2 kv >/dev/null 2>&1; then
-        log "kv v2 secrets engine enabled at secret/"
-      else
+      if ! VAULT_TOKEN="$root_token" vault secrets enable -path=secret -version=2 kv >/dev/null 2>&1; then
         log "ERROR: failed to enable kv v2 secrets engine at secret/"
+        exit 1
       fi
+
+      log "kv v2 secrets engine enabled at secret/"
     }
 
     seed_sample_secret() {
