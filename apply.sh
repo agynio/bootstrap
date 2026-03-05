@@ -47,7 +47,10 @@ prompt_with_default() {
   local default_value="$2"
   local value
 
-  read -r -p "${prompt_text} [${default_value}]: " value || true
+  if ! read -r -p "${prompt_text} [${default_value}]: " value; then
+    echo "Error: failed to read ${prompt_text,,} from input. Provide it via environment variables or run interactively." >&2
+    exit 1
+  fi
   if [[ -z "${value:-}" ]]; then
     printf '%s' "${default_value}"
   else
