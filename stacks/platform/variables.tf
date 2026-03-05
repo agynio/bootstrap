@@ -148,21 +148,3 @@ variable "registry_mirror_pvc_size" {
   description = "Persistent volume claim size for the registry mirror"
   default     = "5Gi"
 }
-
-variable "ncps_chart_revision" {
-  type        = string
-  description = "Revision of the NCPS Helm chart published to GHCR"
-  default     = "0.1.3"
-}
-
-variable "ncps_pvc_size" {
-  type        = string
-  description = "Persistent volume claim size for the NCPS cache data"
-  default     = "10Gi"
-}
-
-variable "ncps_storage_class" {
-  type        = string
-  description = "StorageClass to use for the NCPS persistent volume claim"
-  default     = "local-path"
-}

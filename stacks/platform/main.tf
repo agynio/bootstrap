@@ -15,7 +15,7 @@ locals {
   litellm_chart_revision         = "1.81.12-stable.1"
   ncps_chart_repo_host           = "ghcr.io"
   ncps_chart_name                = "agynio/charts/ncps"
-  ncps_chart_revision            = var.ncps_chart_revision
+  ncps_chart_revision            = "0.1.3"
   istio_gateway_namespace        = data.terraform_remote_state.system.outputs.istio_gateway_namespace
   istio_gateway_tls_secret_name  = data.terraform_remote_state.system.outputs.wildcard_tls_gateway_secret_name
 
@@ -462,11 +462,9 @@ locals {
       ]
     }
     persistence = {
-      enabled       = true
-      existingClaim = "ncps-storage"
-      mountPath     = "/storage"
-      accessModes   = ["ReadWriteOnce"]
-      size          = "10Gi"
+      enabled     = true
+      accessModes = ["ReadWriteOnce"]
+      size        = "10Gi"
     }
     livenessProbe = {
       enabled = true
@@ -498,6 +496,30 @@ locals {
     migrationJob = {
       enabled            = true
       serviceAccountName = "default"
+      initContainers = [
+        {
+          name  = "ncps-migrate-init"
+          image = "alpine:3.20"
+          command = [
+            "/bin/sh",
+            "-c",
+            "mkdir -m 0755 -p /storage/var && mkdir -m 0700 -p /storage/var/ncps && mkdir -m 0700 -p /storage/var/ncps/db",
+          ]
+          volumeMounts = [
+            {
+              name      = "storage"
+              mountPath = "/storage"
+            }
+          ]
+        }
+      ]
+      command = [
+        "/bin/dbmate",
+      ]
+      args = [
+        "--url=sqlite:/storage/var/ncps/db/db.sqlite",
+        "up",
+      ]
     }
   })
 
@@ -1627,35 +1649,8 @@ resource "argocd_application" "litellm" {
   }
 }
 
-resource "kubernetes_persistent_volume_claim_v1" "ncps_storage" {
-  wait_until_bound = false
-
-  metadata {
-    name      = "ncps-storage"
-    namespace = kubernetes_namespace.platform.metadata[0].name
-    labels = {
-      "app.kubernetes.io/name" = "ncps"
-    }
-  }
-
-  spec {
-    access_modes = ["ReadWriteOnce"]
-
-    resources {
-      requests = {
-        storage = var.ncps_pvc_size
-      }
-    }
-
-    storage_class_name = var.ncps_storage_class
-  }
-}
-
 resource "argocd_application" "ncps" {
-  depends_on = [
-    argocd_repository.litellm_repo,
-    kubernetes_persistent_volume_claim_v1.ncps_storage,
-  ]
+  depends_on = [argocd_repository.litellm_repo]
   metadata {
     name      = "ncps"
     namespace = "argocd"
