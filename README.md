@@ -35,6 +35,24 @@ Common HTTPS endpoints exposed through the gateway (accept the self-signed wildc
 
 Verify routing after `terraform apply` with `curl -kI --resolve <host>:2496:127.0.0.1 https://<host>:2496/` (for example `curl -kI --resolve agyn.dev:2496:127.0.0.1 https://agyn.dev:2496/`).
 
+## Quick apply (`apply.sh`)
+
+The root script consolidates the stack applies so you only enter the domain and port once. It executes the stacks sequentially (`k8s` → `system` → `routing` → `platform`) and stops immediately on errors.
+
+Interactive run (prompts for the defaults shown):
+
+```
+./apply.sh
+```
+
+Non-interactive run with custom values and auto-approve:
+
+```
+DOMAIN=example.dev PORT=8443 ./apply.sh -y
+```
+
+Override inputs by exporting `DOMAIN` / `PORT` environment variables or pass `-y` to skip interactive confirmations entirely (`apply.sh` adds `-input=false -auto-approve` to each Terraform apply when `-y` is set).
+
 ## LiteLLM defaults
 
 LiteLLM is deployed with the following development defaults:
