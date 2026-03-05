@@ -106,3 +106,7 @@ kubectl get nodes
 `ctr` should report the `cri` plugin as `ok`, and `kubectl` should list the server node.
 
 > Platform v0.15.2 already raises `RLIMIT_NOFILE` and `RLIMIT_NPROC` inside Docker-in-Docker; the guidance above specifically addresses inotify limits that must be tuned on the host.
+
+## k3d shared volume for platform graph
+
+The `stacks/k8s` Terraform stack mounts the repository-root `./shared` directory into every k3d node at `/shared`, ensuring the directory exists with mode `0777` before the cluster is created. The platform-server deployment persists its graph data under `/shared/graph`, so files written by the API are available on the host at `./shared/graph`.

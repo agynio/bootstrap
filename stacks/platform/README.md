@@ -57,6 +57,18 @@ export TF_VAR_platform_repo_password="$GITHUB_TOKEN"
 
 Any GitHub personal access token with `repo` scope works. The credentials are passed to Argo CD as basic-auth values and are not stored in Kubernetes secrets by this stack. Override them per environment as needed.
 
+### Graph persistence
+
+`platform-server` mounts `/shared/graph` (sourced from the repository-root `./shared/graph` directory created by the k3d stack) into `/opt/app/packages/platform-server/data/graph` and sets `GRAPH_REPO_PATH=./data/graph`. Data written by the API is therefore persisted on the host at `./shared/graph`.
+
+Verify persistence by:
+
+1. Applying the stack (`terraform -chdir=stacks/platform apply`).
+2. Confirming the `platform-server` pod is running (`kubectl get pods -n platform`).
+3. Triggering a graph write via the Platform API.
+4. Inspecting `./shared/graph` on the host for new repository contents.
+5. Restarting the `platform-server` pod and re-confirming the graph data is still served.
+
 ## Terraform-managed components
 
 | Component | Kind | Purpose | Notes |

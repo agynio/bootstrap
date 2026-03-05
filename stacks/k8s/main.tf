@@ -9,6 +9,17 @@ locals {
       node_filters   = ["loadbalancer"]
     }
   ])
+  effective_k3d_host_shared_path = abspath("${path.module}/../../shared")
+}
+
+resource "null_resource" "k3d_host_shared_path" {
+  triggers = {
+    path = local.effective_k3d_host_shared_path
+  }
+
+  provisioner "local-exec" {
+    command = "mkdir -p \"${local.effective_k3d_host_shared_path}\" && chmod 0777 \"${local.effective_k3d_host_shared_path}\""
+  }
 }
 
 resource "k3d_cluster" "this" {
@@ -54,6 +65,14 @@ resource "k3d_cluster" "this" {
       node_filters   = try(port.value.node_filters, [])
     }
   }
+
+  volume {
+    source       = local.effective_k3d_host_shared_path
+    destination  = "/shared"
+    node_filters = ["all"]
+  }
+
+  depends_on = [null_resource.k3d_host_shared_path]
 
 }
 
