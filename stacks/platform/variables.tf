@@ -75,7 +75,7 @@ variable "docker_runner_replica_count" {
 variable "argocd_automated_sync_enabled" {
   type        = bool
   description = "Enable automated sync for Argo CD applications"
-  default     = true
+  default     = false
 }
 
 variable "argocd_prune_enabled" {

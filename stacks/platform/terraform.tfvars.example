@@ -25,6 +25,6 @@ docker_runner_shared_secret = "change-me"
 vault_pvc_size              = "5Gi"
 registry_mirror_pvc_size    = "5Gi"
 
-argocd_automated_sync_enabled = true
+argocd_automated_sync_enabled = false
 argocd_prune_enabled          = true
 argocd_self_heal_enabled      = true
