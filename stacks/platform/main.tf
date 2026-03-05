@@ -38,6 +38,7 @@ locals {
 
   vault_auto_init_script = <<-EOT
     #!/bin/sh
+    # shellcheck disable=SC3040
     set -euo pipefail
 
     log() {
@@ -58,6 +59,8 @@ locals {
     PERSIST_ROOT_TOKEN="$${PERSIST_ROOT_TOKEN:-true}"
     PERSIST_UNSEAL_KEY="$${PERSIST_UNSEAL_KEY:-true}"
     PERSIST_DEV_ROOT_TOKEN="$${PERSIST_DEV_ROOT_TOKEN:-true}"
+    SEED_SAMPLE_SECRET="$${VAULT_SEED_SAMPLE_SECRET:-true}"
+    SAMPLE_SECRET_PATH="$${VAULT_SAMPLE_SECRET_PATH:-secret/platform/example}"
 
     umask 077
     mkdir -p "$DATA_DIR"
@@ -67,16 +70,18 @@ locals {
     unseal_key=""
 
     ensure_tooling() {
-      packages=""
+      missing_packages=""
       for pkg in curl jq unzip; do
         if ! command -v "$pkg" >/dev/null 2>&1; then
-          packages="$packages $pkg"
+          missing_packages="$missing_packages $pkg"
         fi
       done
 
-      if [ -n "$(printf '%s' "$packages" | tr -d ' ')" ]; then
-        log "installing packages:$packages"
-        apk add --no-cache $packages >/dev/null
+      if [ -n "$(printf '%s' "$missing_packages" | tr -d ' ')" ]; then
+        log "installing packages:$missing_packages"
+        # shellcheck disable=SC2086
+        set -- $missing_packages
+        apk add --no-cache "$@" >/dev/null
       fi
 
       if ! command -v vault >/dev/null 2>&1; then
@@ -190,6 +195,54 @@ locals {
       fi
     }
 
+    ensure_kv_v2_secret_mount() {
+      load_artifacts
+
+      if [ -z "$root_token" ]; then
+        log "WARN: root token unavailable; skipping kv secrets engine reconcile"
+        return
+      fi
+
+      secrets_json="$(VAULT_TOKEN="$root_token" vault secrets list -format=json 2>/dev/null || true)"
+      if [ -z "$secrets_json" ]; then
+        log "WARN: unable to list secrets engines; skipping kv secrets engine reconcile"
+        return
+      fi
+
+      if printf '%s' "$secrets_json" | jq -e '."secret/" | select(.type == "kv" and ((.options.version // "") | tostring) == "2")' >/dev/null 2>&1; then
+        return
+      fi
+
+      log "enabling kv v2 secrets engine at path secret/"
+      if VAULT_TOKEN="$root_token" vault secrets enable -path=secret -version=2 kv >/dev/null 2>&1; then
+        log "kv v2 secrets engine enabled at secret/"
+      else
+        log "ERROR: failed to enable kv v2 secrets engine at secret/"
+      fi
+    }
+
+    seed_sample_secret() {
+      if [ "$SEED_SAMPLE_SECRET" != "true" ]; then
+        return
+      fi
+
+      load_artifacts
+
+      if [ -z "$root_token" ]; then
+        log "WARN: root token unavailable; skipping sample secret seed"
+        return
+      fi
+
+      if VAULT_TOKEN="$root_token" vault kv get "$SAMPLE_SECRET_PATH" >/dev/null 2>&1; then
+        return
+      fi
+
+      log "seeding sample secret at $SAMPLE_SECRET_PATH"
+      if ! VAULT_TOKEN="$root_token" vault kv put "$SAMPLE_SECRET_PATH" note="Provisioned by bootstrap_v2" token="dev-placeholder" >/dev/null 2>&1; then
+        log "WARN: failed to seed sample secret at $SAMPLE_SECRET_PATH"
+      fi
+    }
+
     ensure_tooling
 
     while true; do
@@ -211,6 +264,8 @@ locals {
       fi
 
       ensure_dev_root_token
+      ensure_kv_v2_secret_mount
+      seed_sample_secret
 
       if [ "$EXIT_AFTER_UNSEAL" = "true" ]; then
         log "vault initialized and unsealed; exiting"

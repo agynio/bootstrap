@@ -44,6 +44,16 @@ For development parity with bootstrap v1, LiteLLM deploys with:
 - Salt key: `sk-dev-salt-1234`
 - PostgreSQL password: `change-me`
 
+### Vault defaults
+
+The Vault auto-init sidecar ensures a KV v2 secrets engine is mounted at
+`secret/` after initialization. The sidecar seeds a sample development secret at
+`secret/platform/example` (note `Provisioned by bootstrap_v2`, token
+`dev-placeholder`) so platform services detect an available mount immediately.
+Override this behaviour by setting the optional environment variables
+`VAULT_SEED_SAMPLE_SECRET=false` or `VAULT_SAMPLE_SECRET_PATH` on the
+`vault-auto-init` container if a different path or seeding strategy is required.
+
 ### Repository authentication
 
 If the platform Helm charts are private, supply credentials via Terraform variables (environment variables shown below) before running `terraform apply`:
