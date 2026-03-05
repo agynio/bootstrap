@@ -496,29 +496,12 @@ locals {
     migrationJob = {
       enabled            = true
       serviceAccountName = "default"
-      initContainers = [
-        {
-          name  = "ncps-migrate-init"
-          image = "alpine:3.20"
-          command = [
-            "/bin/sh",
-            "-c",
-            "mkdir -m 0755 -p /storage/var && mkdir -m 0700 -p /storage/var/ncps && mkdir -m 0700 -p /storage/var/ncps/db",
-          ]
-          volumeMounts = [
-            {
-              name      = "storage"
-              mountPath = "/storage"
-            }
-          ]
-        }
-      ]
       command = [
-        "/bin/dbmate",
+        "/bin/sh",
+        "-c",
       ]
       args = [
-        "--url=sqlite:/storage/var/ncps/db/db.sqlite",
-        "up",
+        "mkdir -m 0755 -p /storage/var && mkdir -m 0700 -p /storage/var/ncps && mkdir -m 0700 -p /storage/var/ncps/db && exec /bin/dbmate --url=sqlite:/storage/var/ncps/db/db.sqlite up",
       ]
     }
   })
