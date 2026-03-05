@@ -398,7 +398,7 @@ locals {
 
   ncps_chart_repo_host = "ghcr.io"
   ncps_chart_name      = "agynio/charts/ncps"
-  ncps_chart_revision  = "v0.1.0"
+  ncps_chart_revision  = "0.1.1"
 
   ncps_values = yamlencode({
     fullnameOverride = "ncps"
