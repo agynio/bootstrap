@@ -461,7 +461,7 @@ locals {
     }
     persistence = {
       enabled       = true
-      existingClaim = ""
+      existingClaim = "ncps-storage"
       mountPath     = "/storage"
       accessModes   = ["ReadWriteOnce"]
       size          = "10Gi"
@@ -1621,8 +1621,31 @@ resource "argocd_application" "litellm" {
   }
 }
 
+resource "kubernetes_persistent_volume_claim_v1" "ncps_storage" {
+  metadata {
+    name      = "ncps-storage"
+    namespace = var.platform_namespace
+    labels = {
+      "app.kubernetes.io/name" = "ncps"
+    }
+  }
+
+  spec {
+    access_modes = ["ReadWriteOnce"]
+
+    resources {
+      requests = {
+        storage = "10Gi"
+      }
+    }
+  }
+}
+
 resource "argocd_application" "ncps" {
-  depends_on = [argocd_repository.litellm_repo]
+  depends_on = [
+    argocd_repository.litellm_repo,
+    kubernetes_persistent_volume_claim_v1.ncps_storage,
+  ]
   metadata {
     name      = "ncps"
     namespace = "argocd"
