@@ -1,5 +1,5 @@
 provider "argocd" {
-  server_addr = "argocd.agyn.dev:8080"
+  server_addr = format("argocd.%s:%d", local.base_domain, local.ingress_port)
   username    = var.argocd_admin_username
   password    = var.argocd_admin_password
   insecure    = true
