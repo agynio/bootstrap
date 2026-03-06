@@ -1110,7 +1110,7 @@ resource "kubernetes_manifest" "virtualservice_gateway" {
           "route" = [
             {
               "destination" = {
-                "host" = "gateway.platform.svc.cluster.local"
+                "host" = "gateway-gateway.platform.svc.cluster.local"
                 "port" = {
                   "number" = 8080
                 }
