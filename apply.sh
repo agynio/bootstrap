@@ -147,8 +147,8 @@ merge_kubeconfig() {
   local generated_config
   local kube_dir
   local target_config
-  local temp_config
   local kubeconfig_env
+  local merged
 
   repo_root="$(pwd)"
   generated_config="${repo_root}/stacks/k8s/.kube/agyn-local-kubeconfig.yaml"
@@ -170,17 +170,18 @@ merge_kubeconfig() {
     touch "${target_config}"
   fi
 
-  temp_config="$(mktemp "${kube_dir}/config.tmp.XXXXXX")"
   kubeconfig_env="${KUBECONFIG:-}"
   kubeconfig_env="${kubeconfig_env}:${target_config}:${generated_config}"
 
-  if ! KUBECONFIG="${kubeconfig_env}" kubectl config view --merge --flatten >"${temp_config}"; then
+  if ! merged=$(KUBECONFIG="${kubeconfig_env}" kubectl config view --merge --flatten); then
     echo "Error: failed to merge kubeconfig; leaving existing config unchanged." >&2
-    rm -f "${temp_config}"
     return 1
   fi
 
-  mv "${temp_config}" "${target_config}"
+  if ! printf '%s\n' "${merged}" >"${target_config}"; then
+    echo "Error: failed to write merged kubeconfig to ${target_config}." >&2
+    return 1
+  fi
   echo "Merged k3d kubeconfig into ${target_config}."
 }
 

@@ -37,10 +37,9 @@ terraform -chdir=stacks/platform apply
 Update kubeconfig after the k8s stack creates the cluster:
 
 ```sh
-tmp_config="$(mktemp ~/.kube/config.tmp.XXXXXX)"
-KUBECONFIG="$KUBECONFIG:$HOME/.kube/config:$(pwd)/stacks/k8s/.kube/agyn-local-kubeconfig.yaml" \
-  kubectl config view --merge --flatten >"${tmp_config}"
-mv "${tmp_config}" ~/.kube/config
+merged="$(KUBECONFIG=\"$KUBECONFIG:$HOME/.kube/config:$(pwd)/stacks/k8s/.kube/agyn-local-kubeconfig.yaml\" \
+  kubectl config view --merge --flatten)"
+printf '%s\n' "$merged" > "$HOME/.kube/config"
 ```
 
 ## Usage
