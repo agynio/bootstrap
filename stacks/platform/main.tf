@@ -1206,6 +1206,51 @@ resource "kubernetes_manifest" "virtualservice_platform_ui" {
   ]
 }
 
+resource "kubernetes_manifest" "virtualservice_gateway" {
+  manifest = {
+    "apiVersion" = "networking.istio.io/v1beta1"
+    "kind"       = "VirtualService"
+    "metadata" = {
+      "name"      = "gateway"
+      "namespace" = local.istio_gateway_namespace
+    }
+    "spec" = {
+      "hosts"    = ["gateway.${local.base_domain}"]
+      "gateways" = ["platform-gateway"]
+      "http" = [
+        {
+          "match" = [
+            {
+              "uri" = {
+                "prefix" = "/"
+              }
+            }
+          ]
+          "route" = [
+            {
+              "destination" = {
+                "host" = "gateway-gateway.platform.svc.cluster.local"
+                "port" = {
+                  "number" = 8080
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+
+  computed_fields = [
+    "metadata.annotations",
+    "metadata.labels",
+  ]
+
+  depends_on = [
+    data.terraform_remote_state.system,
+  ]
+}
+
 resource "kubernetes_manifest" "virtualservice_litellm" {
   manifest = {
     "apiVersion" = "networking.istio.io/v1beta1"
@@ -1849,6 +1894,55 @@ resource "argocd_application" "platform_ui" {
 
       helm {
         values = local.platform_ui_values
+      }
+    }
+
+    destination {
+      server    = var.destination_server
+      namespace = var.platform_namespace
+    }
+
+    sync_policy {
+      dynamic "automated" {
+        for_each = var.argocd_automated_sync_enabled ? [1] : []
+        content {
+          prune       = var.argocd_prune_enabled
+          self_heal   = var.argocd_self_heal_enabled
+          allow_empty = false
+        }
+      }
+
+      sync_options = local.default_sync_options
+    }
+  }
+}
+
+resource "argocd_application" "gateway" {
+  metadata {
+    name      = "gateway"
+    namespace = "argocd"
+    annotations = {
+      "argocd.argoproj.io/sync-wave" = "30"
+    }
+  }
+
+  spec {
+    project = "default"
+
+    source {
+      repo_url        = "ghcr.io"
+      chart           = "agynio/charts/gateway"
+      target_revision = "0.2.1"
+
+      helm {
+        values = yamlencode({
+          gateway = {
+            platformBaseUrl = "http://platform-server.${var.platform_namespace}.svc.cluster.local:3010"
+            image = {
+              tag = "0.2.1"
+            }
+          }
+        })
       }
     }
 
