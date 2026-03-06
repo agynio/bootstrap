@@ -175,9 +175,9 @@ merge_kubeconfig() {
   kubeconfig_env="${kubeconfig_env}:${target_config}:${generated_config}"
 
   if ! KUBECONFIG="${kubeconfig_env}" kubectl config view --merge --flatten >"${temp_config}"; then
-    echo "Warning: failed to merge kubeconfig; leaving existing config unchanged." >&2
+    echo "Error: failed to merge kubeconfig; leaving existing config unchanged." >&2
     rm -f "${temp_config}"
-    return 0
+    return 1
   fi
 
   mv "${temp_config}" "${target_config}"
