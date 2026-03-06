@@ -132,11 +132,11 @@ resource "tls_cert_request" "wildcard_agyn_dev" {
   private_key_pem = tls_private_key.wildcard_agyn_dev.private_key_pem
 
   subject {
-    common_name  = "agyn.dev"
+    common_name  = local.base_domain
     organization = "Agyn"
   }
 
-  dns_names = ["agyn.dev", "*.agyn.dev"]
+  dns_names = [local.base_domain, "*.${local.base_domain}"]
 }
 
 resource "tls_locally_signed_cert" "wildcard_agyn_dev" {

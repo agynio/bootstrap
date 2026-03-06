@@ -1,6 +1,14 @@
 locals {
   kubeconfig_dir  = "${path.module}/.kube"
   kubeconfig_path = "${local.kubeconfig_dir}/${var.cluster_name}-kubeconfig.yaml"
+  ports_effective = coalesce(var.ports, [
+    {
+      container_port = 443
+      host_port      = var.port
+      protocol       = "tcp"
+      node_filters   = ["loadbalancer"]
+    }
+  ])
 }
 
 resource "k3d_cluster" "this" {
@@ -36,7 +44,7 @@ resource "k3d_cluster" "this" {
   }
 
   dynamic "port" {
-    for_each = var.ports
+    for_each = local.ports_effective
 
     content {
       host           = try(port.value.host, "")

@@ -1013,7 +1013,7 @@ resource "kubernetes_manifest" "virtualservice_platform_ui" {
       "namespace" = local.istio_gateway_namespace
     }
     "spec" = {
-      "hosts"    = ["agyn.dev"]
+      "hosts"    = [local.base_domain]
       "gateways" = ["platform-gateway"]
       "http" = [
         {
@@ -1096,7 +1096,7 @@ resource "kubernetes_manifest" "virtualservice_litellm" {
       "namespace" = local.istio_gateway_namespace
     }
     "spec" = {
-      "hosts"    = ["litellm.agyn.dev"]
+      "hosts"    = ["litellm.${local.base_domain}"]
       "gateways" = ["platform-gateway"]
       "http" = [
         {
@@ -1141,7 +1141,7 @@ resource "kubernetes_manifest" "virtualservice_vault" {
       "namespace" = local.istio_gateway_namespace
     }
     "spec" = {
-      "hosts"    = ["vault.agyn.dev"]
+      "hosts"    = ["vault.${local.base_domain}"]
       "gateways" = ["platform-gateway"]
       "http" = [
         {

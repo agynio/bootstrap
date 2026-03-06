@@ -8,6 +8,8 @@ Deploy platform workloads via Argo CD applications sourced from [agynio/platform
 - Local `kubectl` access to the target cluster (the stack uses the kubeconfig defined by `kubeconfig_path`).
 - Persistent storage classes available for PostgreSQL, Vault, and registry mirror PVCs (stateful components rely on dynamic provisioning).
 
+> Apply `terraform -chdir=stacks/k8s apply` before this stack so the chosen `domain` and ingress `port` are available via `terraform_remote_state`. The apply prompts with defaults (`agyn.dev` / `2496`); override non-interactively via flags like `terraform -chdir=stacks/k8s apply -var='domain=example.dev' -var='port=8443'` or environment variables `TF_VAR_domain` / `TF_VAR_port`.
+
 ## Usage
 
 ```bash
@@ -18,7 +20,7 @@ terraform validate
 terraform apply
 ```
 
-After the system stack is applied, Istio exposes a single ingress listener on port 8080 and routes traffic by hostname. Ensure the following hostnames resolve to `127.0.0.1` on your workstation (for example via `/etc/hosts`):
+After the system stack is applied, Istio exposes a single ingress listener on port 2496 and routes traffic by hostname (the port is configurable via the k8s stack `port` variable). Ensure the following hostnames resolve to `127.0.0.1` on your workstation (for example via `/etc/hosts`):
 
 - `agyn.dev`
 - `api.agyn.dev`
@@ -26,14 +28,14 @@ After the system stack is applied, Istio exposes a single ingress listener on po
 - `litellm.agyn.dev`
 - `vault.agyn.dev`
 
-Terraform connects to Argo CD through the ingress at `https://argocd.agyn.dev:8080` (default credentials `admin/admin`; accept the self-signed certificate). The same listener serves the application endpoints:
+Terraform connects to Argo CD through the ingress at `https://argocd.agyn.dev:2496` (default credentials `admin/admin`; accept the self-signed certificate). The same listener serves the application endpoints:
 
-- Platform UI: `https://agyn.dev:8080`
-- Platform API: `https://api.agyn.dev:8080`
-- LiteLLM API: `https://litellm.agyn.dev:8080`
-- Vault UI/API: `https://vault.agyn.dev:8080`
+- Platform UI: `https://agyn.dev:2496`
+- Platform API: `https://api.agyn.dev:2496`
+- LiteLLM API: `https://litellm.agyn.dev:2496`
+- Vault UI/API: `https://vault.agyn.dev:2496`
 
-Each application chart enables a Kubernetes `Ingress` with `ingressClassName: istio`, routing hostnames through the Istio ingress gateway's HTTPS listener (exposed on host port 8080). No additional ingress controller is required; ensure the hostnames above resolve locally and use `curl -k` or your browser to trust the self-signed certificates.
+Each application chart enables a Kubernetes `Ingress` with `ingressClassName: istio`, routing hostnames through the Istio ingress gateway's HTTPS listener (exposed on host port 2496). No additional ingress controller is required; ensure the hostnames above resolve locally and use `curl -k` or your browser to trust the self-signed certificates.
 
 ### LiteLLM defaults
 

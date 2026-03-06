@@ -5,11 +5,5 @@ k3s_version    = "v1.28.4-k3s1"
 k3s_extra_args = []
 expose_api     = true
 api_port       = 6443
-ports = [
-  {
-    container_port = 443
-    host_port      = 8080
-    protocol       = "tcp"
-    node_filters   = ["loadbalancer"]
-  }
-]
+domain = "agyn.dev"
+port   = 2496
