@@ -58,7 +58,7 @@ Override this behaviour by setting the optional environment variables
 
 ### Chart source
 
-Platform charts are pulled from the GHCR OCI registry (`ghcr.io/agynio/charts`). Pin the release with `platform_chart_version` in `terraform.tfvars`. If you need private registry credentials, register the GHCR repo in Argo CD before applying the stack.
+Platform charts are pulled from the GHCR OCI registry (`ghcr.io/agynio/charts`). Pin the release with `platform_chart_version` in `terraform.tfvars`. If you need private registry credentials, register the GHCR repo in Argo CD before applying the stack. The `registry-mirror` app is the exception: it still pulls the upstream git chart from `https://github.com/twuni/docker-registry.helm.git`.
 
 ### Graph persistence
 
