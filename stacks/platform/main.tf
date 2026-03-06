@@ -529,6 +529,13 @@ locals {
       {
         name     = "data"
         emptyDir = {}
+      },
+      {
+        name = "graph"
+        hostPath = {
+          path = "/shared/graph"
+          type = "DirectoryOrCreate"
+        }
       }
     ]
     extraVolumeMounts = [
@@ -547,6 +554,10 @@ locals {
       {
         name      = "data"
         mountPath = "/data"
+      },
+      {
+        name      = "graph"
+        mountPath = "/opt/app/packages/platform-server/data/graph"
       }
     ]
     livenessProbe = {
@@ -596,6 +607,10 @@ locals {
           {
             name      = "data"
             mountPath = "/data"
+          },
+          {
+            name      = "graph"
+            mountPath = "/opt/app/packages/platform-server/data/graph"
           }
         ]
         securityContext = {
@@ -705,6 +720,10 @@ locals {
       {
         name  = "GRAPH_AUTHOR_EMAIL"
         value = "rowan.stein@agyn.io"
+      },
+      {
+        name  = "GRAPH_REPO_PATH"
+        value = "./data/graph"
       }
     ]
   })
