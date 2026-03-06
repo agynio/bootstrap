@@ -62,6 +62,15 @@ LiteLLM is deployed with the following development defaults:
 - Salt key: `sk-dev-salt-1234`
 - PostgreSQL password: `change-me`
 
+## Vault defaults
+
+Vault boots with a standalone auto-init sidecar that now guarantees a KV v2
+secrets engine at the `secret/` mount. A sample development secret is written to
+`secret/platform/example` (note `Provisioned by bootstrap_v2`, token
+`dev-placeholder`) so the platform detects an available mount immediately. Set
+`VAULT_SEED_SAMPLE_SECRET=false` or adjust `VAULT_SAMPLE_SECRET_PATH` on the
+`vault-auto-init` container to customize this behaviour.
+
 The platform stack now connects to Argo CD exclusively via `kubectl port-forward`. The `argocd` Terraform provider opens a tunnel directly to the in-cluster service in the `argocd` namespace, so no external DNS entry is required during bootstrap. Disable this behaviour only if you have a routable control-plane endpoint by setting `-var 'argocd_port_forward_enabled=false'` and providing a matching hostname/IP via `kubectl`'s current context.
 
 ## Trusting the generated certificate authority
