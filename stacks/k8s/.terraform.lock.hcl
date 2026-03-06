@@ -6,6 +6,7 @@ provider "registry.terraform.io/agynio/k3d" {
   constraints = "~> 0.2.3"
   hashes = [
     "h1:7rRtyBqzmGsS8zzpLpFUmsEF6dI3j8EB+ka9PGDC5ww=",
+    "h1:obPj2o7tS99lnM+ZbIrlWoxi0eUpcjnPoQK7SAYNjbY=",
     "zh:106474ecb58ca44940a3708016d885c3c1dc824ddcf9ca544a3272b9d2db2f4a",
     "zh:6caf22c0ec0c4a06289b7ed0c30355d060a34d63ed6170d692f0711ca555d88b",
     "zh:6e85c053e430c4efac45542f7ffa17ecd81fe714963d0733cdf5d04537d852db",

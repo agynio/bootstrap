@@ -9,6 +9,7 @@ locals {
       node_filters   = ["loadbalancer"]
     }
   ])
+  effective_k3d_host_shared_path = abspath("${path.module}/../../shared")
 }
 
 resource "k3d_cluster" "this" {
@@ -53,6 +54,12 @@ resource "k3d_cluster" "this" {
       protocol       = upper(port.value.protocol)
       node_filters   = try(port.value.node_filters, [])
     }
+  }
+
+  volume {
+    source       = local.effective_k3d_host_shared_path
+    destination  = "/shared"
+    node_filters = ["all"]
   }
 
 }

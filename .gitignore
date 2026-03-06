@@ -10,3 +10,6 @@ local-certs/*
 # Terraform state files (do not ignore lockfiles)
 **/*.tfstate
 **/*.tfstate.*
+
+# Shared host volume persisted locally
+/shared/
