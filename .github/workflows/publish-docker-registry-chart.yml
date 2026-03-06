@@ -1,0 +1,36 @@
+name: publish-docker-registry-chart
+
+on:
+  workflow_dispatch:
+    inputs:
+      chart_version:
+        description: "Helm chart version to publish"
+        required: true
+        default: "2.2.2"
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.15.4
+
+      - name: Login to GHCR
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io \
+            -u "${{ github.actor }}" --password-stdin
+
+      - name: Publish chart
+        run: ./scripts/publish_docker_registry_chart.sh
+        env:
+          CHART_VERSION: ${{ inputs.chart_version }}
+          TARGET_REGISTRY: ghcr.io/agynio/charts

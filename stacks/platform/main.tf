@@ -6,7 +6,7 @@ locals {
   postgres_image                  = "postgres:16.6-alpine"
   vault_chart_version             = "0.28.1"
   registry_mirror_chart_repo_host = "ghcr.io"
-  registry_mirror_chart_name      = "agynio/charts/registry-mirror"
+  registry_mirror_chart_name      = "agynio/charts/docker-registry"
   registry_mirror_chart_version   = "2.2.2"
   litellm_chart_repo_host         = "ghcr.io"
   litellm_chart_repo_url          = "oci://ghcr.io/berriai/litellm-helm"

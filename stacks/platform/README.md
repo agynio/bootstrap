@@ -60,6 +60,8 @@ Override this behaviour by setting the optional environment variables
 
 Platform charts are pulled from the GHCR OCI registry (`ghcr.io/agynio/charts`). Pin the release with `platform_chart_version` in `terraform.tfvars`. If you need private registry credentials, register the GHCR repo in Argo CD before applying the stack.
 
+The registry mirror uses the `docker-registry` chart published to GHCR. Re-publish it with `scripts/publish_docker_registry_chart.sh` or the `publish-docker-registry-chart` workflow when bumping the version.
+
 ### Graph persistence
 
 `platform-server` mounts `/shared/graph` (sourced from the repository-root `./shared/graph` directory created by the k3d stack) into `/opt/app/packages/platform-server/data/graph` and sets `GRAPH_REPO_PATH=./data/graph`. Data written by the API is therefore persisted on the host at `./shared/graph`.
