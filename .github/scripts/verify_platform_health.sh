@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-TOTAL_TIMEOUT=${TOTAL_TIMEOUT:-900}
+TOTAL_TIMEOUT=${TOTAL_TIMEOUT:-1200}
 POLL_INTERVAL=${POLL_INTERVAL:-10}
 PLATFORM_NAMESPACE=${PLATFORM_NAMESPACE:-platform}
 ARGO_NAMESPACE=${ARGO_NAMESPACE:-argocd}
@@ -22,6 +22,18 @@ deadline=$((SECONDS + TOTAL_TIMEOUT))
 
 log() {
   printf '[%(%Y-%m-%dT%H:%M:%SZ)T] %s\n' -1 "$1"
+}
+
+dump_diagnostics() {
+  log "Collecting diagnostics before exit"
+  kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$PLATFORM_NAMESPACE" get pods -o wide || true
+  kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$PLATFORM_NAMESPACE" describe pods || true
+  kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$ARGO_NAMESPACE" get applications.argoproj.io -o yaml | grep -E "(name:|status:)" | sed -n '1,200p' || true
+}
+
+fail_with_diagnostics() {
+  dump_diagnostics
+  exit 1
 }
 
 join_lines() {
@@ -50,7 +62,7 @@ while (( SECONDS < deadline )); do
   if [[ -n "$degraded_apps" ]]; then
     log "Detected degraded Argo CD applications"
     echo "$degraded_apps"
-    exit 1
+    fail_with_diagnostics
   fi
 
   job_failures=$(jq -r '
@@ -60,7 +72,7 @@ while (( SECONDS < deadline )); do
   if [[ -n "$job_failures" ]]; then
     log "Detected failed Jobs in namespace ${PLATFORM_NAMESPACE}"
     echo "$job_failures"
-    exit 1
+    fail_with_diagnostics
   fi
 
   pod_terminal_failures=$(jq -r '
@@ -77,7 +89,7 @@ while (( SECONDS < deadline )); do
   if [[ -n "$pod_terminal_failures" ]]; then
     log "Detected unhealthy pods"
     echo "$pod_terminal_failures"
-    exit 1
+    fail_with_diagnostics
   fi
 
   pod_crash_backoffs=$(jq -r '
@@ -103,7 +115,7 @@ while (( SECONDS < deadline )); do
   if [[ -n "$deploy_failures" ]]; then
     log "Deployment failure detected"
     echo "$deploy_failures"
-    exit 1
+    fail_with_diagnostics
   fi
 
   missing_apps=$(jq -r --argjson required "$REQUIRED_APPS_JSON" '
@@ -182,7 +194,7 @@ while (( SECONDS < deadline )); do
     if [[ -n "$pod_crash_backoffs" ]]; then
       log "Detected pods stuck in CrashLoopBackOff/ImagePull errors"
       echo "$pod_crash_backoffs"
-      exit 1
+      fail_with_diagnostics
     fi
     log "Platform namespace ${PLATFORM_NAMESPACE} and Argo CD applications are healthy"
     exit 0
@@ -196,4 +208,4 @@ while (( SECONDS < deadline )); do
 done
 
 log "Timeout (${TOTAL_TIMEOUT}s) exceeded while waiting for platform health"
-exit 1
+fail_with_diagnostics

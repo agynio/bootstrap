@@ -441,6 +441,23 @@ locals {
             mountPath = "/storage"
           }
         ]
+      },
+      {
+        name  = "ncps-migrate"
+        image = "kalbasit/ncps:latest"
+        command = [
+          "/bin/dbmate",
+        ]
+        args = [
+          "--url=sqlite:/storage/var/ncps/db/db.sqlite",
+          "up",
+        ]
+        volumeMounts = [
+          {
+            name      = "storage"
+            mountPath = "/storage"
+          }
+        ]
       }
     ]
     containerPorts = [
@@ -494,15 +511,7 @@ locals {
       periodSeconds    = 5
     }
     migrationJob = {
-      enabled            = true
-      serviceAccountName = "default"
-      command = [
-        "/bin/sh",
-        "-c",
-      ]
-      args = [
-        "mkdir -m 0755 -p /storage/var && mkdir -m 0700 -p /storage/var/ncps && mkdir -m 0700 -p /storage/var/ncps/db && exec /bin/dbmate --url=sqlite:/storage/var/ncps/db/db.sqlite up",
-      ]
+      enabled = false
     }
   })
 
