@@ -1,6 +1,6 @@
 locals {
-  resolved_platform_server_image_tag = trimspace(var.platform_server_image_tag) != "" ? var.platform_server_image_tag : var.platform_target_revision
-  resolved_docker_runner_image_tag   = trimspace(var.docker_runner_image_tag) != "" ? var.docker_runner_image_tag : var.platform_target_revision
+  resolved_platform_server_image_tag = trimspace(var.platform_server_image_tag) != "" ? var.platform_server_image_tag : var.platform_chart_version
+  resolved_docker_runner_image_tag   = trimspace(var.docker_runner_image_tag) != "" ? var.docker_runner_image_tag : var.platform_chart_version
   resolved_platform_ui_image_tag     = local.resolved_platform_server_image_tag
 
   postgres_image                 = "postgres:16.6-alpine"
@@ -16,6 +16,10 @@ locals {
   ncps_chart_repo_host           = "ghcr.io"
   ncps_chart_name                = "agynio/charts/ncps"
   ncps_chart_revision            = "0.1.3"
+  platform_chart_repo_host       = "ghcr.io"
+  docker_runner_chart_name       = "agynio/charts/docker-runner"
+  platform_server_chart_name     = "agynio/charts/platform-server"
+  platform_ui_chart_name         = "agynio/charts/platform-ui"
   istio_gateway_namespace        = data.terraform_remote_state.system.outputs.istio_gateway_namespace
   istio_gateway_tls_secret_name  = data.terraform_remote_state.system.outputs.wildcard_tls_gateway_secret_name
 
@@ -1612,13 +1616,6 @@ resource "argocd_repository" "litellm_repo" {
   enable_oci = true
 }
 
-resource "argocd_repository" "platform" {
-  repo     = var.platform_repo_url
-  type     = "git"
-  username = trimspace(var.platform_repo_username) == "" ? null : var.platform_repo_username
-  password = trimspace(var.platform_repo_password) == "" ? null : var.platform_repo_password
-}
-
 resource "argocd_application" "vault" {
   depends_on = [kubernetes_config_map_v1.vault_auto_init]
 
@@ -1805,7 +1802,7 @@ resource "argocd_application" "ncps" {
 }
 
 resource "argocd_application" "docker_runner" {
-  depends_on = [argocd_repository.platform]
+  depends_on = [argocd_repository.litellm_repo]
   metadata {
     name      = "docker-runner"
     namespace = "argocd"
@@ -1818,9 +1815,9 @@ resource "argocd_application" "docker_runner" {
     project = "default"
 
     source {
-      repo_url        = var.platform_repo_url
-      target_revision = var.platform_target_revision
-      path            = "charts/docker-runner"
+      repo_url        = local.platform_chart_repo_host
+      chart           = local.docker_runner_chart_name
+      target_revision = var.platform_chart_version
 
       helm {
         values = local.docker_runner_values
@@ -1849,7 +1846,7 @@ resource "argocd_application" "docker_runner" {
 
 resource "argocd_application" "platform_server" {
   depends_on = [
-    argocd_repository.platform,
+    argocd_repository.litellm_repo,
     kubernetes_stateful_set_v1.platform_db,
   ]
   metadata {
@@ -1864,9 +1861,9 @@ resource "argocd_application" "platform_server" {
     project = "default"
 
     source {
-      repo_url        = var.platform_repo_url
-      target_revision = var.platform_target_revision
-      path            = "charts/platform-server"
+      repo_url        = local.platform_chart_repo_host
+      chart           = local.platform_server_chart_name
+      target_revision = var.platform_chart_version
 
       helm {
         values = local.platform_server_values
@@ -1894,7 +1891,7 @@ resource "argocd_application" "platform_server" {
 }
 
 resource "argocd_application" "platform_ui" {
-  depends_on = [argocd_repository.platform]
+  depends_on = [argocd_repository.litellm_repo]
   metadata {
     name      = "platform-ui"
     namespace = "argocd"
@@ -1907,9 +1904,9 @@ resource "argocd_application" "platform_ui" {
     project = "default"
 
     source {
-      repo_url        = var.platform_repo_url
-      target_revision = var.platform_target_revision
-      path            = "charts/platform-ui"
+      repo_url        = local.platform_chart_repo_host
+      chart           = local.platform_ui_chart_name
+      target_revision = var.platform_chart_version
 
       helm {
         values = local.platform_ui_values

@@ -17,29 +17,10 @@ variable "argocd_admin_password" {
   sensitive   = true
 }
 
-variable "platform_repo_url" {
+variable "platform_chart_version" {
   type        = string
-  description = "Git repository URL containing platform Helm charts"
-  default     = "https://github.com/agynio/platform.git"
-}
-
-variable "platform_repo_username" {
-  type        = string
-  description = "Optional basic-auth username for accessing the platform Helm repository"
-  default     = ""
-}
-
-variable "platform_repo_password" {
-  type        = string
-  description = "Optional basic-auth password/token for accessing the platform Helm repository"
-  default     = ""
-  sensitive   = true
-}
-
-variable "platform_target_revision" {
-  type        = string
-  description = "Git revision for platform Helm charts"
-  default     = "v0.15.2"
+  description = "Version of the platform Helm charts published to GHCR"
+  default     = "0.15.2"
 }
 
 variable "platform_namespace" {
@@ -57,13 +38,13 @@ variable "destination_server" {
 variable "platform_server_image_tag" {
   type        = string
   description = "Optional override for the platform-server image tag"
-  default     = "0.15.2"
+  default     = ""
 }
 
 variable "docker_runner_image_tag" {
   type        = string
   description = "Optional override for the docker-runner image tag"
-  default     = "0.15.2"
+  default     = ""
 }
 
 variable "docker_runner_replica_count" {
