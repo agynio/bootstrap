@@ -41,7 +41,7 @@ services:
 
   # LiteLLM service
   litellm:
-    image: ghcr.io/berriai/litellm:v1.80.5-stable
+    image: ghcr.io/berriai/litellm:v1.81.14-stable
     restart: unless-stopped
     environment:
       LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:-sk-dev-master-1234}
