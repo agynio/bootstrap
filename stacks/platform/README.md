@@ -20,29 +20,13 @@ terraform validate
 terraform apply
 ```
 
-After the system stack is applied, Istio exposes a single ingress listener on port 2496 and routes traffic by hostname (the port is configurable via the k8s stack `port` variable). The hostnames must resolve to the machine running k3d. The stack uses the `domain` value from `stacks/k8s`, so replace `agyn.dev` below with your chosen domain:
+After the system stack is applied, Istio exposes a single ingress listener on port 2496 and routes traffic by hostname (the port is configurable via the k8s stack `port` variable). Ensure the following hostnames resolve to `127.0.0.1` on your workstation:
 
 - `agyn.dev`
 - `api.agyn.dev`
 - `argocd.agyn.dev`
 - `litellm.agyn.dev`
 - `vault.agyn.dev`
-
-To avoid editing `/etc/hosts`, provision with a `nip.io`-backed domain that resolves automatically:
-
-```bash
-DOMAIN=agyn.127-0-0-1.nip.io ./apply.sh -y
-```
-
-Or with Terraform directly:
-
-```bash
-terraform -chdir=stacks/k8s apply -var='domain=agyn.127-0-0-1.nip.io'
-```
-
-`nip.io` resolves `*.127-0-0-1.nip.io` to `127.0.0.1` without host file changes. The dashed IP form (`127-0-0-1`) is required to satisfy the Terraform domain validation regex.
-
-If you run Terraform inside a container against a host Docker daemon, `127.0.0.1` inside the container is not the host. Use host networking or pick a `nip.io` domain based on the host's reachable IP (for example, `DOMAIN=agyn.192-168-1-50.nip.io`).
 
 Terraform connects to Argo CD through the ingress at `https://argocd.agyn.dev:2496` (default credentials `admin/admin`; accept the self-signed certificate). The same listener serves the application endpoints:
 
