@@ -32,3 +32,8 @@ output "ingress_port" {
   value       = var.port
   description = "Host port exposed for ingress traffic"
 }
+
+output "k3d_host_shared_path" {
+  value       = local.effective_k3d_host_shared_path
+  description = "Host path mounted into all k3d nodes at /shared"
+}
