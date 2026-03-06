@@ -56,16 +56,9 @@ Override this behaviour by setting the optional environment variables
 `VAULT_SEED_SAMPLE_SECRET=false` or `VAULT_SAMPLE_SECRET_PATH` on the
 `vault-auto-init` container if a different path or seeding strategy is required.
 
-### Repository authentication
+### Chart source
 
-If the platform Helm charts are private, supply credentials via Terraform variables (environment variables shown below) before running `terraform apply`:
-
-```bash
-export TF_VAR_platform_repo_username="x-access-token"
-export TF_VAR_platform_repo_password="$GITHUB_TOKEN"
-```
-
-Any GitHub personal access token with `repo` scope works. The credentials are passed to Argo CD as basic-auth values and are not stored in Kubernetes secrets by this stack. Override them per environment as needed.
+Platform charts are pulled from the GHCR OCI registry (`ghcr.io/agynio/charts`). Pin the release with `platform_chart_version` in `terraform.tfvars`. If you need private registry credentials, register the GHCR repo in Argo CD before applying the stack.
 
 ### Graph persistence
 

@@ -1,23 +1,27 @@
 locals {
-  resolved_platform_server_image_tag = trimspace(var.platform_server_image_tag) != "" ? var.platform_server_image_tag : var.platform_target_revision
-  resolved_docker_runner_image_tag   = trimspace(var.docker_runner_image_tag) != "" ? var.docker_runner_image_tag : var.platform_target_revision
+  resolved_platform_server_image_tag = trimspace(var.platform_server_image_tag) != "" ? var.platform_server_image_tag : var.platform_chart_version
+  resolved_docker_runner_image_tag   = trimspace(var.docker_runner_image_tag) != "" ? var.docker_runner_image_tag : var.platform_chart_version
   resolved_platform_ui_image_tag     = local.resolved_platform_server_image_tag
 
-  postgres_image                 = "postgres:16.6-alpine"
-  vault_chart_version            = "0.28.1"
-  registry_mirror_repo_url       = "https://github.com/twuni/docker-registry.helm.git"
-  registry_mirror_chart_path     = "."
-  registry_mirror_chart_revision = "v2.2.2"
-  litellm_chart_repo_host        = "ghcr.io"
-  litellm_chart_repo_url         = "oci://ghcr.io/berriai/litellm-helm"
-  litellm_chart_name             = "litellm-helm"
-  litellm_chart_full_name        = replace(local.litellm_chart_repo_url, "oci://${local.litellm_chart_repo_host}/", "")
-  litellm_chart_revision         = "1.81.12-stable.1"
-  ncps_chart_repo_host           = "ghcr.io"
-  ncps_chart_name                = "agynio/charts/ncps"
-  ncps_chart_revision            = "0.1.3"
-  istio_gateway_namespace        = data.terraform_remote_state.system.outputs.istio_gateway_namespace
-  istio_gateway_tls_secret_name  = data.terraform_remote_state.system.outputs.wildcard_tls_gateway_secret_name
+  postgres_image                  = "postgres:16.6-alpine"
+  vault_chart_version             = "0.28.1"
+  registry_mirror_chart_repo_host = "ghcr.io"
+  registry_mirror_chart_name      = "agynio/charts/registry-mirror"
+  registry_mirror_chart_version   = "2.2.2"
+  litellm_chart_repo_host         = "ghcr.io"
+  litellm_chart_repo_url          = "oci://ghcr.io/berriai/litellm-helm"
+  litellm_chart_name              = "litellm-helm"
+  litellm_chart_full_name         = replace(local.litellm_chart_repo_url, "oci://${local.litellm_chart_repo_host}/", "")
+  litellm_chart_revision          = "1.81.12-stable.1"
+  ncps_chart_repo_host            = "ghcr.io"
+  ncps_chart_name                 = "agynio/charts/ncps"
+  ncps_chart_revision             = "0.1.3"
+  platform_chart_repo_host        = "ghcr.io"
+  docker_runner_chart_name        = "agynio/charts/docker-runner"
+  platform_server_chart_name      = "agynio/charts/platform-server"
+  platform_ui_chart_name          = "agynio/charts/platform-ui"
+  istio_gateway_namespace         = data.terraform_remote_state.system.outputs.istio_gateway_namespace
+  istio_gateway_tls_secret_name   = data.terraform_remote_state.system.outputs.wildcard_tls_gateway_secret_name
 
   default_sync_options = [
     "CreateNamespace=true",
@@ -1601,22 +1605,10 @@ resource "kubernetes_stateful_set_v1" "litellm_db" {
 }
 
 
-resource "argocd_repository" "twuni_docker_registry" {
-  repo = local.registry_mirror_repo_url
-  type = "git"
-}
-
 resource "argocd_repository" "litellm_repo" {
   repo       = local.litellm_chart_repo_host
   type       = "helm"
   enable_oci = true
-}
-
-resource "argocd_repository" "platform" {
-  repo     = var.platform_repo_url
-  type     = "git"
-  username = trimspace(var.platform_repo_username) == "" ? null : var.platform_repo_username
-  password = trimspace(var.platform_repo_password) == "" ? null : var.platform_repo_password
 }
 
 resource "argocd_application" "vault" {
@@ -1673,7 +1665,7 @@ resource "argocd_application" "vault" {
 }
 
 resource "argocd_application" "registry_mirror" {
-  depends_on = [argocd_repository.twuni_docker_registry]
+  depends_on = [argocd_repository.litellm_repo]
   metadata {
     name      = "registry-mirror"
     namespace = "argocd"
@@ -1686,9 +1678,9 @@ resource "argocd_application" "registry_mirror" {
     project = "default"
 
     source {
-      repo_url        = local.registry_mirror_repo_url
-      target_revision = local.registry_mirror_chart_revision
-      path            = local.registry_mirror_chart_path
+      repo_url        = local.registry_mirror_chart_repo_host
+      chart           = local.registry_mirror_chart_name
+      target_revision = local.registry_mirror_chart_version
 
       helm {
         values = local.registry_mirror_values
@@ -1805,7 +1797,7 @@ resource "argocd_application" "ncps" {
 }
 
 resource "argocd_application" "docker_runner" {
-  depends_on = [argocd_repository.platform]
+  depends_on = [argocd_repository.litellm_repo]
   metadata {
     name      = "docker-runner"
     namespace = "argocd"
@@ -1818,9 +1810,9 @@ resource "argocd_application" "docker_runner" {
     project = "default"
 
     source {
-      repo_url        = var.platform_repo_url
-      target_revision = var.platform_target_revision
-      path            = "charts/docker-runner"
+      repo_url        = local.platform_chart_repo_host
+      chart           = local.docker_runner_chart_name
+      target_revision = var.platform_chart_version
 
       helm {
         values = local.docker_runner_values
@@ -1849,7 +1841,7 @@ resource "argocd_application" "docker_runner" {
 
 resource "argocd_application" "platform_server" {
   depends_on = [
-    argocd_repository.platform,
+    argocd_repository.litellm_repo,
     kubernetes_stateful_set_v1.platform_db,
   ]
   metadata {
@@ -1864,9 +1856,9 @@ resource "argocd_application" "platform_server" {
     project = "default"
 
     source {
-      repo_url        = var.platform_repo_url
-      target_revision = var.platform_target_revision
-      path            = "charts/platform-server"
+      repo_url        = local.platform_chart_repo_host
+      chart           = local.platform_server_chart_name
+      target_revision = var.platform_chart_version
 
       helm {
         values = local.platform_server_values
@@ -1894,7 +1886,7 @@ resource "argocd_application" "platform_server" {
 }
 
 resource "argocd_application" "platform_ui" {
-  depends_on = [argocd_repository.platform]
+  depends_on = [argocd_repository.litellm_repo]
   metadata {
     name      = "platform-ui"
     namespace = "argocd"
@@ -1907,9 +1899,9 @@ resource "argocd_application" "platform_ui" {
     project = "default"
 
     source {
-      repo_url        = var.platform_repo_url
-      target_revision = var.platform_target_revision
-      path            = "charts/platform-ui"
+      repo_url        = local.platform_chart_repo_host
+      chart           = local.platform_ui_chart_name
+      target_revision = var.platform_chart_version
 
       helm {
         values = local.platform_ui_values
