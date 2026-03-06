@@ -12,16 +12,6 @@ locals {
   effective_k3d_host_shared_path = abspath("${path.module}/../../shared")
 }
 
-resource "null_resource" "k3d_host_shared_path" {
-  triggers = {
-    path = local.effective_k3d_host_shared_path
-  }
-
-  provisioner "local-exec" {
-    command = "mkdir -p \"${local.effective_k3d_host_shared_path}\" && chmod 0777 \"${local.effective_k3d_host_shared_path}\""
-  }
-}
-
 resource "k3d_cluster" "this" {
   name    = var.cluster_name
   servers = var.servers
@@ -71,8 +61,6 @@ resource "k3d_cluster" "this" {
     destination  = "/shared"
     node_filters = ["all"]
   }
-
-  depends_on = [null_resource.k3d_host_shared_path]
 
 }
 
