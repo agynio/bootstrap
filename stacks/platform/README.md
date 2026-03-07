@@ -20,7 +20,7 @@ terraform validate
 terraform apply
 ```
 
-After the system stack is applied, Istio exposes a single ingress listener on port 2496 and routes traffic by hostname (the port is configurable via the k8s stack `port` variable). Ensure the following hostnames resolve to `127.0.0.1` on your workstation (for example via `/etc/hosts`):
+After the system stack is applied, Istio exposes a single ingress listener on port 2496 and routes traffic by hostname (the port is configurable via the k8s stack `port` variable):
 
 - `agyn.dev`
 - `api.agyn.dev`
