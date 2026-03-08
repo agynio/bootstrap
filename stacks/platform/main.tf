@@ -725,11 +725,7 @@ locals {
         emptyDir = {}
       },
       {
-        name     = "data"
-        emptyDir = {}
-      },
-      {
-        name = "graph"
+        name = "data"
         hostPath = {
           path = "/shared/graph"
           type = "DirectoryOrCreate"
@@ -753,10 +749,6 @@ locals {
         name      = "data"
         mountPath = "/data"
       },
-      {
-        name      = "graph"
-        mountPath = "/opt/app/packages/platform-server/data/graph"
-      }
     ]
     livenessProbe = {
       enabled = false
@@ -805,10 +797,6 @@ locals {
           {
             name      = "data"
             mountPath = "/data"
-          },
-          {
-            name      = "graph"
-            mountPath = "/opt/app/packages/platform-server/data/graph"
           }
         ]
         securityContext = {
