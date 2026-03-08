@@ -431,6 +431,8 @@ locals {
     environmentSecrets  = ["litellm-master-key"]
     envVars = {
       DATABASE_URL = format("postgresql://litellm:%s@litellm-db:5432/litellm", var.litellm_db_password)
+      UI_USERNAME  = var.litellm_ui_username
+      UI_PASSWORD  = var.litellm_ui_password
     }
     proxy_config = {
       model_list = [

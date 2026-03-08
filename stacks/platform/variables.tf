@@ -111,6 +111,19 @@ variable "litellm_salt_key" {
   sensitive   = true
 }
 
+variable "litellm_ui_username" {
+  type        = string
+  description = "LiteLLM UI username for dev-only admin access"
+  default     = "admin"
+}
+
+variable "litellm_ui_password" {
+  type        = string
+  description = "LiteLLM UI password for dev-only admin access"
+  default     = "admin"
+  sensitive   = true
+}
+
 variable "docker_runner_shared_secret" {
   type        = string
   description = "Shared secret used by docker-runner and platform-server"
