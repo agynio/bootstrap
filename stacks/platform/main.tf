@@ -2,6 +2,7 @@ locals {
   resolved_platform_server_image_tag = trimspace(var.platform_server_image_tag) != "" ? var.platform_server_image_tag : var.platform_chart_version
   resolved_docker_runner_image_tag   = trimspace(var.docker_runner_image_tag) != "" ? var.docker_runner_image_tag : var.platform_chart_version
   resolved_platform_ui_image_tag     = local.resolved_platform_server_image_tag
+  resolved_agent_state_image_tag     = trimspace(var.agent_state_image_tag) != "" ? var.agent_state_image_tag : format("v%s", var.agent_state_chart_version)
 
   postgres_image                 = "postgres:16.6-alpine"
   vault_chart_version            = "0.28.1"
@@ -20,6 +21,7 @@ locals {
   docker_runner_chart_name       = "agynio/charts/docker-runner"
   platform_server_chart_name     = "agynio/charts/platform-server"
   platform_ui_chart_name         = "agynio/charts/platform-ui"
+  agent_state_chart_name         = "agynio/charts/agent-state"
   istio_gateway_namespace        = data.terraform_remote_state.system.outputs.istio_gateway_namespace
   istio_gateway_tls_secret_name  = data.terraform_remote_state.system.outputs.wildcard_tls_gateway_secret_name
 
@@ -456,6 +458,21 @@ locals {
           enabled = true
         }
       }
+    }
+  })
+
+  agent_state_values = yamlencode({
+    fullnameOverride = "agent-state"
+    service = {
+      port = 50051
+    }
+    database = {
+      url = format("postgresql://agentstate:%s@agent-state-db:5432/agentstate?sslmode=disable", var.agent_state_db_password)
+    }
+    image = {
+      repository = "ghcr.io/agynio/agent-state"
+      tag        = local.resolved_agent_state_image_tag
+      pullPolicy = "IfNotPresent"
     }
   })
 
@@ -1604,6 +1621,126 @@ resource "kubernetes_stateful_set_v1" "litellm_db" {
   }
 }
 
+resource "kubernetes_service_v1" "agent_state_db" {
+  metadata {
+    name      = "agent-state-db"
+    namespace = kubernetes_namespace.platform.metadata[0].name
+    labels = {
+      "app.kubernetes.io/name" = "agent-state-db"
+    }
+  }
+
+  spec {
+    selector = {
+      "app.kubernetes.io/name" = "agent-state-db"
+    }
+
+    port {
+      name        = "postgres"
+      port        = 5432
+      target_port = 5432
+      protocol    = "TCP"
+    }
+  }
+}
+
+resource "kubernetes_stateful_set_v1" "agent_state_db" {
+  metadata {
+    name      = "agent-state-db"
+    namespace = kubernetes_namespace.platform.metadata[0].name
+    labels = {
+      "app.kubernetes.io/name" = "agent-state-db"
+    }
+  }
+
+  spec {
+    service_name = kubernetes_service_v1.agent_state_db.metadata[0].name
+    replicas     = 1
+
+    selector {
+      match_labels = {
+        "app.kubernetes.io/name" = "agent-state-db"
+      }
+    }
+
+    template {
+      metadata {
+        labels = {
+          "app.kubernetes.io/name" = "agent-state-db"
+        }
+      }
+
+      spec {
+        termination_grace_period_seconds = 30
+
+        container {
+          name              = "postgres"
+          image             = local.postgres_image
+          image_pull_policy = "IfNotPresent"
+          env {
+            name  = "POSTGRES_DB"
+            value = "agentstate"
+          }
+          env {
+            name  = "POSTGRES_USER"
+            value = "agentstate"
+          }
+          env {
+            name  = "POSTGRES_PASSWORD"
+            value = var.agent_state_db_password
+          }
+          env {
+            name  = "PGDATA"
+            value = "/var/lib/postgresql/data/pgdata"
+          }
+
+          port {
+            name           = "postgres"
+            container_port = 5432
+          }
+
+          readiness_probe {
+            exec {
+              command = ["pg_isready", "-U", "agentstate", "-d", "agentstate"]
+            }
+            initial_delay_seconds = 5
+            period_seconds        = 10
+          }
+
+          liveness_probe {
+            exec {
+              command = ["pg_isready", "-U", "agentstate", "-d", "agentstate"]
+            }
+            initial_delay_seconds = 30
+            period_seconds        = 20
+          }
+
+          volume_mount {
+            name       = "data"
+            mount_path = "/var/lib/postgresql/data"
+          }
+        }
+      }
+    }
+
+    volume_claim_template {
+      metadata {
+        name = "data"
+      }
+
+      spec {
+        access_modes = ["ReadWriteOnce"]
+
+        resources {
+          requests = {
+            storage = var.agent_state_db_pvc_size
+          }
+        }
+      }
+    }
+  }
+}
+
 
 resource "argocd_repository" "twuni_docker_registry" {
   repo = local.registry_mirror_repo_url
@@ -1778,6 +1915,52 @@ resource "argocd_application" "ncps" {
 
       helm {
         values = local.ncps_values
+      }
+    }
+
+    destination {
+      server    = var.destination_server
+      namespace = var.platform_namespace
+    }
+
+    sync_policy {
+      dynamic "automated" {
+        for_each = var.argocd_automated_sync_enabled ? [1] : []
+        content {
+          prune       = var.argocd_prune_enabled
+          self_heal   = var.argocd_self_heal_enabled
+          allow_empty = false
+        }
+      }
+
+      sync_options = local.default_sync_options
+    }
+  }
+}
+
+resource "argocd_application" "agent_state" {
+  depends_on = [
+    argocd_repository.litellm_repo,
+    kubernetes_stateful_set_v1.agent_state_db,
+  ]
+  metadata {
+    name      = "agent-state"
+    namespace = "argocd"
+    annotations = {
+      "argocd.argoproj.io/sync-wave" = "16"
+    }
+  }
+
+  spec {
+    project = "default"
+
+    source {
+      repo_url        = local.platform_chart_repo_host
+      chart           = local.agent_state_chart_name
+      target_revision = var.agent_state_chart_version
+
+      helm {
+        values = local.agent_state_values
       }
     }
 
