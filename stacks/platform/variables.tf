@@ -23,6 +23,12 @@ variable "platform_chart_version" {
   default     = "0.15.2"
 }
 
+variable "agent_state_chart_version" {
+  type        = string
+  description = "Version of the agent-state Helm chart published to GHCR"
+  default     = "0.1.0"
+}
+
 variable "platform_namespace" {
   type        = string
   description = "Namespace where platform workloads should be deployed"
@@ -44,6 +50,12 @@ variable "platform_server_image_tag" {
 variable "docker_runner_image_tag" {
   type        = string
   description = "Optional override for the docker-runner image tag"
+  default     = ""
+}
+
+variable "agent_state_image_tag" {
+  type        = string
+  description = "Optional override for the agent-state image tag"
   default     = ""
 }
 
@@ -94,6 +106,19 @@ variable "litellm_db_password" {
 variable "litellm_db_pvc_size" {
   type        = string
   description = "Persistent volume claim size for the LiteLLM PostgreSQL primary"
+  default     = "5Gi"
+}
+
+variable "agent_state_db_password" {
+  type        = string
+  description = "Password for the agent-state PostgreSQL database user"
+  default     = "agentstate"
+  sensitive   = true
+}
+
+variable "agent_state_db_pvc_size" {
+  type        = string
+  description = "Persistent volume claim size for the agent-state PostgreSQL primary"
   default     = "5Gi"
 }
 

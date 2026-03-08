@@ -4,18 +4,22 @@ kubeconfig_path = "../k8s/.kube/agyn-local-kubeconfig.yaml"
 # argocd_admin_username = "admin"
 # argocd_admin_password = "admin"
 
-platform_namespace      = "platform"
-platform_chart_version  = "0.15.2"
+platform_namespace         = "platform"
+platform_chart_version     = "0.15.2"
+agent_state_chart_version  = "0.1.0"
 docker_runner_replica_count = 1
 
 # Optional overrides for image tags
 # platform_server_image_tag = "0.15.2"
 # docker_runner_image_tag   = "0.15.2"
+# agent_state_image_tag     = "v0.1.0"
 
 platform_db_password        = "agents"
 platform_db_pvc_size        = "5Gi"
 litellm_db_password         = "change-me"
 litellm_db_pvc_size         = "5Gi"
+agent_state_db_password     = "agentstate"
+agent_state_db_pvc_size     = "5Gi"
 litellm_master_key          = "sk-dev-master"
 litellm_salt_key            = "sk-dev-salt"
 # LiteLLM UI credentials are dev-only; defaults to admin/admin.
