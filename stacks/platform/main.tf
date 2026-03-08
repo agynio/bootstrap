@@ -799,6 +799,32 @@ locals {
           runAsUser    = 1000
           runAsGroup   = 1000
         }
+      },
+      {
+        name            = "wait-for-litellm"
+        image           = "busybox:1.37"
+        imagePullPolicy = "IfNotPresent"
+        command = [
+          "/bin/sh",
+          "-c",
+        ]
+        args = [
+          <<-EOT
+          attempts=60
+          i=0
+          while [ "$i" -lt "$attempts" ]; do
+            if wget -qO- http://litellm:4000/health/readiness | grep -q '"status":"healthy"'; then
+              echo "LiteLLM is ready."
+              exit 0
+            fi
+            i=$((i + 1))
+            echo "Waiting for LiteLLM readiness..."
+            sleep 5
+          done
+          echo "Timed out waiting for LiteLLM readiness." >&2
+          exit 1
+          EOT
+        ]
       }
     ]
     env = [
