@@ -727,7 +727,7 @@ locals {
       {
         name = "data"
         hostPath = {
-          path = "/shared/graph"
+          path = "/shared"
           type = "DirectoryOrCreate"
         }
       }
