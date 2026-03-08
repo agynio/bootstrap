@@ -813,7 +813,7 @@ locals {
           attempts=60
           i=0
           while [ "$i" -lt "$attempts" ]; do
-            if wget -qO- http://litellm:4000/health/readiness | grep -q '"status":"healthy"'; then
+            if wget -qO- -T 5 -t 1 http://litellm:4000/health/readiness | grep -q '"status":"healthy"'; then
               echo "LiteLLM is ready."
               exit 0
             fi
@@ -825,6 +825,25 @@ locals {
           exit 1
           EOT
         ]
+        volumeMounts = [
+          {
+            name      = "tmp"
+            mountPath = "/tmp"
+          }
+        ]
+        securityContext = {
+          runAsNonRoot             = true
+          runAsUser                = 1000
+          runAsGroup               = 1000
+          readOnlyRootFilesystem   = true
+          allowPrivilegeEscalation = false
+          capabilities = {
+            drop = ["ALL"]
+          }
+          seccompProfile = {
+            type = "RuntimeDefault"
+          }
+        }
       }
     ]
     env = [
