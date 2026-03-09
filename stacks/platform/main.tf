@@ -852,6 +852,10 @@ locals {
         value = "7071"
       },
       {
+        name  = "DOCKER_RUNNER_PORT"
+        value = "7071"
+      },
+      {
         name  = "DOCKER_RUNNER_SHARED_SECRET"
         value = var.docker_runner_shared_secret
       },
