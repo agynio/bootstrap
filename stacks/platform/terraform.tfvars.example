@@ -14,7 +14,7 @@ docker_runner_replica_count = 1
 # platform_server_image_tag = "0.15.2"
 # docker_runner_image_tag   = "0.15.2"
 # agent_state_image_tag     = "v0.1.0"
-# token_counting_image_tag  = "v0.1.0"
+# token_counting_image_tag  = "0.1.0"
 
 platform_db_password        = "agents"
 platform_db_pvc_size        = "5Gi"
