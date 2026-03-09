@@ -729,9 +729,9 @@ locals {
         emptyDir = {}
       },
       {
-        name = "graph"
+        name = "graph-data"
         hostPath = {
-          path = "/shared/graph"
+          path = "/shared"
           type = "DirectoryOrCreate"
         }
       }
@@ -754,9 +754,9 @@ locals {
         mountPath = "/data"
       },
       {
-        name      = "graph"
-        mountPath = "/opt/app/packages/platform-server/data/graph"
-      }
+        name      = "graph-data"
+        mountPath = "/mnt/graph"
+      },
     ]
     livenessProbe = {
       enabled = false
@@ -805,10 +805,6 @@ locals {
           {
             name      = "data"
             mountPath = "/data"
-          },
-          {
-            name      = "graph"
-            mountPath = "/opt/app/packages/platform-server/data/graph"
           }
         ]
         securityContext = {
@@ -921,7 +917,7 @@ locals {
       },
       {
         name  = "GRAPH_REPO_PATH"
-        value = "./data/graph"
+        value = "/mnt/graph/graph"
       }
     ]
   })

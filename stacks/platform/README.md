@@ -62,7 +62,7 @@ Platform charts are pulled from the GHCR OCI registry (`ghcr.io/agynio/charts`).
 
 ### Graph persistence
 
-`platform-server` mounts `/shared/graph` (sourced from the repository-root `./shared/graph` directory created by the k3d stack) into `/opt/app/packages/platform-server/data/graph` and sets `GRAPH_REPO_PATH=./data/graph`. Data written by the API is therefore persisted on the host at `./shared/graph`.
+`platform-server` mounts `/shared` (sourced from the repository-root `./shared` directory created by the k3d stack) into `/mnt/graph` and sets `GRAPH_REPO_PATH=/mnt/graph/graph`. The graph repository is created under the host directory at `./shared/graph`, and swap artifacts land transiently under `./shared`.
 
 Verify persistence by:
 
