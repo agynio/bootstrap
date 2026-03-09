@@ -57,7 +57,6 @@ locals {
     WAIT_TIMEOUT_SECONDS="$${WAIT_TIMEOUT_SECONDS:-300}"
     CHECK_INTERVAL_SECONDS="$${CHECK_INTERVAL_SECONDS:-5}"
     VAULT_ADDR="$${VAULT_ADDR:-http://127.0.0.1:8200}"
-    VAULT_VERSION="$${VAULT_VERSION:-1.17.2}"
     DATA_DIR="$${VAULT_AUTO_INIT_DATA_DIR:-/vault/data}"
     CLUSTER_KEYS_FILE="$${DATA_DIR}/cluster-keys.json"
     ROOT_TOKEN_FILE="$${DATA_DIR}/root-token.txt"
@@ -80,7 +79,7 @@ locals {
 
     ensure_tooling() {
       missing_packages=""
-      for pkg in curl jq unzip; do
+      for pkg in curl jq; do
         if ! command -v "$pkg" >/dev/null 2>&1; then
           missing_packages="$missing_packages $pkg"
         fi
@@ -93,14 +92,6 @@ locals {
         apk add --no-cache "$@" >/dev/null
       fi
 
-      if ! command -v vault >/dev/null 2>&1; then
-        log "installing vault $VAULT_VERSION"
-        tmp_zip="$(mktemp)"
-        curl -fsSL "$(printf 'https://releases.hashicorp.com/vault/%s/vault_%s_linux_amd64.zip' "$VAULT_VERSION" "$VAULT_VERSION")" -o "$tmp_zip"
-        unzip -oq "$tmp_zip" -d /usr/local/bin
-        chmod +x /usr/local/bin/vault
-        rm -f "$tmp_zip"
-      fi
     }
 
     write_secure_file() {
@@ -332,7 +323,7 @@ locals {
       extraContainers = [
         {
           name            = "vault-auto-init"
-          image           = "public.ecr.aws/docker/library/alpine:3.19.1"
+          image           = "public.ecr.aws/hashicorp/vault:1.17.2"
           imagePullPolicy = "IfNotPresent"
           command         = ["/bin/sh", "-ec", "/bin/sh /opt/vault-auto-init/auto-init.sh"]
           env = [
@@ -347,10 +338,6 @@ locals {
             {
               name  = "CHECK_INTERVAL_SECONDS"
               value = "5"
-            },
-            {
-              name  = "VAULT_VERSION"
-              value = "1.17.2"
             },
             {
               name  = "VAULT_AUTO_INIT_DATA_DIR"
@@ -1112,7 +1099,7 @@ resource "kubernetes_job_v1" "vault_init_unseal" {
 
         container {
           name              = "vault-init-unseal"
-          image             = "public.ecr.aws/docker/library/alpine:3.19.1"
+          image             = "public.ecr.aws/hashicorp/vault:1.17.2"
           image_pull_policy = "IfNotPresent"
           command           = ["/bin/sh", "-ec", "/bin/sh /opt/vault-auto-init/auto-init.sh"]
 
