@@ -95,8 +95,21 @@ locals {
 
       if ! command -v vault >/dev/null 2>&1; then
         log "installing vault $VAULT_VERSION"
+        vault_arch="$(uname -m)"
+        case "$vault_arch" in
+          x86_64)
+            vault_arch="amd64"
+            ;;
+          aarch64|arm64)
+            vault_arch="arm64"
+            ;;
+          *)
+            log "ERROR: unsupported architecture $vault_arch"
+            exit 1
+            ;;
+        esac
         tmp_zip="$(mktemp)"
-        curl -fsSL "$(printf 'https://releases.hashicorp.com/vault/%s/vault_%s_linux_amd64.zip' "$VAULT_VERSION" "$VAULT_VERSION")" -o "$tmp_zip"
+        curl -fsSL "$(printf 'https://releases.hashicorp.com/vault/%s/vault_%s_linux_%s.zip' "$VAULT_VERSION" "$VAULT_VERSION" "$vault_arch")" -o "$tmp_zip"
         unzip -oq "$tmp_zip" -d /usr/local/bin
         chmod +x /usr/local/bin/vault
         rm -f "$tmp_zip"
@@ -1094,7 +1107,11 @@ resource "kubernetes_job_v1" "vault_init_unseal" {
     }
   }
 
-  wait_for_completion = false
+  wait_for_completion = true
+
+  timeouts {
+    create = "5m"
+  }
 
   spec {
     backoff_limit = 6
@@ -2038,6 +2055,7 @@ resource "argocd_application" "platform_server" {
   depends_on = [
     argocd_repository.litellm_repo,
     kubernetes_stateful_set_v1.platform_db,
+    kubernetes_job_v1.vault_init_unseal,
   ]
   metadata {
     name      = "platform-server"
@@ -2081,7 +2099,10 @@ resource "argocd_application" "platform_server" {
 }
 
 resource "argocd_application" "platform_ui" {
-  depends_on = [argocd_repository.litellm_repo]
+  depends_on = [
+    argocd_repository.litellm_repo,
+    kubernetes_job_v1.vault_init_unseal,
+  ]
   metadata {
     name      = "platform-ui"
     namespace = "argocd"
