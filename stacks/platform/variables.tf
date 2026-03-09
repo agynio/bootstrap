@@ -29,6 +29,12 @@ variable "agent_state_chart_version" {
   default     = "0.1.0"
 }
 
+variable "token_counting_chart_version" {
+  type        = string
+  description = "Version of the token-counting Helm chart published to GHCR"
+  default     = "0.1.0"
+}
+
 variable "platform_namespace" {
   type        = string
   description = "Namespace where platform workloads should be deployed"
@@ -56,6 +62,12 @@ variable "docker_runner_image_tag" {
 variable "agent_state_image_tag" {
   type        = string
   description = "Optional override for the agent-state image tag"
+  default     = ""
+}
+
+variable "token_counting_image_tag" {
+  type        = string
+  description = "Optional override for the token-counting image tag"
   default     = ""
 }
 
