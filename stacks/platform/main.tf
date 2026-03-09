@@ -454,7 +454,8 @@ locals {
         }
       ]
       general_settings = {
-        master_key = "os.environ/LITELLM_MASTER_KEY"
+        master_key        = "os.environ/LITELLM_MASTER_KEY"
+        store_model_in_db = true
       }
     }
     db = {
