@@ -3,8 +3,10 @@ locals {
   resolved_docker_runner_image_tag   = trimspace(var.docker_runner_image_tag) != "" ? var.docker_runner_image_tag : var.platform_chart_version
   resolved_platform_ui_image_tag     = local.resolved_platform_server_image_tag
   resolved_agent_state_image_tag     = trimspace(var.agent_state_image_tag) != "" ? var.agent_state_image_tag : format("v%s", var.agent_state_chart_version)
+  resolved_files_image_tag           = trimspace(var.files_image_tag) != "" ? var.files_image_tag : format("v%s", var.files_chart_version)
 
   postgres_image                 = "postgres:16.6-alpine"
+  minio_image                    = "quay.io/minio/minio:RELEASE.2024-11-07T00-52-20Z"
   vault_chart_version            = "0.28.1"
   registry_mirror_repo_url       = "https://github.com/twuni/docker-registry.helm.git"
   registry_mirror_chart_path     = "."
@@ -22,6 +24,7 @@ locals {
   platform_server_chart_name     = "agynio/charts/platform-server"
   platform_ui_chart_name         = "agynio/charts/platform-ui"
   agent_state_chart_name         = "agynio/charts/agent-state"
+  files_chart_name               = "agynio/charts/files"
   istio_gateway_namespace        = data.terraform_remote_state.system.outputs.istio_gateway_namespace
   istio_gateway_tls_secret_name  = data.terraform_remote_state.system.outputs.wildcard_tls_gateway_secret_name
 
@@ -482,6 +485,77 @@ locals {
       repository = "ghcr.io/agynio/agent-state"
       tag        = local.resolved_agent_state_image_tag
       pullPolicy = "IfNotPresent"
+    }
+  })
+
+  files_values = yamlencode({
+    fullnameOverride = "files"
+    image = {
+      repository = "ghcr.io/agynio/files"
+      tag        = local.resolved_files_image_tag
+      pullPolicy = "IfNotPresent"
+    }
+    securityContext = {
+      enabled                  = true
+      runAsNonRoot             = true
+      readOnlyRootFilesystem   = true
+      allowPrivilegeEscalation = false
+      capabilities = {
+        drop = ["ALL"]
+      }
+      seccompProfile = {
+        type = "RuntimeDefault"
+      }
+    }
+    containerPorts = [
+      {
+        name          = "http"
+        containerPort = 8080
+        protocol      = "TCP"
+      }
+    ]
+    service = {
+      enabled = true
+      type    = "ClusterIP"
+      ports = [
+        {
+          name       = "http"
+          port       = 8080
+          targetPort = "http"
+          protocol   = "TCP"
+        }
+      ]
+    }
+    livenessProbe = {
+      enabled = true
+      httpGet = {
+        path = "/healthz"
+        port = "http"
+      }
+    }
+    readinessProbe = {
+      enabled = true
+      httpGet = {
+        path = "/healthz"
+        port = "http"
+      }
+    }
+    files = {
+      databaseUrl = {
+        value = format("postgresql://files:%s@files-db:5432/files?sslmode=disable", var.files_db_password)
+      }
+      s3 = {
+        endpoint = "minio:9000"
+        bucket   = var.minio_bucket_name
+        region   = "us-east-1"
+        useSSL   = false
+        accessKey = {
+          value = var.minio_root_user
+        }
+        secretKey = {
+          value = var.minio_root_password
+        }
+      }
     }
   })
 
@@ -1220,6 +1294,96 @@ resource "kubernetes_manifest" "virtualservice_gateway" {
   ]
 }
 
+resource "kubernetes_manifest" "virtualservice_files" {
+  manifest = {
+    "apiVersion" = "networking.istio.io/v1beta1"
+    "kind"       = "VirtualService"
+    "metadata" = {
+      "name"      = "files"
+      "namespace" = local.istio_gateway_namespace
+    }
+    "spec" = {
+      "hosts"    = ["files.${local.base_domain}"]
+      "gateways" = ["platform-gateway"]
+      "http" = [
+        {
+          "match" = [
+            {
+              "uri" = {
+                "prefix" = "/"
+              }
+            }
+          ]
+          "route" = [
+            {
+              "destination" = {
+                "host" = "files.platform.svc.cluster.local"
+                "port" = {
+                  "number" = 8080
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+
+  computed_fields = [
+    "metadata.annotations",
+    "metadata.labels",
+  ]
+
+  depends_on = [
+    data.terraform_remote_state.system,
+  ]
+}
+
+resource "kubernetes_manifest" "virtualservice_minio" {
+  manifest = {
+    "apiVersion" = "networking.istio.io/v1beta1"
+    "kind"       = "VirtualService"
+    "metadata" = {
+      "name"      = "minio"
+      "namespace" = local.istio_gateway_namespace
+    }
+    "spec" = {
+      "hosts"    = ["minio.${local.base_domain}"]
+      "gateways" = ["platform-gateway"]
+      "http" = [
+        {
+          "match" = [
+            {
+              "uri" = {
+                "prefix" = "/"
+              }
+            }
+          ]
+          "route" = [
+            {
+              "destination" = {
+                "host" = "minio.platform.svc.cluster.local"
+                "port" = {
+                  "number" = 9001
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+
+  computed_fields = [
+    "metadata.annotations",
+    "metadata.labels",
+  ]
+
+  depends_on = [
+    data.terraform_remote_state.system,
+  ]
+}
+
 resource "kubernetes_manifest" "virtualservice_litellm" {
   manifest = {
     "apiVersion" = "networking.istio.io/v1beta1"
@@ -1670,6 +1834,253 @@ resource "kubernetes_stateful_set_v1" "agent_state_db" {
   }
 }
 
+resource "kubernetes_service_v1" "files_db" {
+  metadata {
+    name      = "files-db"
+    namespace = kubernetes_namespace.platform.metadata[0].name
+    labels = {
+      "app.kubernetes.io/name" = "files-db"
+    }
+  }
+
+  spec {
+    selector = {
+      "app.kubernetes.io/name" = "files-db"
+    }
+
+    port {
+      name        = "postgres"
+      port        = 5432
+      target_port = 5432
+      protocol    = "TCP"
+    }
+  }
+}
+
+resource "kubernetes_stateful_set_v1" "files_db" {
+  metadata {
+    name      = "files-db"
+    namespace = kubernetes_namespace.platform.metadata[0].name
+    labels = {
+      "app.kubernetes.io/name" = "files-db"
+    }
+  }
+
+  spec {
+    service_name = kubernetes_service_v1.files_db.metadata[0].name
+    replicas     = 1
+
+    selector {
+      match_labels = {
+        "app.kubernetes.io/name" = "files-db"
+      }
+    }
+
+    template {
+      metadata {
+        labels = {
+          "app.kubernetes.io/name" = "files-db"
+        }
+      }
+
+      spec {
+        termination_grace_period_seconds = 30
+
+        container {
+          name              = "postgres"
+          image             = local.postgres_image
+          image_pull_policy = "IfNotPresent"
+          env {
+            name  = "POSTGRES_DB"
+            value = "files"
+          }
+          env {
+            name  = "POSTGRES_USER"
+            value = "files"
+          }
+          env {
+            name  = "POSTGRES_PASSWORD"
+            value = var.files_db_password
+          }
+          env {
+            name  = "PGDATA"
+            value = "/var/lib/postgresql/data/pgdata"
+          }
+
+          port {
+            name           = "postgres"
+            container_port = 5432
+          }
+
+          readiness_probe {
+            exec {
+              command = ["pg_isready", "-U", "files", "-d", "files"]
+            }
+            initial_delay_seconds = 5
+            period_seconds        = 10
+          }
+
+          liveness_probe {
+            exec {
+              command = ["pg_isready", "-U", "files", "-d", "files"]
+            }
+            initial_delay_seconds = 30
+            period_seconds        = 20
+          }
+
+          volume_mount {
+            name       = "data"
+            mount_path = "/var/lib/postgresql/data"
+          }
+        }
+      }
+    }
+
+    volume_claim_template {
+      metadata {
+        name = "data"
+      }
+
+      spec {
+        access_modes = ["ReadWriteOnce"]
+
+        resources {
+          requests = {
+            storage = var.files_db_pvc_size
+          }
+        }
+      }
+    }
+  }
+}
+
+resource "kubernetes_service_v1" "minio" {
+  metadata {
+    name      = "minio"
+    namespace = kubernetes_namespace.platform.metadata[0].name
+    labels = {
+      "app.kubernetes.io/name" = "minio"
+    }
+  }
+
+  spec {
+    selector = {
+      "app.kubernetes.io/name" = "minio"
+    }
+
+    port {
+      name        = "api"
+      port        = 9000
+      target_port = 9000
+      protocol    = "TCP"
+    }
+
+    port {
+      name        = "console"
+      port        = 9001
+      target_port = 9001
+      protocol    = "TCP"
+    }
+  }
+}
+
+resource "kubernetes_stateful_set_v1" "minio" {
+  metadata {
+    name      = "minio"
+    namespace = kubernetes_namespace.platform.metadata[0].name
+    labels = {
+      "app.kubernetes.io/name" = "minio"
+    }
+  }
+
+  spec {
+    service_name = kubernetes_service_v1.minio.metadata[0].name
+    replicas     = 1
+
+    selector {
+      match_labels = {
+        "app.kubernetes.io/name" = "minio"
+      }
+    }
+
+    template {
+      metadata {
+        labels = {
+          "app.kubernetes.io/name" = "minio"
+        }
+      }
+
+      spec {
+        termination_grace_period_seconds = 30
+
+        container {
+          name              = "minio"
+          image             = local.minio_image
+          image_pull_policy = "IfNotPresent"
+          command           = ["minio", "server", "/data", "--console-address", ":9001"]
+          env {
+            name  = "MINIO_ROOT_USER"
+            value = var.minio_root_user
+          }
+          env {
+            name  = "MINIO_ROOT_PASSWORD"
+            value = var.minio_root_password
+          }
+
+          port {
+            name           = "api"
+            container_port = 9000
+          }
+
+          port {
+            name           = "console"
+            container_port = 9001
+          }
+
+          readiness_probe {
+            http_get {
+              path = "/minio/health/ready"
+              port = 9000
+            }
+            initial_delay_seconds = 5
+            period_seconds        = 10
+          }
+
+          liveness_probe {
+            http_get {
+              path = "/minio/health/live"
+              port = 9000
+            }
+            initial_delay_seconds = 30
+            period_seconds        = 20
+          }
+
+          volume_mount {
+            name       = "data"
+            mount_path = "/data"
+          }
+        }
+      }
+    }
+
+    volume_claim_template {
+      metadata {
+        name = "data"
+      }
+
+      spec {
+        access_modes = ["ReadWriteOnce"]
+
+        resources {
+          requests = {
+            storage = var.minio_pvc_size
+          }
+        }
+      }
+    }
+  }
+}
+
 
 resource "argocd_repository" "twuni_docker_registry" {
   repo = local.registry_mirror_repo_url
@@ -1890,6 +2301,53 @@ resource "argocd_application" "agent_state" {
 
       helm {
         values = local.agent_state_values
+      }
+    }
+
+    destination {
+      server    = var.destination_server
+      namespace = var.platform_namespace
+    }
+
+    sync_policy {
+      dynamic "automated" {
+        for_each = var.argocd_automated_sync_enabled ? [1] : []
+        content {
+          prune       = var.argocd_prune_enabled
+          self_heal   = var.argocd_self_heal_enabled
+          allow_empty = false
+        }
+      }
+
+      sync_options = local.default_sync_options
+    }
+  }
+}
+
+resource "argocd_application" "files" {
+  depends_on = [
+    argocd_repository.litellm_repo,
+    kubernetes_stateful_set_v1.files_db,
+    kubernetes_stateful_set_v1.minio,
+  ]
+  metadata {
+    name      = "files"
+    namespace = "argocd"
+    annotations = {
+      "argocd.argoproj.io/sync-wave" = "17"
+    }
+  }
+
+  spec {
+    project = "default"
+
+    source {
+      repo_url        = local.platform_chart_repo_host
+      chart           = local.files_chart_name
+      target_revision = var.files_chart_version
+
+      helm {
+        values = local.files_values
       }
     }
 

@@ -122,6 +122,56 @@ variable "agent_state_db_pvc_size" {
   default     = "5Gi"
 }
 
+variable "files_chart_version" {
+  type        = string
+  description = "Version of the files Helm chart published to GHCR"
+  default     = "0.1.0"
+}
+
+variable "files_image_tag" {
+  type        = string
+  description = "Optional override for the files image tag"
+  default     = ""
+}
+
+variable "files_db_password" {
+  type        = string
+  description = "Password for the files PostgreSQL database user"
+  default     = "files"
+  sensitive   = true
+}
+
+variable "files_db_pvc_size" {
+  type        = string
+  description = "Persistent volume claim size for the files PostgreSQL primary"
+  default     = "5Gi"
+}
+
+variable "minio_root_user" {
+  type        = string
+  description = "MinIO root user access key"
+  default     = "minioadmin"
+}
+
+variable "minio_root_password" {
+  type        = string
+  description = "MinIO root user secret key"
+  default     = "minioadmin"
+  sensitive   = true
+}
+
+variable "minio_pvc_size" {
+  type        = string
+  description = "Persistent volume claim size for MinIO data"
+  default     = "10Gi"
+}
+
+variable "minio_bucket_name" {
+  type        = string
+  description = "Default MinIO bucket name for files service"
+  default     = "files"
+}
+
 variable "litellm_master_key" {
   type        = string
   description = "LiteLLM master key used by platform workloads"
