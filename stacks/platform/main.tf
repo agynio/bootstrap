@@ -725,9 +725,13 @@ locals {
         emptyDir = {}
       },
       {
-        name = "data"
+        name     = "data"
+        emptyDir = {}
+      },
+      {
+        name = "graph-data"
         hostPath = {
-          path = "/shared/graph"
+          path = "/shared"
           type = "DirectoryOrCreate"
         }
       }
@@ -748,6 +752,10 @@ locals {
       {
         name      = "data"
         mountPath = "/data"
+      },
+      {
+        name      = "graph-data"
+        mountPath = "/mnt/graph"
       },
     ]
     livenessProbe = {
@@ -909,7 +917,7 @@ locals {
       },
       {
         name  = "GRAPH_REPO_PATH"
-        value = "./data/graph"
+        value = "/mnt/graph/graph"
       }
     ]
   })
