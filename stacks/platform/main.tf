@@ -57,7 +57,6 @@ locals {
     WAIT_TIMEOUT_SECONDS="$${WAIT_TIMEOUT_SECONDS:-300}"
     CHECK_INTERVAL_SECONDS="$${CHECK_INTERVAL_SECONDS:-5}"
     VAULT_ADDR="$${VAULT_ADDR:-http://127.0.0.1:8200}"
-    VAULT_VERSION="$${VAULT_VERSION:-1.17.2}"
     DATA_DIR="$${VAULT_AUTO_INIT_DATA_DIR:-/vault/data}"
     CLUSTER_KEYS_FILE="$${DATA_DIR}/cluster-keys.json"
     ROOT_TOKEN_FILE="$${DATA_DIR}/root-token.txt"
@@ -80,7 +79,7 @@ locals {
 
     ensure_tooling() {
       missing_packages=""
-      for pkg in curl jq unzip; do
+      for pkg in curl jq; do
         if ! command -v "$pkg" >/dev/null 2>&1; then
           missing_packages="$missing_packages $pkg"
         fi
@@ -93,14 +92,6 @@ locals {
         apk add --no-cache "$@" >/dev/null
       fi
 
-      if ! command -v vault >/dev/null 2>&1; then
-        log "installing vault $VAULT_VERSION"
-        tmp_zip="$(mktemp)"
-        curl -fsSL "$(printf 'https://releases.hashicorp.com/vault/%s/vault_%s_linux_amd64.zip' "$VAULT_VERSION" "$VAULT_VERSION")" -o "$tmp_zip"
-        unzip -oq "$tmp_zip" -d /usr/local/bin
-        chmod +x /usr/local/bin/vault
-        rm -f "$tmp_zip"
-      fi
     }
 
     write_secure_file() {
@@ -149,7 +140,15 @@ locals {
       fi
 
       log "initializing vault"
-      init_json="$(vault operator init -key-shares=1 -key-threshold=1 -format=json)"
+      if ! init_json="$(vault operator init -key-shares=1 -key-threshold=1 -format=json 2>&1)"; then
+        if vault status -format=json 2>/dev/null | jq -e '.initialized == true' >/dev/null 2>&1; then
+          log "vault was initialized by another process; loading artifacts"
+          load_artifacts
+          return
+        fi
+        log "ERROR: vault operator init failed: $init_json"
+        exit 1
+      fi
       if [ "$PERSIST_UNSEAL_KEY" = "true" ] || [ "$PERSIST_ROOT_TOKEN" = "true" ]; then
         printf '%s\n' "$init_json" > "$CLUSTER_KEYS_FILE"
         chmod 600 "$CLUSTER_KEYS_FILE"
@@ -194,7 +193,14 @@ locals {
 
       if ! VAULT_TOKEN="$root_token" vault token lookup "$DEV_ROOT_TOKEN" >/dev/null 2>&1; then
         log "creating dev-root token"
-        VAULT_TOKEN="$root_token" vault token create -id="$DEV_ROOT_TOKEN" -policy=root >/dev/null 2>&1
+        if ! VAULT_TOKEN="$root_token" vault token create -id="$DEV_ROOT_TOKEN" -policy=root >/dev/null 2>&1; then
+          if VAULT_TOKEN="$root_token" vault token lookup "$DEV_ROOT_TOKEN" >/dev/null 2>&1; then
+            log "dev-root token created by another process"
+          else
+            log "ERROR: failed to create dev-root token"
+            exit 1
+          fi
+        fi
       fi
 
       if [ "$PERSIST_DEV_ROOT_TOKEN" = "true" ]; then
@@ -224,8 +230,13 @@ locals {
 
       log "enabling kv v2 secrets engine at path secret/"
       if ! VAULT_TOKEN="$root_token" vault secrets enable -path=secret -version=2 kv >/dev/null 2>&1; then
-        log "ERROR: failed to enable kv v2 secrets engine at secret/"
-        exit 1
+        recheck="$(VAULT_TOKEN="$root_token" vault secrets list -format=json 2>/dev/null || true)"
+        if printf '%s' "$recheck" | jq -e '."secret/" | select(.type == "kv" and ((.options.version // "") | tostring) == "2")' >/dev/null 2>&1; then
+          log "secret/ engine created by another process"
+        else
+          log "ERROR: failed to enable kv v2 secrets engine at secret/"
+          exit 1
+        fi
       fi
 
       log "kv v2 secrets engine enabled at secret/"
@@ -332,7 +343,7 @@ locals {
       extraContainers = [
         {
           name            = "vault-auto-init"
-          image           = "public.ecr.aws/docker/library/alpine:3.19.1"
+          image           = "public.ecr.aws/hashicorp/vault:1.17.2"
           imagePullPolicy = "IfNotPresent"
           command         = ["/bin/sh", "-ec", "/bin/sh /opt/vault-auto-init/auto-init.sh"]
           env = [
@@ -347,10 +358,6 @@ locals {
             {
               name  = "CHECK_INTERVAL_SECONDS"
               value = "5"
-            },
-            {
-              name  = "VAULT_VERSION"
-              value = "1.17.2"
             },
             {
               name  = "VAULT_AUTO_INIT_DATA_DIR"
@@ -1083,91 +1090,6 @@ resource "kubernetes_role_binding_v1" "vault_auto_init" {
     name      = kubernetes_service_account_v1.vault_auto_init.metadata[0].name
     namespace = kubernetes_namespace.platform.metadata[0].name
   }
-}
-
-resource "kubernetes_job_v1" "vault_init_unseal" {
-  metadata {
-    name      = "vault-init-unseal"
-    namespace = kubernetes_namespace.platform.metadata[0].name
-    labels = {
-      "app.kubernetes.io/name" = "vault-init-unseal"
-    }
-  }
-
-  wait_for_completion = false
-
-  spec {
-    backoff_limit = 6
-
-    template {
-      metadata {
-        labels = {
-          "app.kubernetes.io/name" = "vault-init-unseal"
-        }
-      }
-
-      spec {
-        service_account_name = kubernetes_service_account_v1.vault_auto_init.metadata[0].name
-        restart_policy       = "OnFailure"
-
-        container {
-          name              = "vault-init-unseal"
-          image             = "public.ecr.aws/docker/library/alpine:3.19.1"
-          image_pull_policy = "IfNotPresent"
-          command           = ["/bin/sh", "-ec", "/bin/sh /opt/vault-auto-init/auto-init.sh"]
-
-          env {
-            name  = "VAULT_ADDR"
-            value = "http://vault:8200"
-          }
-
-          env {
-            name  = "EXIT_AFTER_UNSEAL"
-            value = "true"
-          }
-
-          env {
-            name  = "VAULT_AUTO_INIT_DATA_DIR"
-            value = "/vault/data"
-          }
-
-          env {
-            name  = "VAULT_DEV_ROOT_TOKEN"
-            value = "dev-root"
-          }
-          volume_mount {
-            name       = "vault-auto-init"
-            mount_path = "/opt/vault-auto-init"
-            read_only  = true
-          }
-          volume_mount {
-            name       = "vault-data"
-            mount_path = "/vault/data"
-          }
-        }
-
-        volume {
-          name = "vault-auto-init"
-          config_map {
-            name = kubernetes_config_map_v1.vault_auto_init.metadata[0].name
-          }
-        }
-
-        volume {
-          name = "vault-data"
-          persistent_volume_claim {
-            claim_name = "data-vault-0"
-          }
-        }
-      }
-    }
-
-  }
-
-  depends_on = [
-    kubernetes_config_map_v1.vault_auto_init,
-    argocd_application.vault,
-  ]
 }
 
 resource "kubernetes_manifest" "virtualservice_platform_ui" {
