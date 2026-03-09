@@ -646,6 +646,11 @@ locals {
           tag        = "24.0.7-dind"
           pullPolicy = "IfNotPresent"
         }
+        args = [
+          "--host=unix:///var/run/docker/docker.sock",
+          "--host=tcp://0.0.0.0:2375",
+          "--group=1000",
+        ]
       }
     }
     env = [
@@ -857,6 +862,10 @@ locals {
       },
       {
         name  = "DOCKER_RUNNER_GRPC_PORT"
+        value = "7071"
+      },
+      {
+        name  = "DOCKER_RUNNER_PORT"
         value = "7071"
       },
       {
