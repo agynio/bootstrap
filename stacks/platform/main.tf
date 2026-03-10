@@ -3,6 +3,7 @@ locals {
   resolved_docker_runner_image_tag   = trimspace(var.docker_runner_image_tag) != "" ? var.docker_runner_image_tag : var.platform_chart_version
   resolved_platform_ui_image_tag     = local.resolved_platform_server_image_tag
   resolved_agent_state_image_tag     = trimspace(var.agent_state_image_tag) != "" ? var.agent_state_image_tag : format("v%s", var.agent_state_chart_version)
+  resolved_token_counting_image_tag  = trimspace(var.token_counting_image_tag) != "" ? var.token_counting_image_tag : var.token_counting_chart_version
 
   postgres_image                 = "postgres:16.6-alpine"
   vault_chart_version            = "0.28.1"
@@ -22,6 +23,7 @@ locals {
   platform_server_chart_name     = "agynio/charts/platform-server"
   platform_ui_chart_name         = "agynio/charts/platform-ui"
   agent_state_chart_name         = "agynio/charts/agent-state"
+  token_counting_chart_name      = "agynio/charts/token-counting"
   istio_gateway_namespace        = data.terraform_remote_state.system.outputs.istio_gateway_namespace
   istio_gateway_tls_secret_name  = data.terraform_remote_state.system.outputs.wildcard_tls_gateway_secret_name
 
@@ -482,6 +484,18 @@ locals {
     image = {
       repository = "ghcr.io/agynio/agent-state"
       tag        = local.resolved_agent_state_image_tag
+      pullPolicy = "IfNotPresent"
+    }
+  })
+
+  token_counting_values = yamlencode({
+    fullnameOverride = "token-counting"
+    service = {
+      port = 50051
+    }
+    image = {
+      repository = "ghcr.io/agynio/token-counting"
+      tag        = local.resolved_token_counting_image_tag
       pullPolicy = "IfNotPresent"
     }
   })
@@ -1891,6 +1905,49 @@ resource "argocd_application" "agent_state" {
 
       helm {
         values = local.agent_state_values
+      }
+    }
+
+    destination {
+      server    = var.destination_server
+      namespace = var.platform_namespace
+    }
+
+    sync_policy {
+      dynamic "automated" {
+        for_each = var.argocd_automated_sync_enabled ? [1] : []
+        content {
+          prune       = var.argocd_prune_enabled
+          self_heal   = var.argocd_self_heal_enabled
+          allow_empty = false
+        }
+      }
+
+      sync_options = local.default_sync_options
+    }
+  }
+}
+
+resource "argocd_application" "token_counting" {
+  depends_on = [argocd_repository.litellm_repo]
+  metadata {
+    name      = "token-counting"
+    namespace = "argocd"
+    annotations = {
+      "argocd.argoproj.io/sync-wave" = "16"
+    }
+  }
+
+  spec {
+    project = "default"
+
+    source {
+      repo_url        = local.platform_chart_repo_host
+      chart           = local.token_counting_chart_name
+      target_revision = var.token_counting_chart_version
+
+      helm {
+        values = local.token_counting_values
       }
     }
 
