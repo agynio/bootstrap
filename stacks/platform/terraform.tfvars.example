@@ -15,6 +15,7 @@ docker_runner_replica_count = 1
 # docker_runner_image_tag   = "0.15.2"
 # agent_state_image_tag     = "v0.1.0"
 # token_counting_image_tag  = "0.1.0"
+# files_image_tag           = "0.1.1"
 
 platform_db_password        = "agents"
 platform_db_pvc_size        = "5Gi"
@@ -34,3 +35,11 @@ registry_mirror_pvc_size    = "5Gi"
 argocd_automated_sync_enabled = true
 argocd_prune_enabled          = true
 argocd_self_heal_enabled      = true
+
+files_chart_version = "0.1.1"
+files_db_password   = "files"
+files_db_pvc_size   = "5Gi"
+minio_root_user     = "minioadmin"
+minio_root_password = "minioadmin"
+minio_pvc_size      = "10Gi"
+minio_bucket_name   = "files"
