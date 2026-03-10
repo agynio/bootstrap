@@ -4,7 +4,7 @@ locals {
   resolved_platform_ui_image_tag     = local.resolved_platform_server_image_tag
   resolved_agent_state_image_tag     = trimspace(var.agent_state_image_tag) != "" ? var.agent_state_image_tag : format("v%s", var.agent_state_chart_version)
   resolved_files_image_tag           = trimspace(var.files_image_tag) != "" ? var.files_image_tag : var.files_chart_version
-  resolved_token_counting_image_tag  = trimspace(var.token_counting_image_tag) != "" ? var.token_counting_image_tag : var.token_counting_chart_version
+  resolved_token_counting_image_tag  = trimspace(var.token_counting_image_tag) != "" ? var.token_counting_image_tag : format("v%s", var.token_counting_chart_version)
 
   postgres_image                 = "postgres:16.6-alpine"
   minio_image                    = "quay.io/minio/minio:RELEASE.2024-11-07T00-52-20Z"
