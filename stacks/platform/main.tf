@@ -1858,6 +1858,8 @@ resource "argocd_application" "platform_db" {
     }
 
     sync_policy {
+      # DB apps always use automated sync with prune disabled for stateful safety,
+      # independent of var.argocd_automated_sync_enabled.
       automated {
         prune       = false
         self_heal   = true
@@ -1906,6 +1908,8 @@ resource "argocd_application" "litellm_db" {
     }
 
     sync_policy {
+      # DB apps always use automated sync with prune disabled for stateful safety,
+      # independent of var.argocd_automated_sync_enabled.
       automated {
         prune       = false
         self_heal   = true
@@ -1954,6 +1958,8 @@ resource "argocd_application" "agent_state_db" {
     }
 
     sync_policy {
+      # DB apps always use automated sync with prune disabled for stateful safety,
+      # independent of var.argocd_automated_sync_enabled.
       automated {
         prune       = false
         self_heal   = true
