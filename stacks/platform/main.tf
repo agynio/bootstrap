@@ -499,6 +499,8 @@ locals {
     securityContext = {
       enabled                  = true
       runAsNonRoot             = true
+      runAsUser                = 65532
+      runAsGroup               = 65532
       readOnlyRootFilesystem   = true
       allowPrivilegeEscalation = false
       capabilities = {

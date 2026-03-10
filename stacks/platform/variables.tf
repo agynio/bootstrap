@@ -125,7 +125,7 @@ variable "agent_state_db_pvc_size" {
 variable "files_chart_version" {
   type        = string
   description = "Version of the files Helm chart published to GHCR"
-  default     = "0.1.0"
+  default     = "0.1.1"
 }
 
 variable "files_image_tag" {
