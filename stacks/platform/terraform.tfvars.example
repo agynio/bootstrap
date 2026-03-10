@@ -8,6 +8,7 @@ platform_namespace         = "platform"
 platform_chart_version     = "0.15.2"
 agent_state_chart_version  = "0.1.0"
 token_counting_chart_version = "0.1.0"
+postgres_chart_version     = "0.1.1"
 docker_runner_replica_count = 1
 
 # Optional overrides for image tags

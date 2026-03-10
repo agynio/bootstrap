@@ -58,7 +58,7 @@ Override this behaviour by setting the optional environment variables
 
 ### Chart source
 
-Platform charts are pulled from the GHCR OCI registry (`ghcr.io/agynio/charts`). Pin the release with `platform_chart_version` in `terraform.tfvars`. If you need private registry credentials, register the GHCR repo in Argo CD before applying the stack. The `registry-mirror` app is the exception: it still pulls the upstream git chart from `https://github.com/twuni/docker-registry.helm.git`.
+Platform charts are pulled from the GHCR OCI registry (`ghcr.io/agynio/charts`). Pin the release with `platform_chart_version` in `terraform.tfvars`. The PostgreSQL Argo CD applications use the same registry and are pinned via `postgres_chart_version`. If you need private registry credentials, register the GHCR repo in Argo CD before applying the stack. The `registry-mirror` app is the exception: it still pulls the upstream git chart from `https://github.com/twuni/docker-registry.helm.git`.
 
 ### Graph persistence
 
@@ -89,6 +89,7 @@ The jobs wait for successful completion during `terraform apply` to ensure boots
 | 1         | `registry-mirror`  | Twuni docker-registry proxy         | Proxies Docker Hub with persistent storage |
 | 5         | `platform-db`      | PostgreSQL for platform workloads   | Uses chart `oci://ghcr.io/agynio/charts/postgres-helm` with inline Helm values |
 | 6         | `litellm-db`       | PostgreSQL backing LiteLLM          | Same chart with LiteLLM-specific credentials and PVC sizing |
+| 7         | `agent-state-db`   | PostgreSQL backing agent-state      | Same chart with agent-state credentials and PVC sizing |
 | 10        | `vault`            | HashiCorp Vault in standalone mode  | Sidecar consumes the Terraform-managed script and PVC for init/unseal |
 | 12        | `litellm`          | LiteLLM API deployment              | Connects to Argo CD-managed `litellm-db`; master key sourced from `litellm-master-key` secret |
 | 16        | `agent-state`      | Agent state gRPC service            | Internal-only gRPC; no external routing required |

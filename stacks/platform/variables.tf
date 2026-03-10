@@ -35,6 +35,12 @@ variable "token_counting_chart_version" {
   default     = "0.1.0"
 }
 
+variable "postgres_chart_version" {
+  type        = string
+  description = "Version of the postgres-helm chart published to GHCR"
+  default     = "0.1.1"
+}
+
 variable "platform_namespace" {
   type        = string
   description = "Namespace where platform workloads should be deployed"
