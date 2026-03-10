@@ -839,7 +839,7 @@ locals {
       },
       {
         name  = "DOCKER_RUNNER_PORT"
-        value = "7071"
+        value = "50051"
       },
       {
         name  = "DOCKER_RUNNER_SIGNATURE_TTL_MS"
@@ -855,7 +855,7 @@ locals {
       ports = [
         {
           name       = "grpc"
-          port       = 7071
+          port       = 50051
           targetPort = "grpc"
           protocol   = "TCP"
         }
@@ -864,7 +864,7 @@ locals {
     containerPorts = [
       {
         name          = "grpc"
-        containerPort = 7071
+        containerPort = 50051
         protocol      = "TCP"
       }
     ]
@@ -1037,11 +1037,11 @@ locals {
       },
       {
         name  = "DOCKER_RUNNER_GRPC_PORT"
-        value = "7071"
+        value = "50051"
       },
       {
         name  = "DOCKER_RUNNER_PORT"
-        value = "7071"
+        value = "50051"
       },
       {
         name  = "DOCKER_RUNNER_SHARED_SECRET"
