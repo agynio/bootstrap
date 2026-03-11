@@ -1276,6 +1276,33 @@ resource "kubernetes_manifest" "virtualservice_platform_ui" {
           "match" = [
             {
               "uri" = {
+                "prefix" = "/apiv2/"
+              }
+            },
+            {
+              "uri" = {
+                "exact" = "/apiv2"
+              }
+            }
+          ]
+          "rewrite" = {
+            "uri" = "/"
+          }
+          "route" = [
+            {
+              "destination" = {
+                "host" = "gateway-gateway.platform.svc.cluster.local"
+                "port" = {
+                  "number" = 8080
+                }
+              }
+            }
+          ]
+        },
+        {
+          "match" = [
+            {
+              "uri" = {
                 "prefix" = "/api"
               }
             }
