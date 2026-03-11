@@ -55,27 +55,3 @@ jobs:
 
       - name: Verify platform workloads and Argo CD health
         run: ./.github/scripts/verify_platform_health.sh
-
-      - name: Destroy platform stack (PR only)
-        if: ${{ always() && github.event_name == 'pull_request' }}
-        run: |
-          terraform -chdir=stacks/platform init -input=false
-          terraform -chdir=stacks/platform destroy -auto-approve -input=false
-
-      - name: Destroy routing stack (PR only)
-        if: ${{ always() && github.event_name == 'pull_request' }}
-        run: |
-          terraform -chdir=stacks/routing init -input=false
-          terraform -chdir=stacks/routing destroy -auto-approve -input=false
-
-      - name: Destroy system stack (PR only)
-        if: ${{ always() && github.event_name == 'pull_request' }}
-        run: |
-          terraform -chdir=stacks/system init -input=false
-          terraform -chdir=stacks/system destroy -auto-approve -input=false
-
-      - name: Destroy k8s stack (PR only)
-        if: ${{ always() && github.event_name == 'pull_request' }}
-        run: |
-          terraform -chdir=stacks/k8s init -input=false
-          terraform -chdir=stacks/k8s destroy -auto-approve -input=false
