@@ -603,8 +603,8 @@ locals {
     }
     containerPorts = [
       {
-        name          = "http"
-        containerPort = 8080
+        name          = "grpc"
+        containerPort = 50051
         protocol      = "TCP"
       }
     ]
@@ -613,31 +613,30 @@ locals {
       type    = "ClusterIP"
       ports = [
         {
-          name       = "http"
-          port       = 8080
-          targetPort = "http"
+          name       = "grpc"
+          port       = 50051
+          targetPort = "grpc"
           protocol   = "TCP"
         }
       ]
     }
     livenessProbe = {
       enabled = true
-      httpGet = {
-        path = "/healthz"
-        port = "http"
+      grpc = {
+        port = 50051
       }
     }
     readinessProbe = {
       enabled = true
-      httpGet = {
-        path = "/healthz"
-        port = "http"
+      grpc = {
+        port = 50051
       }
     }
     files = {
       databaseUrl = {
         value = format("postgresql://files:%s@files-db:5432/files?sslmode=disable", var.files_db_password)
       }
+      urlExpiry = "1h"
       s3 = {
         endpoint = "minio:9000"
         bucket   = var.minio_bucket_name
@@ -1394,51 +1393,6 @@ resource "kubernetes_manifest" "virtualservice_gateway" {
             {
               "destination" = {
                 "host" = "gateway-gateway.platform.svc.cluster.local"
-                "port" = {
-                  "number" = 8080
-                }
-              }
-            }
-          ]
-        }
-      ]
-    }
-  }
-
-  computed_fields = [
-    "metadata.annotations",
-    "metadata.labels",
-  ]
-
-  depends_on = [
-    data.terraform_remote_state.system,
-  ]
-}
-
-resource "kubernetes_manifest" "virtualservice_files" {
-  manifest = {
-    "apiVersion" = "networking.istio.io/v1beta1"
-    "kind"       = "VirtualService"
-    "metadata" = {
-      "name"      = "files"
-      "namespace" = local.istio_gateway_namespace
-    }
-    "spec" = {
-      "hosts"    = ["files.${local.base_domain}"]
-      "gateways" = ["platform-gateway"]
-      "http" = [
-        {
-          "match" = [
-            {
-              "uri" = {
-                "prefix" = "/"
-              }
-            }
-          ]
-          "route" = [
-            {
-              "destination" = {
-                "host" = "files.platform.svc.cluster.local"
                 "port" = {
                   "number" = 8080
                 }
