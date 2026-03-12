@@ -4,6 +4,7 @@ locals {
   resolved_platform_ui_image_tag     = local.resolved_platform_server_image_tag
   resolved_agent_state_image_tag     = trimspace(var.agent_state_image_tag) != "" ? var.agent_state_image_tag : format("v%s", var.agent_state_chart_version)
   resolved_files_image_tag           = trimspace(var.files_image_tag) != "" ? var.files_image_tag : var.files_chart_version
+  resolved_llm_image_tag             = trimspace(var.llm_image_tag) != "" ? var.llm_image_tag : format("v%s", var.llm_chart_version)
   resolved_token_counting_image_tag  = trimspace(var.token_counting_image_tag) != "" ? var.token_counting_image_tag : format("v%s", var.token_counting_chart_version)
 
   postgres_image                 = "postgres:16.6-alpine"
@@ -28,6 +29,7 @@ locals {
   platform_ui_chart_name         = "agynio/charts/platform-ui"
   agent_state_chart_name         = "agynio/charts/agent-state"
   files_chart_name               = "agynio/charts/files"
+  llm_chart_name                 = "agynio/charts/llm"
   token_counting_chart_name      = "agynio/charts/token-counting"
   istio_gateway_namespace        = data.terraform_remote_state.system.outputs.istio_gateway_namespace
   istio_gateway_tls_secret_name  = data.terraform_remote_state.system.outputs.wildcard_tls_gateway_secret_name
@@ -504,6 +506,29 @@ locals {
     }
   })
 
+  llm_db_values = yamlencode({
+    fullnameOverride = "llm-db"
+    postgres = {
+      database = "llm"
+      username = "llm"
+      password = var.llm_db_password
+      pgdata   = "/var/lib/postgresql/data/pgdata"
+    }
+    persistence = {
+      size                    = var.llm_db_pvc_size
+      mountPath               = "/var/lib/postgresql/data"
+      volumeClaimTemplateName = "data"
+    }
+    probes = {
+      readiness = {
+        execCommand = ["pg_isready", "-U", "llm", "-d", "llm"]
+      }
+      liveness = {
+        execCommand = ["pg_isready", "-U", "llm", "-d", "llm"]
+      }
+    }
+  })
+
   litellm_values = yamlencode({
     fullnameOverride = "litellm"
     replicaCount     = 1
@@ -651,6 +676,76 @@ locals {
         secretKey = {
           value = var.minio_root_password
         }
+      }
+    }
+  })
+
+  llm_values = yamlencode({
+    fullnameOverride = "llm"
+    image = {
+      repository = "ghcr.io/agynio/llm"
+      tag        = local.resolved_llm_image_tag
+      pullPolicy = "IfNotPresent"
+    }
+    securityContext = {
+      enabled                  = true
+      runAsNonRoot             = true
+      runAsUser                = 65532
+      runAsGroup               = 65532
+      readOnlyRootFilesystem   = true
+      allowPrivilegeEscalation = false
+      capabilities = {
+        drop = ["ALL"]
+      }
+      seccompProfile = {
+        type = "RuntimeDefault"
+      }
+    }
+    containerPorts = [
+      {
+        name          = "grpc"
+        containerPort = 50051
+        protocol      = "TCP"
+      },
+      {
+        name          = "http"
+        containerPort = 8080
+        protocol      = "TCP"
+      }
+    ]
+    service = {
+      enabled = true
+      type    = "ClusterIP"
+      ports = [
+        {
+          name       = "grpc"
+          port       = 50051
+          targetPort = "grpc"
+          protocol   = "TCP"
+        },
+        {
+          name       = "http"
+          port       = 8080
+          targetPort = "http"
+          protocol   = "TCP"
+        }
+      ]
+    }
+    livenessProbe = {
+      enabled = true
+      grpc = {
+        port = 50051
+      }
+    }
+    readinessProbe = {
+      enabled = true
+      grpc = {
+        port = 50051
+      }
+    }
+    llm = {
+      databaseUrl = {
+        value = format("postgresql://llm:%s@llm-db:5432/llm?sslmode=disable", var.llm_db_password)
       }
     }
   })
@@ -1962,6 +2057,56 @@ resource "argocd_application" "agent_state_db" {
   }
 }
 
+resource "argocd_application" "llm_db" {
+  depends_on = [argocd_repository.litellm_repo]
+  wait       = true
+
+  metadata {
+    name      = "llm-db"
+    namespace = "argocd"
+    annotations = {
+      "argocd.argoproj.io/sync-wave" = "8"
+    }
+  }
+
+  spec {
+    project = "default"
+
+    source {
+      repo_url        = local.postgres_chart_repo_host
+      chart           = local.postgres_chart_name
+      target_revision = var.postgres_chart_version
+
+      helm {
+        values = local.llm_db_values
+      }
+    }
+
+    destination {
+      server    = var.destination_server
+      namespace = var.platform_namespace
+    }
+
+    sync_policy {
+      # DB apps always use automated sync with prune disabled for stateful safety,
+      # independent of var.argocd_automated_sync_enabled.
+      automated {
+        prune       = false
+        self_heal   = true
+        allow_empty = false
+      }
+
+      sync_options = local.postgres_sync_options
+    }
+  }
+
+  timeouts {
+    create = "5m"
+    update = "5m"
+    delete = "5m"
+  }
+}
+
 resource "argocd_application" "vault" {
   depends_on = [kubernetes_config_map_v1.vault_auto_init]
 
@@ -2213,6 +2358,52 @@ resource "argocd_application" "token_counting" {
 
       helm {
         values = local.token_counting_values
+      }
+    }
+
+    destination {
+      server    = var.destination_server
+      namespace = var.platform_namespace
+    }
+
+    sync_policy {
+      dynamic "automated" {
+        for_each = var.argocd_automated_sync_enabled ? [1] : []
+        content {
+          prune       = var.argocd_prune_enabled
+          self_heal   = var.argocd_self_heal_enabled
+          allow_empty = false
+        }
+      }
+
+      sync_options = local.default_sync_options
+    }
+  }
+}
+
+resource "argocd_application" "llm" {
+  depends_on = [
+    argocd_repository.litellm_repo,
+    argocd_application.llm_db,
+  ]
+  metadata {
+    name      = "llm"
+    namespace = "argocd"
+    annotations = {
+      "argocd.argoproj.io/sync-wave" = "17"
+    }
+  }
+
+  spec {
+    project = "default"
+
+    source {
+      repo_url        = local.platform_chart_repo_host
+      chart           = local.llm_chart_name
+      target_revision = var.llm_chart_version
+
+      helm {
+        values = local.llm_values
       }
     }
 

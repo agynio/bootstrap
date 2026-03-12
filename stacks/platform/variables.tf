@@ -165,6 +165,31 @@ variable "files_db_pvc_size" {
   default     = "5Gi"
 }
 
+variable "llm_chart_version" {
+  type        = string
+  description = "Version of the llm Helm chart published to GHCR"
+  default     = "0.1.0"
+}
+
+variable "llm_image_tag" {
+  type        = string
+  description = "Optional override for the llm image tag"
+  default     = ""
+}
+
+variable "llm_db_password" {
+  type        = string
+  description = "Password for the llm PostgreSQL database user"
+  default     = "llm"
+  sensitive   = true
+}
+
+variable "llm_db_pvc_size" {
+  type        = string
+  description = "Persistent volume claim size for the llm PostgreSQL primary"
+  default     = "5Gi"
+}
+
 variable "minio_root_user" {
   type        = string
   description = "MinIO root user access key"
