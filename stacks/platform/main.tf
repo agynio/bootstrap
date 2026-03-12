@@ -5,6 +5,7 @@ locals {
   resolved_agent_state_image_tag     = trimspace(var.agent_state_image_tag) != "" ? var.agent_state_image_tag : format("v%s", var.agent_state_chart_version)
   resolved_files_image_tag           = trimspace(var.files_image_tag) != "" ? var.files_image_tag : var.files_chart_version
   resolved_llm_image_tag             = trimspace(var.llm_image_tag) != "" ? var.llm_image_tag : format("v%s", var.llm_chart_version)
+  resolved_secrets_image_tag         = trimspace(var.secrets_image_tag) != "" ? var.secrets_image_tag : format("v%s", var.secrets_chart_version)
   resolved_token_counting_image_tag  = trimspace(var.token_counting_image_tag) != "" ? var.token_counting_image_tag : format("v%s", var.token_counting_chart_version)
 
   postgres_image                 = "postgres:16.6-alpine"
@@ -30,6 +31,7 @@ locals {
   agent_state_chart_name         = "agynio/charts/agent-state"
   files_chart_name               = "agynio/charts/files"
   llm_chart_name                 = "agynio/charts/llm"
+  secrets_chart_name             = "agynio/charts/secrets"
   token_counting_chart_name      = "agynio/charts/token-counting"
   istio_gateway_namespace        = data.terraform_remote_state.system.outputs.istio_gateway_namespace
   istio_gateway_tls_secret_name  = data.terraform_remote_state.system.outputs.wildcard_tls_gateway_secret_name
@@ -506,6 +508,29 @@ locals {
     }
   })
 
+  secrets_db_values = yamlencode({
+    fullnameOverride = "secrets-db"
+    postgres = {
+      database = "secrets"
+      username = "secrets"
+      password = var.secrets_db_password
+      pgdata   = "/var/lib/postgresql/data/pgdata"
+    }
+    persistence = {
+      size                    = var.secrets_db_pvc_size
+      mountPath               = "/var/lib/postgresql/data"
+      volumeClaimTemplateName = "data"
+    }
+    probes = {
+      readiness = {
+        execCommand = ["pg_isready", "-U", "secrets", "-d", "secrets"]
+      }
+      liveness = {
+        execCommand = ["pg_isready", "-U", "secrets", "-d", "secrets"]
+      }
+    }
+  })
+
   llm_db_values = yamlencode({
     fullnameOverride = "llm-db"
     postgres = {
@@ -590,6 +615,21 @@ locals {
     image = {
       repository = "ghcr.io/agynio/agent-state"
       tag        = local.resolved_agent_state_image_tag
+      pullPolicy = "IfNotPresent"
+    }
+  })
+
+  secrets_values = yamlencode({
+    fullnameOverride = "secrets"
+    service = {
+      port = 50051
+    }
+    database = {
+      url = format("postgresql://secrets:%s@secrets-db:5432/secrets?sslmode=disable", var.secrets_db_password)
+    }
+    image = {
+      repository = "ghcr.io/agynio/secrets"
+      tag        = local.resolved_secrets_image_tag
       pullPolicy = "IfNotPresent"
     }
   })
@@ -2057,6 +2097,56 @@ resource "argocd_application" "agent_state_db" {
   }
 }
 
+resource "argocd_application" "secrets_db" {
+  depends_on = [argocd_repository.litellm_repo]
+  wait       = true
+
+  metadata {
+    name      = "secrets-db"
+    namespace = "argocd"
+    annotations = {
+      "argocd.argoproj.io/sync-wave" = "7"
+    }
+  }
+
+  spec {
+    project = "default"
+
+    source {
+      repo_url        = local.postgres_chart_repo_host
+      chart           = local.postgres_chart_name
+      target_revision = var.postgres_chart_version
+
+      helm {
+        values = local.secrets_db_values
+      }
+    }
+
+    destination {
+      server    = var.destination_server
+      namespace = var.platform_namespace
+    }
+
+    sync_policy {
+      # DB apps always use automated sync with prune disabled for stateful safety,
+      # independent of var.argocd_automated_sync_enabled.
+      automated {
+        prune       = false
+        self_heal   = true
+        allow_empty = false
+      }
+
+      sync_options = local.postgres_sync_options
+    }
+  }
+
+  timeouts {
+    create = "5m"
+    update = "5m"
+    delete = "5m"
+  }
+}
+
 resource "argocd_application" "llm_db" {
   depends_on = [argocd_repository.litellm_repo]
   wait       = true
@@ -2315,6 +2405,52 @@ resource "argocd_application" "agent_state" {
 
       helm {
         values = local.agent_state_values
+      }
+    }
+
+    destination {
+      server    = var.destination_server
+      namespace = var.platform_namespace
+    }
+
+    sync_policy {
+      dynamic "automated" {
+        for_each = var.argocd_automated_sync_enabled ? [1] : []
+        content {
+          prune       = var.argocd_prune_enabled
+          self_heal   = var.argocd_self_heal_enabled
+          allow_empty = false
+        }
+      }
+
+      sync_options = local.default_sync_options
+    }
+  }
+}
+
+resource "argocd_application" "secrets" {
+  depends_on = [
+    argocd_repository.litellm_repo,
+    argocd_application.secrets_db,
+  ]
+  metadata {
+    name      = "secrets"
+    namespace = "argocd"
+    annotations = {
+      "argocd.argoproj.io/sync-wave" = "16"
+    }
+  }
+
+  spec {
+    project = "default"
+
+    source {
+      repo_url        = local.platform_chart_repo_host
+      chart           = local.secrets_chart_name
+      target_revision = var.secrets_chart_version
+
+      helm {
+        values = local.secrets_values
       }
     }
 

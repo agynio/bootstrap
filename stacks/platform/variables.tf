@@ -260,3 +260,28 @@ variable "registry_mirror_pvc_size" {
   description = "Persistent volume claim size for the registry mirror"
   default     = "5Gi"
 }
+
+variable "secrets_chart_version" {
+  type        = string
+  description = "Version of the secrets Helm chart published to GHCR"
+  default     = "0.1.0"
+}
+
+variable "secrets_image_tag" {
+  type        = string
+  description = "Optional override for the secrets image tag"
+  default     = ""
+}
+
+variable "secrets_db_password" {
+  type        = string
+  description = "Password for the secrets PostgreSQL database user"
+  default     = "secrets"
+  sensitive   = true
+}
+
+variable "secrets_db_pvc_size" {
+  type        = string
+  description = "Persistent volume claim size for the secrets PostgreSQL primary"
+  default     = "5Gi"
+}
