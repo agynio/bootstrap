@@ -506,29 +506,6 @@ locals {
     }
   })
 
-  llm_db_values = yamlencode({
-    fullnameOverride = "llm-db"
-    postgres = {
-      database = "llm"
-      username = "llm"
-      password = var.llm_db_password
-      pgdata   = "/var/lib/postgresql/data/pgdata"
-    }
-    persistence = {
-      size                    = var.llm_db_pvc_size
-      mountPath               = "/var/lib/postgresql/data"
-      volumeClaimTemplateName = "data"
-    }
-    probes = {
-      readiness = {
-        execCommand = ["pg_isready", "-U", "llm", "-d", "llm"]
-      }
-      liveness = {
-        execCommand = ["pg_isready", "-U", "llm", "-d", "llm"]
-      }
-    }
-  })
-
   litellm_values = yamlencode({
     fullnameOverride = "litellm"
     replicaCount     = 1
@@ -2177,56 +2154,6 @@ resource "argocd_application" "agent_state_db" {
   }
 }
 
-resource "argocd_application" "llm_db" {
-  depends_on = [argocd_repository.litellm_repo]
-  wait       = true
-
-  metadata {
-    name      = "llm-db"
-    namespace = "argocd"
-    annotations = {
-      "argocd.argoproj.io/sync-wave" = "8"
-    }
-  }
-
-  spec {
-    project = "default"
-
-    source {
-      repo_url        = local.postgres_chart_repo_host
-      chart           = local.postgres_chart_name
-      target_revision = var.postgres_chart_version
-
-      helm {
-        values = local.llm_db_values
-      }
-    }
-
-    destination {
-      server    = var.destination_server
-      namespace = var.platform_namespace
-    }
-
-    sync_policy {
-      # DB apps always use automated sync with prune disabled for stateful safety,
-      # independent of var.argocd_automated_sync_enabled.
-      automated {
-        prune       = false
-        self_heal   = true
-        allow_empty = false
-      }
-
-      sync_options = local.postgres_sync_options
-    }
-  }
-
-  timeouts {
-    create = "5m"
-    update = "5m"
-    delete = "5m"
-  }
-}
-
 resource "argocd_application" "vault" {
   depends_on = [kubernetes_config_map_v1.vault_auto_init]
 
@@ -2504,7 +2431,6 @@ resource "argocd_application" "token_counting" {
 resource "argocd_application" "llm" {
   depends_on = [
     argocd_repository.litellm_repo,
-    argocd_application.llm_db,
     kubernetes_stateful_set_v1.llm_db,
   ]
   metadata {
