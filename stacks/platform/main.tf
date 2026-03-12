@@ -581,6 +581,7 @@ locals {
   })
 
   files_values = yamlencode({
+    replicaCount     = 1
     fullnameOverride = "files"
     image = {
       repository = "ghcr.io/agynio/files"
