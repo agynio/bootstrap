@@ -554,6 +554,7 @@ locals {
   })
 
   agent_state_values = yamlencode({
+    replicaCount     = 1
     fullnameOverride = "agent-state"
     service = {
       port = 50051
@@ -569,6 +570,7 @@ locals {
   })
 
   token_counting_values = yamlencode({
+    replicaCount     = 1
     fullnameOverride = "token-counting"
     service = {
       port = 50051
@@ -581,6 +583,7 @@ locals {
   })
 
   files_values = yamlencode({
+    replicaCount     = 1
     fullnameOverride = "files"
     image = {
       repository = "ghcr.io/agynio/files"
@@ -1106,6 +1109,7 @@ locals {
   })
 
   platform_ui_values = yamlencode({
+    replicaCount = 1
     image = {
       repository = "ghcr.io/agynio/platform-ui"
       tag        = local.resolved_platform_ui_image_tag
