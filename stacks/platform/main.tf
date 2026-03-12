@@ -506,6 +506,29 @@ locals {
     }
   })
 
+  llm_db_values = yamlencode({
+    fullnameOverride = "llm-db"
+    postgres = {
+      database = "llm"
+      username = "llm"
+      password = var.llm_db_password
+      pgdata   = "/var/lib/postgresql/data/pgdata"
+    }
+    persistence = {
+      size                    = var.llm_db_pvc_size
+      mountPath               = "/var/lib/postgresql/data"
+      volumeClaimTemplateName = "data"
+    }
+    probes = {
+      readiness = {
+        execCommand = ["pg_isready", "-U", "llm", "-d", "llm"]
+      }
+      liveness = {
+        execCommand = ["pg_isready", "-U", "llm", "-d", "llm"]
+      }
+    }
+  })
+
   litellm_values = yamlencode({
     fullnameOverride = "litellm"
     replicaCount     = 1
@@ -1625,126 +1648,6 @@ resource "kubernetes_manifest" "virtualservice_vault" {
   ]
 }
 
-resource "kubernetes_service_v1" "llm_db" {
-  metadata {
-    name      = "llm-db"
-    namespace = kubernetes_namespace.platform.metadata[0].name
-    labels = {
-      "app.kubernetes.io/name" = "llm-db"
-    }
-  }
-
-  spec {
-    selector = {
-      "app.kubernetes.io/name" = "llm-db"
-    }
-
-    port {
-      name        = "postgres"
-      port        = 5432
-      target_port = 5432
-      protocol    = "TCP"
-    }
-  }
-}
-
-resource "kubernetes_stateful_set_v1" "llm_db" {
-  metadata {
-    name      = "llm-db"
-    namespace = kubernetes_namespace.platform.metadata[0].name
-    labels = {
-      "app.kubernetes.io/name" = "llm-db"
-    }
-  }
-
-  spec {
-    service_name = kubernetes_service_v1.llm_db.metadata[0].name
-    replicas     = 1
-
-    selector {
-      match_labels = {
-        "app.kubernetes.io/name" = "llm-db"
-      }
-    }
-
-    template {
-      metadata {
-        labels = {
-          "app.kubernetes.io/name" = "llm-db"
-        }
-      }
-
-      spec {
-        termination_grace_period_seconds = 30
-
-        container {
-          name              = "postgres"
-          image             = local.postgres_image
-          image_pull_policy = "IfNotPresent"
-          env {
-            name  = "POSTGRES_DB"
-            value = "llm"
-          }
-          env {
-            name  = "POSTGRES_USER"
-            value = "llm"
-          }
-          env {
-            name  = "POSTGRES_PASSWORD"
-            value = var.llm_db_password
-          }
-          env {
-            name  = "PGDATA"
-            value = "/var/lib/postgresql/data/pgdata"
-          }
-
-          port {
-            name           = "postgres"
-            container_port = 5432
-          }
-
-          readiness_probe {
-            exec {
-              command = ["pg_isready", "-U", "llm", "-d", "llm"]
-            }
-            initial_delay_seconds = 5
-            period_seconds        = 10
-          }
-
-          liveness_probe {
-            exec {
-              command = ["pg_isready", "-U", "llm", "-d", "llm"]
-            }
-            initial_delay_seconds = 30
-            period_seconds        = 20
-          }
-
-          volume_mount {
-            name       = "data"
-            mount_path = "/var/lib/postgresql/data"
-          }
-        }
-      }
-    }
-
-    volume_claim_template {
-      metadata {
-        name = "data"
-      }
-
-      spec {
-        access_modes = ["ReadWriteOnce"]
-
-        resources {
-          requests = {
-            storage = var.llm_db_pvc_size
-          }
-        }
-      }
-    }
-  }
-}
-
 resource "kubernetes_service_v1" "files_db" {
   metadata {
     name      = "files-db"
@@ -2154,6 +2057,56 @@ resource "argocd_application" "agent_state_db" {
   }
 }
 
+resource "argocd_application" "llm_db" {
+  depends_on = [argocd_repository.litellm_repo]
+  wait       = true
+
+  metadata {
+    name      = "llm-db"
+    namespace = "argocd"
+    annotations = {
+      "argocd.argoproj.io/sync-wave" = "8"
+    }
+  }
+
+  spec {
+    project = "default"
+
+    source {
+      repo_url        = local.postgres_chart_repo_host
+      chart           = local.postgres_chart_name
+      target_revision = var.postgres_chart_version
+
+      helm {
+        values = local.llm_db_values
+      }
+    }
+
+    destination {
+      server    = var.destination_server
+      namespace = var.platform_namespace
+    }
+
+    sync_policy {
+      # DB apps always use automated sync with prune disabled for stateful safety,
+      # independent of var.argocd_automated_sync_enabled.
+      automated {
+        prune       = false
+        self_heal   = true
+        allow_empty = false
+      }
+
+      sync_options = local.postgres_sync_options
+    }
+  }
+
+  timeouts {
+    create = "5m"
+    update = "5m"
+    delete = "5m"
+  }
+}
+
 resource "argocd_application" "vault" {
   depends_on = [kubernetes_config_map_v1.vault_auto_init]
 
@@ -2431,7 +2384,7 @@ resource "argocd_application" "token_counting" {
 resource "argocd_application" "llm" {
   depends_on = [
     argocd_repository.litellm_repo,
-    kubernetes_stateful_set_v1.llm_db,
+    argocd_application.llm_db,
   ]
   metadata {
     name      = "llm"
