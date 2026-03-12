@@ -1106,6 +1106,7 @@ locals {
   })
 
   platform_ui_values = yamlencode({
+    replicaCount = 1
     image = {
       repository = "ghcr.io/agynio/platform-ui"
       tag        = local.resolved_platform_ui_image_tag
