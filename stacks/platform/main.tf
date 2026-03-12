@@ -554,6 +554,7 @@ locals {
   })
 
   agent_state_values = yamlencode({
+    replicaCount     = 1
     fullnameOverride = "agent-state"
     service = {
       port = 50051
@@ -569,6 +570,7 @@ locals {
   })
 
   token_counting_values = yamlencode({
+    replicaCount     = 1
     fullnameOverride = "token-counting"
     service = {
       port = 50051
