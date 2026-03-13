@@ -14,6 +14,7 @@ locals {
 
   postgres_image                 = "postgres:16.6-alpine"
   minio_image                    = "quay.io/minio/minio:RELEASE.2024-11-07T00-52-20Z"
+  minio_mc_image                 = "quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z"
   vault_chart_version            = "0.28.1"
   registry_mirror_repo_url       = "https://github.com/twuni/docker-registry.helm.git"
   registry_mirror_chart_path     = "."
@@ -2029,6 +2030,48 @@ resource "kubernetes_stateful_set_v1" "minio" {
   }
 }
 
+resource "kubernetes_job_v1" "minio_bucket" {
+  depends_on = [kubernetes_stateful_set_v1.minio]
+
+  metadata {
+    name      = "minio-bucket"
+    namespace = kubernetes_namespace.platform.metadata[0].name
+    labels = {
+      "app.kubernetes.io/name" = "minio-bucket"
+    }
+  }
+
+  spec {
+    template {
+      metadata {
+        labels = {
+          "app.kubernetes.io/name" = "minio-bucket"
+        }
+      }
+
+      spec {
+        restart_policy = "OnFailure"
+
+        container {
+          name              = "minio-mc"
+          image             = local.minio_mc_image
+          image_pull_policy = "IfNotPresent"
+          command = [
+            "/bin/sh",
+            "-c",
+            format(
+              "mc alias set local http://minio:9000 %s %s && mc mb --ignore-existing local/%s",
+              var.minio_root_user,
+              var.minio_root_password,
+              var.minio_bucket_name
+            ),
+          ]
+        }
+      }
+    }
+  }
+}
+
 resource "argocd_repository" "twuni_docker_registry" {
   repo = local.registry_mirror_repo_url
   type = "git"
@@ -2899,6 +2942,7 @@ resource "argocd_application" "files" {
     argocd_repository.litellm_repo,
     kubernetes_stateful_set_v1.files_db,
     kubernetes_stateful_set_v1.minio,
+    kubernetes_job_v1.minio_bucket,
   ]
   metadata {
     name      = "files"
