@@ -10,6 +10,7 @@ locals {
   resolved_llm_image_tag             = trimspace(var.llm_image_tag) != "" ? var.llm_image_tag : format("v%s", var.llm_chart_version)
   resolved_secrets_image_tag         = trimspace(var.secrets_image_tag) != "" ? var.secrets_image_tag : format("v%s", var.secrets_chart_version)
   resolved_token_counting_image_tag  = trimspace(var.token_counting_image_tag) != "" ? var.token_counting_image_tag : format("v%s", var.token_counting_chart_version)
+  resolved_notifications_image_tag   = trimspace(var.notifications_image_tag) != "" ? var.notifications_image_tag : format("v%s", var.notifications_chart_version)
   resolved_teams_image_tag           = trimspace(var.teams_image_tag) != "" ? var.teams_image_tag : format("v%s", var.teams_chart_version)
 
   postgres_image                 = "postgres:16.6-alpine"
@@ -38,6 +39,8 @@ locals {
   llm_chart_name                 = "agynio/charts/llm"
   secrets_chart_name             = "agynio/charts/secrets"
   token_counting_chart_name      = "agynio/charts/token-counting"
+  notifications_chart_name       = "agynio/charts/notifications"
+  redis_chart_name               = "redis"
   teams_chart_name               = "agynio/charts/teams"
   istio_gateway_namespace        = data.terraform_remote_state.system.outputs.istio_gateway_namespace
   istio_gateway_tls_secret_name  = data.terraform_remote_state.system.outputs.wildcard_tls_gateway_secret_name
@@ -749,6 +752,76 @@ locals {
       tag        = local.resolved_token_counting_image_tag
       pullPolicy = "IfNotPresent"
     }
+  })
+
+  redis_values = yamlencode({
+    fullnameOverride = "notifications-redis"
+    architecture     = "standalone"
+    auth = {
+      enabled = false
+    }
+    image = {
+      digest = "sha256:b8ec5360d674ca64d095e968d899f31384898f7b0799acde26e63e73653ee039"
+    }
+    master = {
+      persistence = {
+        enabled = false
+      }
+    }
+  })
+
+  notifications_values = yamlencode({
+    replicaCount     = 1
+    fullnameOverride = "notifications"
+    image = {
+      repository = "ghcr.io/agynio/notifications"
+      tag        = local.resolved_notifications_image_tag
+      pullPolicy = "IfNotPresent"
+    }
+    containerPorts = [
+      {
+        name          = "grpc"
+        containerPort = 50051
+        protocol      = "TCP"
+      }
+    ]
+    service = {
+      enabled = true
+      type    = "ClusterIP"
+      ports = [
+        {
+          name       = "grpc"
+          port       = 50051
+          targetPort = "grpc"
+          protocol   = "TCP"
+        }
+      ]
+    }
+    securityContext = {
+      enabled = false
+    }
+    env = [
+      {
+        name  = "GRPC_ADDR"
+        value = "0.0.0.0:50051"
+      },
+      {
+        name  = "REDIS_ADDR"
+        value = var.notifications_redis_addr
+      },
+      {
+        name  = "REDIS_DB"
+        value = "0"
+      },
+      {
+        name  = "REDIS_CHANNEL"
+        value = "notifications.v1"
+      },
+      {
+        name  = "LOG_LEVEL"
+        value = "info"
+      }
+    ]
   })
 
   files_values = yamlencode({
@@ -1855,10 +1928,14 @@ resource "kubernetes_stateful_set_v1" "files_db" {
     }
   }
 }
-
 resource "argocd_repository" "twuni_docker_registry" {
   repo = local.registry_mirror_repo_url
   type = "git"
+}
+
+resource "argocd_repository" "bitnami_repo" {
+  repo = "https://charts.bitnami.com/bitnami"
+  type = "helm"
 }
 
 resource "argocd_repository" "litellm_repo" {
@@ -2629,6 +2706,49 @@ resource "argocd_application" "token_counting" {
   }
 }
 
+resource "argocd_application" "notifications_redis" {
+  depends_on = [argocd_repository.bitnami_repo]
+  metadata {
+    name      = "notifications-redis"
+    namespace = "argocd"
+    annotations = {
+      "argocd.argoproj.io/sync-wave" = "16"
+    }
+  }
+
+  spec {
+    project = "default"
+
+    source {
+      repo_url        = "https://charts.bitnami.com/bitnami"
+      chart           = local.redis_chart_name
+      target_revision = var.notifications_redis_chart_version
+
+      helm {
+        values = local.redis_values
+      }
+    }
+
+    destination {
+      server    = var.destination_server
+      namespace = var.platform_namespace
+    }
+
+    sync_policy {
+      dynamic "automated" {
+        for_each = var.argocd_automated_sync_enabled ? [1] : []
+        content {
+          prune       = var.argocd_prune_enabled
+          self_heal   = var.argocd_self_heal_enabled
+          allow_empty = false
+        }
+      }
+
+      sync_options = local.default_sync_options
+    }
+  }
+}
+
 resource "argocd_application" "teams" {
   depends_on = [
     argocd_repository.litellm_repo,
@@ -2750,6 +2870,52 @@ resource "argocd_application" "files" {
 
       helm {
         values = local.files_values
+      }
+    }
+
+    destination {
+      server    = var.destination_server
+      namespace = var.platform_namespace
+    }
+
+    sync_policy {
+      dynamic "automated" {
+        for_each = var.argocd_automated_sync_enabled ? [1] : []
+        content {
+          prune       = var.argocd_prune_enabled
+          self_heal   = var.argocd_self_heal_enabled
+          allow_empty = false
+        }
+      }
+
+      sync_options = local.default_sync_options
+    }
+  }
+}
+
+resource "argocd_application" "notifications" {
+  depends_on = [
+    argocd_repository.litellm_repo,
+    argocd_application.notifications_redis,
+  ]
+  metadata {
+    name      = "notifications"
+    namespace = "argocd"
+    annotations = {
+      "argocd.argoproj.io/sync-wave" = "17"
+    }
+  }
+
+  spec {
+    project = "default"
+
+    source {
+      repo_url        = local.platform_chart_repo_host
+      chart           = local.notifications_chart_name
+      target_revision = var.notifications_chart_version
+
+      helm {
+        values = local.notifications_values
       }
     }
 
