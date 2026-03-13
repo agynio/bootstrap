@@ -1942,6 +1942,8 @@ resource "argocd_repository" "litellm_repo" {
   repo       = local.litellm_chart_repo_host
   type       = "helm"
   enable_oci = true
+  username   = var.ghcr_username
+  password   = var.ghcr_token
 }
 
 resource "argocd_application" "platform_db" {
