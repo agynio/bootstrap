@@ -7,6 +7,7 @@ locals {
   resolved_llm_image_tag             = trimspace(var.llm_image_tag) != "" ? var.llm_image_tag : format("v%s", var.llm_chart_version)
   resolved_secrets_image_tag         = trimspace(var.secrets_image_tag) != "" ? var.secrets_image_tag : format("v%s", var.secrets_chart_version)
   resolved_token_counting_image_tag  = trimspace(var.token_counting_image_tag) != "" ? var.token_counting_image_tag : format("v%s", var.token_counting_chart_version)
+  resolved_teams_image_tag           = trimspace(var.teams_image_tag) != "" ? var.teams_image_tag : format("v%s", var.teams_chart_version)
 
   postgres_image                 = "postgres:16.6-alpine"
   minio_image                    = "quay.io/minio/minio:RELEASE.2024-11-07T00-52-20Z"
@@ -33,6 +34,7 @@ locals {
   llm_chart_name                 = "agynio/charts/llm"
   secrets_chart_name             = "agynio/charts/secrets"
   token_counting_chart_name      = "agynio/charts/token-counting"
+  teams_chart_name               = "agynio/charts/teams"
   istio_gateway_namespace        = data.terraform_remote_state.system.outputs.istio_gateway_namespace
   istio_gateway_tls_secret_name  = data.terraform_remote_state.system.outputs.wildcard_tls_gateway_secret_name
 
@@ -554,6 +556,29 @@ locals {
     }
   })
 
+  teams_db_values = yamlencode({
+    fullnameOverride = "teams-db"
+    postgres = {
+      database = "teams"
+      username = "teams"
+      password = var.teams_db_password
+      pgdata   = "/var/lib/postgresql/data/pgdata"
+    }
+    persistence = {
+      size                    = var.teams_db_pvc_size
+      mountPath               = "/var/lib/postgresql/data"
+      volumeClaimTemplateName = "data"
+    }
+    probes = {
+      readiness = {
+        execCommand = ["pg_isready", "-U", "teams", "-d", "teams"]
+      }
+      liveness = {
+        execCommand = ["pg_isready", "-U", "teams", "-d", "teams"]
+      }
+    }
+  })
+
   litellm_values = yamlencode({
     fullnameOverride = "litellm"
     replicaCount     = 1
@@ -630,6 +655,21 @@ locals {
     image = {
       repository = "ghcr.io/agynio/secrets"
       tag        = local.resolved_secrets_image_tag
+      pullPolicy = "IfNotPresent"
+    }
+  })
+
+  teams_values = yamlencode({
+    fullnameOverride = "teams"
+    service = {
+      port = 50051
+    }
+    database = {
+      url = format("postgresql://teams:%s@teams-db:5432/teams?sslmode=disable", var.teams_db_password)
+    }
+    image = {
+      repository = "ghcr.io/agynio/teams"
+      tag        = local.resolved_teams_image_tag
       pullPolicy = "IfNotPresent"
     }
   })
@@ -789,7 +829,6 @@ locals {
       }
     }
   })
-
   ncps_values = yamlencode({
     fullnameOverride = "ncps"
     replicaCount     = 1
@@ -1935,7 +1974,6 @@ resource "kubernetes_stateful_set_v1" "minio" {
   }
 }
 
-
 resource "argocd_repository" "twuni_docker_registry" {
   repo = local.registry_mirror_repo_url
   type = "git"
@@ -2169,6 +2207,56 @@ resource "argocd_application" "llm_db" {
 
       helm {
         values = local.llm_db_values
+      }
+    }
+
+    destination {
+      server    = var.destination_server
+      namespace = var.platform_namespace
+    }
+
+    sync_policy {
+      # DB apps always use automated sync with prune disabled for stateful safety,
+      # independent of var.argocd_automated_sync_enabled.
+      automated {
+        prune       = false
+        self_heal   = true
+        allow_empty = false
+      }
+
+      sync_options = local.postgres_sync_options
+    }
+  }
+
+  timeouts {
+    create = "5m"
+    update = "5m"
+    delete = "5m"
+  }
+}
+
+resource "argocd_application" "teams_db" {
+  depends_on = [argocd_repository.litellm_repo]
+  wait       = true
+
+  metadata {
+    name      = "teams-db"
+    namespace = "argocd"
+    annotations = {
+      "argocd.argoproj.io/sync-wave" = "8"
+    }
+  }
+
+  spec {
+    project = "default"
+
+    source {
+      repo_url        = local.postgres_chart_repo_host
+      chart           = local.postgres_chart_name
+      target_revision = var.postgres_chart_version
+
+      helm {
+        values = local.teams_db_values
       }
     }
 
@@ -2517,6 +2605,52 @@ resource "argocd_application" "token_counting" {
   }
 }
 
+resource "argocd_application" "teams" {
+  depends_on = [
+    argocd_repository.litellm_repo,
+    argocd_application.teams_db,
+  ]
+  metadata {
+    name      = "teams"
+    namespace = "argocd"
+    annotations = {
+      "argocd.argoproj.io/sync-wave" = "17"
+    }
+  }
+
+  spec {
+    project = "default"
+
+    source {
+      repo_url        = local.platform_chart_repo_host
+      chart           = local.teams_chart_name
+      target_revision = var.teams_chart_version
+
+      helm {
+        values = local.teams_values
+      }
+    }
+
+    destination {
+      server    = var.destination_server
+      namespace = var.platform_namespace
+    }
+
+    sync_policy {
+      dynamic "automated" {
+        for_each = var.argocd_automated_sync_enabled ? [1] : []
+        content {
+          prune       = var.argocd_prune_enabled
+          self_heal   = var.argocd_self_heal_enabled
+          allow_empty = false
+        }
+      }
+
+      sync_options = local.default_sync_options
+    }
+  }
+}
+
 resource "argocd_application" "llm" {
   depends_on = [
     argocd_repository.litellm_repo,
@@ -2762,7 +2896,8 @@ resource "argocd_application" "gateway" {
       helm {
         values = yamlencode({
           gateway = {
-            platformBaseUrl = "http://platform-server.${var.platform_namespace}.svc.cluster.local:3010"
+            platformBaseUrl  = "http://platform-server.${var.platform_namespace}.svc.cluster.local:3010"
+            teamsServiceAddr = "teams.${var.platform_namespace}.svc.cluster.local:50051"
             image = {
               tag = "0.3.0"
             }
