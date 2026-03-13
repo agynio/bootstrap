@@ -13,7 +13,6 @@ locals {
   resolved_teams_image_tag           = trimspace(var.teams_image_tag) != "" ? var.teams_image_tag : format("v%s", var.teams_chart_version)
 
   postgres_image                 = "postgres:16.6-alpine"
-  minio_image                    = "quay.io/minio/minio:RELEASE.2024-11-07T00-52-20Z"
   vault_chart_version            = "0.28.1"
   registry_mirror_repo_url       = "https://github.com/twuni/docker-registry.helm.git"
   registry_mirror_chart_path     = "."
@@ -1647,96 +1646,6 @@ resource "kubernetes_manifest" "virtualservice_gateway" {
   ]
 }
 
-resource "kubernetes_manifest" "virtualservice_minio" {
-  manifest = {
-    "apiVersion" = "networking.istio.io/v1beta1"
-    "kind"       = "VirtualService"
-    "metadata" = {
-      "name"      = "minio"
-      "namespace" = local.istio_gateway_namespace
-    }
-    "spec" = {
-      "hosts"    = ["minio.${local.base_domain}"]
-      "gateways" = ["platform-gateway"]
-      "http" = [
-        {
-          "match" = [
-            {
-              "uri" = {
-                "prefix" = "/"
-              }
-            }
-          ]
-          "route" = [
-            {
-              "destination" = {
-                "host" = "minio.platform.svc.cluster.local"
-                "port" = {
-                  "number" = 9001
-                }
-              }
-            }
-          ]
-        }
-      ]
-    }
-  }
-
-  computed_fields = [
-    "metadata.annotations",
-    "metadata.labels",
-  ]
-
-  depends_on = [
-    data.terraform_remote_state.system,
-  ]
-}
-
-resource "kubernetes_manifest" "virtualservice_minio_api" {
-  manifest = {
-    "apiVersion" = "networking.istio.io/v1beta1"
-    "kind"       = "VirtualService"
-    "metadata" = {
-      "name"      = "minio-api"
-      "namespace" = local.istio_gateway_namespace
-    }
-    "spec" = {
-      "hosts"    = ["minio-api.${local.base_domain}"]
-      "gateways" = ["platform-gateway"]
-      "http" = [
-        {
-          "match" = [
-            {
-              "uri" = {
-                "prefix" = "/"
-              }
-            }
-          ]
-          "route" = [
-            {
-              "destination" = {
-                "host" = "minio.platform.svc.cluster.local"
-                "port" = {
-                  "number" = 9000
-                }
-              }
-            }
-          ]
-        }
-      ]
-    }
-  }
-
-  computed_fields = [
-    "metadata.annotations",
-    "metadata.labels",
-  ]
-
-  depends_on = [
-    data.terraform_remote_state.system,
-  ]
-}
-
 resource "kubernetes_manifest" "virtualservice_litellm" {
   manifest = {
     "apiVersion" = "networking.istio.io/v1beta1"
@@ -1945,143 +1854,6 @@ resource "kubernetes_stateful_set_v1" "files_db" {
       }
     }
   }
-}
-
-resource "kubernetes_service_v1" "minio" {
-  metadata {
-    name      = "minio"
-    namespace = kubernetes_namespace.platform.metadata[0].name
-    labels = {
-      "app.kubernetes.io/name" = "minio"
-    }
-  }
-
-  spec {
-    selector = {
-      "app.kubernetes.io/name" = "minio"
-    }
-
-    port {
-      name        = "api"
-      port        = 9000
-      target_port = 9000
-      protocol    = "TCP"
-    }
-
-    port {
-      name        = "console"
-      port        = 9001
-      target_port = 9001
-      protocol    = "TCP"
-    }
-  }
-}
-
-resource "kubernetes_stateful_set_v1" "minio" {
-  metadata {
-    name      = "minio"
-    namespace = kubernetes_namespace.platform.metadata[0].name
-    labels = {
-      "app.kubernetes.io/name" = "minio"
-    }
-  }
-
-  spec {
-    service_name = kubernetes_service_v1.minio.metadata[0].name
-    replicas     = 1
-
-    selector {
-      match_labels = {
-        "app.kubernetes.io/name" = "minio"
-      }
-    }
-
-    template {
-      metadata {
-        labels = {
-          "app.kubernetes.io/name" = "minio"
-        }
-      }
-
-      spec {
-        termination_grace_period_seconds = 30
-
-        container {
-          name              = "minio"
-          image             = local.minio_image
-          image_pull_policy = "IfNotPresent"
-          command           = ["minio", "server", "/data", "--console-address", ":9001"]
-          env {
-            name  = "MINIO_ROOT_USER"
-            value = var.minio_root_user
-          }
-          env {
-            name  = "MINIO_ROOT_PASSWORD"
-            value = var.minio_root_password
-          }
-
-          port {
-            name           = "api"
-            container_port = 9000
-          }
-
-          port {
-            name           = "console"
-            container_port = 9001
-          }
-
-          readiness_probe {
-            http_get {
-              path = "/minio/health/ready"
-              port = 9000
-            }
-            initial_delay_seconds = 5
-            period_seconds        = 10
-          }
-
-          liveness_probe {
-            http_get {
-              path = "/minio/health/live"
-              port = 9000
-            }
-            initial_delay_seconds = 30
-            period_seconds        = 20
-          }
-
-          volume_mount {
-            name       = "data"
-            mount_path = "/data"
-          }
-        }
-      }
-    }
-
-    volume_claim_template {
-      metadata {
-        name = "data"
-      }
-
-      spec {
-        access_modes = ["ReadWriteOnce"]
-
-        resources {
-          requests = {
-            storage = var.minio_pvc_size
-          }
-        }
-      }
-    }
-  }
-}
-
-resource "minio_s3_bucket" "files" {
-  bucket = var.minio_bucket_name
-  acl    = "private"
-
-  depends_on = [
-    kubernetes_stateful_set_v1.minio,
-    kubernetes_manifest.virtualservice_minio_api,
-  ]
 }
 
 resource "argocd_repository" "twuni_docker_registry" {
@@ -2953,8 +2725,6 @@ resource "argocd_application" "files" {
   depends_on = [
     argocd_repository.litellm_repo,
     kubernetes_stateful_set_v1.files_db,
-    kubernetes_stateful_set_v1.minio,
-    minio_s3_bucket.files,
   ]
   metadata {
     name      = "files"
