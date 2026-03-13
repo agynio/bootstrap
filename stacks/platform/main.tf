@@ -2,6 +2,7 @@ locals {
   resolved_platform_server_image_tag = trimspace(var.platform_server_image_tag) != "" ? var.platform_server_image_tag : var.platform_chart_version
   resolved_docker_runner_image_tag   = trimspace(var.docker_runner_image_tag) != "" ? var.docker_runner_image_tag : var.platform_chart_version
   resolved_platform_ui_image_tag     = local.resolved_platform_server_image_tag
+  resolved_gateway_image_tag         = trimspace(var.gateway_image_tag) != "" ? var.gateway_image_tag : var.gateway_chart_version
   resolved_agent_state_image_tag     = trimspace(var.agent_state_image_tag) != "" ? var.agent_state_image_tag : format("v%s", var.agent_state_chart_version)
   resolved_threads_image_tag         = trimspace(var.threads_image_tag) != "" ? var.threads_image_tag : format("v%s", var.threads_chart_version)
   resolved_files_image_tag           = trimspace(var.files_image_tag) != "" ? var.files_image_tag : var.files_chart_version
@@ -833,11 +834,6 @@ locals {
         name          = "grpc"
         containerPort = 50051
         protocol      = "TCP"
-      },
-      {
-        name          = "http"
-        containerPort = 8080
-        protocol      = "TCP"
       }
     ]
     service = {
@@ -848,12 +844,6 @@ locals {
           name       = "grpc"
           port       = 50051
           targetPort = "grpc"
-          protocol   = "TCP"
-        },
-        {
-          name       = "http"
-          port       = 8080
-          targetPort = "http"
           protocol   = "TCP"
         }
       ]
@@ -3020,6 +3010,7 @@ resource "argocd_application" "platform_ui" {
 }
 
 resource "argocd_application" "gateway" {
+  depends_on = [argocd_application.llm]
   metadata {
     name      = "gateway"
     namespace = "argocd"
@@ -3034,20 +3025,19 @@ resource "argocd_application" "gateway" {
     source {
       repo_url        = "ghcr.io"
       chart           = "agynio/charts/gateway"
-      target_revision = "0.5.0"
+      target_revision = var.gateway_chart_version
 
       helm {
         values = yamlencode({
+          image = {
+            tag = local.resolved_gateway_image_tag
+          }
           gateway = {
             platformBaseUrl   = "http://platform-server.${var.platform_namespace}.svc.cluster.local:3010"
             secretsGrpcTarget = "secrets.${var.platform_namespace}.svc.cluster.local:50051"
             teamsGrpcTarget   = "teams.${var.platform_namespace}.svc.cluster.local:50051"
             filesGrpcTarget   = "files.${var.platform_namespace}.svc.cluster.local:50051"
             llmGrpcTarget     = "llm.${var.platform_namespace}.svc.cluster.local:50051"
-            llmHttpBaseUrl    = "http://llm.${var.platform_namespace}.svc.cluster.local:8080"
-            image = {
-              tag = "0.5.0"
-            }
           }
         })
       }

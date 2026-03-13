@@ -23,6 +23,12 @@ variable "platform_chart_version" {
   default     = "0.15.2"
 }
 
+variable "gateway_chart_version" {
+  type        = string
+  description = "Version of the gateway Helm chart published to GHCR"
+  default     = "0.5.0"
+}
+
 variable "agent_state_chart_version" {
   type        = string
   description = "Version of the agent-state Helm chart published to GHCR"
@@ -98,6 +104,12 @@ variable "token_counting_image_tag" {
 variable "teams_image_tag" {
   type        = string
   description = "Optional override for the teams image tag"
+  default     = ""
+}
+
+variable "gateway_image_tag" {
+  type        = string
+  description = "Optional override for the gateway image tag"
   default     = ""
 }
 
