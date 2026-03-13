@@ -3030,6 +3030,7 @@ resource "argocd_application" "gateway" {
 
       helm {
         values = yamlencode({
+          replicaCount = 1
           image = {
             tag = local.resolved_gateway_image_tag
           }
