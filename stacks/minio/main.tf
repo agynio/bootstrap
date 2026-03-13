@@ -77,6 +77,12 @@ resource "argocd_application" "minio" {
       sync_options = local.default_sync_options
     }
   }
+
+  timeouts {
+    create = "10m"
+    update = "5m"
+    delete = "5m"
+  }
 }
 
 resource "kubernetes_manifest" "virtualservice_minio_console" {
