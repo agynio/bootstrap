@@ -3032,13 +3032,6 @@ resource "argocd_application" "gateway" {
           image = {
             tag = local.resolved_gateway_image_tag
           }
-          gateway = {
-            platformBaseUrl   = "http://platform-server.${var.platform_namespace}.svc.cluster.local:3010"
-            secretsGrpcTarget = "secrets.${var.platform_namespace}.svc.cluster.local:50051"
-            teamsGrpcTarget   = "teams.${var.platform_namespace}.svc.cluster.local:50051"
-            filesGrpcTarget   = "files.${var.platform_namespace}.svc.cluster.local:50051"
-            llmGrpcTarget     = "llm.${var.platform_namespace}.svc.cluster.local:50051"
-          }
         })
       }
     }
