@@ -14,11 +14,13 @@ Deploy platform workloads via Argo CD applications sourced from [agynio/platform
 
 ```bash
 cd stacks/platform
-cp terraform.tfvars.example terraform.tfvars
 terraform init
 terraform validate
 terraform apply
 ```
+
+All variables have defaults; create a `terraform.tfvars` file or pass
+`-var`/`TF_VAR_*` overrides only if you need to customize the stack.
 
 After the system stack is applied, Istio exposes a single ingress listener on port 2496 and routes traffic by hostname (the port is configurable via the k8s stack `port` variable):
 
@@ -58,7 +60,7 @@ Override this behaviour by setting the optional environment variables
 
 ### Chart source
 
-Platform charts are pulled from the GHCR OCI registry (`ghcr.io/agynio/charts`). Pin the release with `platform_chart_version` in `terraform.tfvars`. The PostgreSQL Argo CD applications use the same registry and are pinned via `postgres_chart_version`. If you need private registry credentials, register the GHCR repo in Argo CD before applying the stack. The `registry-mirror` app is the exception: it still pulls the upstream git chart from `https://github.com/twuni/docker-registry.helm.git`.
+Platform charts are pulled from the GHCR OCI registry (`ghcr.io/agynio/charts`). Pin the release by setting `platform_chart_version` (via `terraform.tfvars` or `-var`/`TF_VAR_platform_chart_version`). The PostgreSQL Argo CD applications use the same registry and are pinned via `postgres_chart_version`. If you need private registry credentials, register the GHCR repo in Argo CD before applying the stack. The `registry-mirror` app is the exception: it still pulls the upstream git chart from `https://github.com/twuni/docker-registry.helm.git`.
 
 ### Graph persistence
 
@@ -97,4 +99,4 @@ The jobs wait for successful completion during `terraform apply` to ensure boots
 | 20        | `platform-server`  | Core platform API                   | Depends on `platform-db`, LiteLLM bootstrap, and Vault dev-root token |
 | 25        | `platform-ui`      | Platform web UI                     | Connects to `platform-server` |
 
-All chart versions, image tags, and critical secrets are pinned via Terraform variables for reproducibility. Adjust the defaults in `terraform.tfvars` to match your environment before applying.
+All chart versions, image tags, and critical secrets are pinned via Terraform variables for reproducibility. Adjust variables via `terraform.tfvars` or `-var`/`TF_VAR_*` overrides to match your environment before applying.
