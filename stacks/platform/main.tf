@@ -5,6 +5,7 @@ locals {
   resolved_gateway_image_tag         = trimspace(var.gateway_image_tag) != "" ? var.gateway_image_tag : var.gateway_chart_version
   resolved_agent_state_image_tag     = trimspace(var.agent_state_image_tag) != "" ? var.agent_state_image_tag : format("v%s", var.agent_state_chart_version)
   resolved_threads_image_tag         = trimspace(var.threads_image_tag) != "" ? var.threads_image_tag : format("v%s", var.threads_chart_version)
+  resolved_chat_image_tag            = trimspace(var.chat_image_tag) != "" ? var.chat_image_tag : format("v%s", var.chat_chart_version)
   resolved_files_image_tag           = trimspace(var.files_image_tag) != "" ? var.files_image_tag : var.files_chart_version
   resolved_llm_image_tag             = trimspace(var.llm_image_tag) != "" ? var.llm_image_tag : format("v%s", var.llm_chart_version)
   resolved_secrets_image_tag         = trimspace(var.secrets_image_tag) != "" ? var.secrets_image_tag : format("v%s", var.secrets_chart_version)
@@ -33,6 +34,7 @@ locals {
   platform_ui_chart_name         = "agynio/charts/platform-ui"
   agent_state_chart_name         = "agynio/charts/agent-state"
   threads_chart_name             = "agynio/charts/threads"
+  chat_chart_name                = "agynio/charts/chat"
   files_chart_name               = "agynio/charts/files"
   llm_chart_name                 = "agynio/charts/llm"
   secrets_chart_name             = "agynio/charts/secrets"
@@ -688,6 +690,21 @@ locals {
     image = {
       repository = "ghcr.io/agynio/threads"
       tag        = local.resolved_threads_image_tag
+      pullPolicy = "IfNotPresent"
+    }
+  })
+
+  chat_values = yamlencode({
+    fullnameOverride = "chat"
+    service = {
+      port = 50051
+    }
+    threads = {
+      address = "threads:50051"
+    }
+    image = {
+      repository = "ghcr.io/agynio/chat"
+      tag        = local.resolved_chat_image_tag
       pullPolicy = "IfNotPresent"
     }
   })
@@ -2627,6 +2644,52 @@ resource "argocd_application" "threads" {
 
       helm {
         values = local.threads_values
+      }
+    }
+
+    destination {
+      server    = var.destination_server
+      namespace = var.platform_namespace
+    }
+
+    sync_policy {
+      dynamic "automated" {
+        for_each = var.argocd_automated_sync_enabled ? [1] : []
+        content {
+          prune       = var.argocd_prune_enabled
+          self_heal   = var.argocd_self_heal_enabled
+          allow_empty = false
+        }
+      }
+
+      sync_options = local.default_sync_options
+    }
+  }
+}
+
+resource "argocd_application" "chat" {
+  depends_on = [
+    argocd_repository.litellm_repo,
+    argocd_application.threads,
+  ]
+  metadata {
+    name      = "chat"
+    namespace = "argocd"
+    annotations = {
+      "argocd.argoproj.io/sync-wave" = "17"
+    }
+  }
+
+  spec {
+    project = "default"
+
+    source {
+      repo_url        = local.platform_chart_repo_host
+      chart           = local.chat_chart_name
+      target_revision = var.chat_chart_version
+
+      helm {
+        values = local.chat_values
       }
     }
 
