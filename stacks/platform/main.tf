@@ -810,7 +810,7 @@ locals {
       }
       urlExpiry = "1h"
       s3 = {
-        endpoint = "minio:9000"
+        endpoint = "minio.minio.svc.cluster.local:9000"
         bucket   = var.minio_bucket_name
         region   = "us-east-1"
         useSSL   = false
@@ -1409,10 +1409,16 @@ locals {
   })
 }
 
+resource "kubernetes_namespace" "platform" {
+  metadata {
+    name = var.platform_namespace
+  }
+}
+
 resource "kubernetes_secret" "litellm_master_key" {
   metadata {
     name      = "litellm-master-key"
-    namespace = data.terraform_remote_state.minio.outputs.platform_namespace
+    namespace = kubernetes_namespace.platform.metadata[0].name
   }
 
   data = {
@@ -1426,7 +1432,7 @@ resource "kubernetes_secret" "litellm_master_key" {
 resource "kubernetes_config_map_v1" "vault_auto_init" {
   metadata {
     name      = "vault-auto-init"
-    namespace = data.terraform_remote_state.minio.outputs.platform_namespace
+    namespace = kubernetes_namespace.platform.metadata[0].name
     labels = {
       "app.kubernetes.io/name" = "vault-auto-init"
     }
@@ -1440,7 +1446,7 @@ resource "kubernetes_config_map_v1" "vault_auto_init" {
 resource "kubernetes_service_account_v1" "vault_auto_init" {
   metadata {
     name      = "vault-auto-init"
-    namespace = data.terraform_remote_state.minio.outputs.platform_namespace
+    namespace = kubernetes_namespace.platform.metadata[0].name
     labels = {
       "app.kubernetes.io/name" = "vault-auto-init"
     }
@@ -1450,7 +1456,7 @@ resource "kubernetes_service_account_v1" "vault_auto_init" {
 resource "kubernetes_role_v1" "vault_auto_init" {
   metadata {
     name      = "vault-auto-init"
-    namespace = data.terraform_remote_state.minio.outputs.platform_namespace
+    namespace = kubernetes_namespace.platform.metadata[0].name
     labels = {
       "app.kubernetes.io/name" = "vault-auto-init"
     }
@@ -1466,7 +1472,7 @@ resource "kubernetes_role_v1" "vault_auto_init" {
 resource "kubernetes_role_binding_v1" "vault_auto_init" {
   metadata {
     name      = "vault-auto-init"
-    namespace = data.terraform_remote_state.minio.outputs.platform_namespace
+    namespace = kubernetes_namespace.platform.metadata[0].name
     labels = {
       "app.kubernetes.io/name" = "vault-auto-init"
     }
@@ -1481,7 +1487,7 @@ resource "kubernetes_role_binding_v1" "vault_auto_init" {
   subject {
     kind      = "ServiceAccount"
     name      = kubernetes_service_account_v1.vault_auto_init.metadata[0].name
-    namespace = data.terraform_remote_state.minio.outputs.platform_namespace
+    namespace = kubernetes_namespace.platform.metadata[0].name
   }
 }
 
@@ -1733,7 +1739,7 @@ resource "kubernetes_manifest" "virtualservice_vault" {
 resource "kubernetes_service_v1" "files_db" {
   metadata {
     name      = "files-db"
-    namespace = data.terraform_remote_state.minio.outputs.platform_namespace
+    namespace = kubernetes_namespace.platform.metadata[0].name
     labels = {
       "app.kubernetes.io/name" = "files-db"
     }
@@ -1756,7 +1762,7 @@ resource "kubernetes_service_v1" "files_db" {
 resource "kubernetes_stateful_set_v1" "files_db" {
   metadata {
     name      = "files-db"
-    namespace = data.terraform_remote_state.minio.outputs.platform_namespace
+    namespace = kubernetes_namespace.platform.metadata[0].name
     labels = {
       "app.kubernetes.io/name" = "files-db"
     }

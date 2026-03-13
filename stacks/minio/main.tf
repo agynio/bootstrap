@@ -36,9 +36,9 @@ locals {
   })
 }
 
-resource "kubernetes_namespace" "platform" {
+resource "kubernetes_namespace" "minio" {
   metadata {
-    name = var.platform_namespace
+    name = var.minio_namespace
   }
 }
 
@@ -50,7 +50,7 @@ resource "argocd_repository" "minio" {
 resource "argocd_application" "minio" {
   depends_on = [
     argocd_repository.minio,
-    kubernetes_namespace.platform,
+    kubernetes_namespace.minio,
   ]
   wait = true
 
@@ -74,7 +74,7 @@ resource "argocd_application" "minio" {
 
     destination {
       server    = var.destination_server
-      namespace = var.platform_namespace
+      namespace = var.minio_namespace
     }
 
     sync_policy {
@@ -121,7 +121,7 @@ resource "kubernetes_manifest" "virtualservice_minio_console" {
           "route" = [
             {
               "destination" = {
-                "host" = "minio-console.platform.svc.cluster.local"
+                "host" = "minio-console.minio.svc.cluster.local"
                 "port" = {
                   "number" = 9001
                 }
@@ -166,7 +166,7 @@ resource "kubernetes_manifest" "virtualservice_minio_api" {
           "route" = [
             {
               "destination" = {
-                "host" = "minio.platform.svc.cluster.local"
+                "host" = "minio.minio.svc.cluster.local"
                 "port" = {
                   "number" = 9000
                 }

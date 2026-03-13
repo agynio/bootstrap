@@ -17,10 +17,10 @@ variable "argocd_admin_password" {
   sensitive   = true
 }
 
-variable "platform_namespace" {
+variable "minio_namespace" {
   type        = string
-  description = "Namespace where platform workloads should be deployed"
-  default     = "platform"
+  description = "Namespace where MinIO workloads should be deployed"
+  default     = "minio"
 }
 
 variable "destination_server" {
