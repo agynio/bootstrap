@@ -3,7 +3,7 @@
 
 provider "registry.terraform.io/aminueza/minio" {
   version     = "3.28.1"
-  constraints = "~> 3.2"
+  constraints = "~> 3.28"
   hashes = [
     "h1:zDsi4bTvbn0rCsxfKe254P52YfgA/nhU4+17+WMh+gg=",
     "zh:0e84af412348ca53189bdf7e2dc7ec852d874079ae64441f6bec77073bf36e0f",
