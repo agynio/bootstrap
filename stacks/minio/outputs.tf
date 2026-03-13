@@ -3,6 +3,11 @@ output "minio_app_name" {
   value       = argocd_application.minio.metadata[0].name
 }
 
+output "platform_namespace" {
+  description = "Namespace where platform workloads are deployed"
+  value       = kubernetes_namespace.platform.metadata[0].name
+}
+
 output "minio_bucket_name" {
   description = "Name of the MinIO bucket provisioned for files"
   value       = minio_s3_bucket.files.bucket

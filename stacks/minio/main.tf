@@ -3,7 +3,6 @@ locals {
   minio_chart_name     = "minio"
 
   default_sync_options = [
-    "CreateNamespace=true",
     "PrunePropagationPolicy=foreground",
     "PruneLast=true",
     "ApplyOutOfSyncOnly=true",
@@ -37,14 +36,23 @@ locals {
   })
 }
 
+resource "kubernetes_namespace" "platform" {
+  metadata {
+    name = var.platform_namespace
+  }
+}
+
 resource "argocd_repository" "minio" {
   repo = local.minio_chart_repo_url
   type = "helm"
 }
 
 resource "argocd_application" "minio" {
-  depends_on = [argocd_repository.minio]
-  wait       = true
+  depends_on = [
+    argocd_repository.minio,
+    kubernetes_namespace.platform,
+  ]
+  wait = true
 
   metadata {
     name      = "minio"
