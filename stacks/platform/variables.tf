@@ -69,7 +69,7 @@ variable "token_counting_chart_version" {
 variable "notifications_chart_version" {
   type        = string
   description = "Version of the notifications Helm chart published to GHCR"
-  default     = "v0.2.0"
+  default     = "0.2.0"
 }
 
 variable "notifications_redis_chart_version" {
@@ -147,7 +147,7 @@ variable "token_counting_image_tag" {
 variable "notifications_image_tag" {
   type        = string
   description = "Optional override for the notifications image tag"
-  default     = ""
+  default     = "edge"
 }
 
 variable "teams_image_tag" {

@@ -683,9 +683,6 @@ locals {
     database = {
       url = format("postgresql://threads:%s@threads-db:5432/threads?sslmode=disable", var.threads_db_password)
     }
-    # Forward reference: the notifications service (agynio/notifications) is a real
-    # dependency — Threads publishes message.created events via its gRPC API.
-    # The notifications deployment will be added to bootstrap separately.
     notifications = {
       address = "notifications:50051"
     }
