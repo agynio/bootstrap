@@ -24,6 +24,11 @@ locals {
       enabled = true
       size    = var.minio_pvc_size
     }
+    resources = {
+      requests = {
+        memory = "256Mi"
+      }
+    }
     buckets        = []
     users          = []
     policies       = []
@@ -108,7 +113,7 @@ resource "kubernetes_manifest" "virtualservice_minio_console" {
           "route" = [
             {
               "destination" = {
-                "host" = "minio.platform.svc.cluster.local"
+                "host" = "minio-console.platform.svc.cluster.local"
                 "port" = {
                   "number" = 9001
                 }
