@@ -2710,6 +2710,7 @@ resource "argocd_application" "token_counting" {
 
 resource "argocd_application" "notifications_redis" {
   depends_on = [argocd_repository.bitnami_repo]
+  validate   = false
   metadata {
     name      = "notifications-redis"
     namespace = "argocd"
