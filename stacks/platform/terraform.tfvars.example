@@ -6,6 +6,7 @@ kubeconfig_path = "../k8s/.kube/agyn-local-kubeconfig.yaml"
 
 platform_namespace         = "platform"
 platform_chart_version     = "0.15.2"
+docker_runner_chart_version = "0.1.2"
 agent_state_chart_version  = "0.1.0"
 token_counting_chart_version = "0.2.0"
 postgres_chart_version     = "0.1.1"
@@ -13,7 +14,7 @@ docker_runner_replica_count = 1
 
 # Optional overrides for image tags
 # platform_server_image_tag = "0.15.2"
-# docker_runner_image_tag   = "0.15.2"
+# docker_runner_image_tag   = "0.1.2"
 # agent_state_image_tag     = "v0.1.0"
 # token_counting_image_tag  = "v0.2.0"
 # files_image_tag           = "0.1.1"
