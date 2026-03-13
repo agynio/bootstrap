@@ -23,10 +23,22 @@ variable "platform_chart_version" {
   default     = "0.15.2"
 }
 
+variable "gateway_chart_version" {
+  type        = string
+  description = "Version of the gateway Helm chart published to GHCR"
+  default     = "0.6.0"
+}
+
 variable "agent_state_chart_version" {
   type        = string
   description = "Version of the agent-state Helm chart published to GHCR"
   default     = "0.1.0"
+}
+
+variable "threads_chart_version" {
+  type        = string
+  description = "Version of the threads Helm chart published to GHCR"
+  default     = "0.1.1"
 }
 
 variable "token_counting_chart_version" {
@@ -77,6 +89,12 @@ variable "agent_state_image_tag" {
   default     = ""
 }
 
+variable "threads_image_tag" {
+  type        = string
+  description = "Optional override for the threads image tag"
+  default     = ""
+}
+
 variable "token_counting_image_tag" {
   type        = string
   description = "Optional override for the token-counting image tag"
@@ -86,6 +104,12 @@ variable "token_counting_image_tag" {
 variable "teams_image_tag" {
   type        = string
   description = "Optional override for the teams image tag"
+  default     = ""
+}
+
+variable "gateway_image_tag" {
+  type        = string
+  description = "Optional override for the gateway image tag"
   default     = ""
 }
 
@@ -146,9 +170,22 @@ variable "agent_state_db_password" {
   sensitive   = true
 }
 
+variable "threads_db_password" {
+  type        = string
+  description = "Password for the threads PostgreSQL database user"
+  default     = "threads"
+  sensitive   = true
+}
+
 variable "agent_state_db_pvc_size" {
   type        = string
   description = "Persistent volume claim size for the agent-state PostgreSQL primary"
+  default     = "5Gi"
+}
+
+variable "threads_db_pvc_size" {
+  type        = string
+  description = "Persistent volume claim size for the threads PostgreSQL primary"
   default     = "5Gi"
 }
 
