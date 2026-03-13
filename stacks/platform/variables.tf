@@ -17,19 +17,6 @@ variable "argocd_admin_password" {
   sensitive   = true
 }
 
-variable "ghcr_username" {
-  type        = string
-  description = "Optional GHCR username for pulling private charts"
-  default     = null
-}
-
-variable "ghcr_token" {
-  type        = string
-  description = "Optional GHCR token for pulling private charts"
-  default     = null
-  sensitive   = true
-}
-
 variable "platform_chart_version" {
   type        = string
   description = "Version of the platform Helm charts published to GHCR"
