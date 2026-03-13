@@ -1934,7 +1934,6 @@ resource "argocd_repository" "bitnami_repo" {
   repo = "https://charts.bitnami.com/bitnami"
   type = "helm"
 }
-
 resource "argocd_repository" "litellm_repo" {
   repo       = local.litellm_chart_repo_host
   type       = "helm"
