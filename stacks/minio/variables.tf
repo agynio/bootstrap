@@ -48,12 +48,6 @@ variable "minio_pvc_size" {
   default     = "10Gi"
 }
 
-variable "minio_bucket_name" {
-  type        = string
-  description = "Default MinIO bucket name for files service"
-  default     = "files"
-}
-
 variable "minio_chart_version" {
   type        = string
   description = "Version of the official MinIO Helm chart"
