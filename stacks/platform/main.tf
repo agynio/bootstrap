@@ -2763,6 +2763,7 @@ resource "argocd_application" "gateway" {
         values = yamlencode({
           gateway = {
             platformBaseUrl = "http://platform-server.${var.platform_namespace}.svc.cluster.local:3010"
+            filesGrpcTarget = "files.${var.platform_namespace}.svc.cluster.local:50051"
             image = {
               tag = "0.3.0"
             }
