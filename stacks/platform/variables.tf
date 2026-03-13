@@ -41,6 +41,12 @@ variable "postgres_chart_version" {
   default     = "0.1.1"
 }
 
+variable "teams_chart_version" {
+  type        = string
+  description = "Version of the teams Helm chart published to GHCR"
+  default     = "0.1.0"
+}
+
 variable "platform_namespace" {
   type        = string
   description = "Namespace where platform workloads should be deployed"
@@ -74,6 +80,12 @@ variable "agent_state_image_tag" {
 variable "token_counting_image_tag" {
   type        = string
   description = "Optional override for the token-counting image tag"
+  default     = ""
+}
+
+variable "teams_image_tag" {
+  type        = string
+  description = "Optional override for the teams image tag"
   default     = ""
 }
 
@@ -190,6 +202,19 @@ variable "llm_db_pvc_size" {
   default     = "5Gi"
 }
 
+variable "teams_db_password" {
+  type        = string
+  description = "Password for the teams PostgreSQL database user"
+  default     = "teams"
+  sensitive   = true
+}
+
+variable "teams_db_pvc_size" {
+  type        = string
+  description = "Persistent volume claim size for the teams PostgreSQL primary"
+  default     = "5Gi"
+}
+
 variable "minio_root_user" {
   type        = string
   description = "MinIO root user access key"
@@ -214,7 +239,6 @@ variable "minio_bucket_name" {
   description = "Default MinIO bucket name for files service"
   default     = "files"
 }
-
 variable "litellm_master_key" {
   type        = string
   description = "LiteLLM master key used by platform workloads"
