@@ -2891,15 +2891,19 @@ resource "argocd_application" "gateway" {
     source {
       repo_url        = "ghcr.io"
       chart           = "agynio/charts/gateway"
-      target_revision = "0.3.0"
+      target_revision = "0.5.0"
 
       helm {
         values = yamlencode({
           gateway = {
-            platformBaseUrl  = "http://platform-server.${var.platform_namespace}.svc.cluster.local:3010"
-            teamsServiceAddr = "teams.${var.platform_namespace}.svc.cluster.local:50051"
+            platformBaseUrl   = "http://platform-server.${var.platform_namespace}.svc.cluster.local:3010"
+            secretsGrpcTarget = "secrets.${var.platform_namespace}.svc.cluster.local:50051"
+            teamsGrpcTarget   = "teams.${var.platform_namespace}.svc.cluster.local:50051"
+            filesGrpcTarget   = "files.${var.platform_namespace}.svc.cluster.local:50051"
+            llmGrpcTarget     = "llm.${var.platform_namespace}.svc.cluster.local:50051"
+            llmHttpBaseUrl    = "http://llm.${var.platform_namespace}.svc.cluster.local:8080"
             image = {
-              tag = "0.3.0"
+              tag = "0.5.0"
             }
           }
         })
