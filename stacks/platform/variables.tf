@@ -32,7 +32,7 @@ variable "agent_state_chart_version" {
 variable "threads_chart_version" {
   type        = string
   description = "Version of the threads Helm chart published to GHCR"
-  default     = "0.1.0"
+  default     = "0.1.1"
 }
 
 variable "token_counting_chart_version" {
