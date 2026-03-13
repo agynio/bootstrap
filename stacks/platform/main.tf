@@ -1,6 +1,6 @@
 locals {
   resolved_platform_server_image_tag = trimspace(var.platform_server_image_tag) != "" ? var.platform_server_image_tag : var.platform_chart_version
-  resolved_docker_runner_image_tag   = trimspace(var.docker_runner_image_tag) != "" ? var.docker_runner_image_tag : var.platform_chart_version
+  resolved_docker_runner_image_tag   = trimspace(var.docker_runner_image_tag) != "" ? var.docker_runner_image_tag : var.docker_runner_chart_version
   resolved_platform_ui_image_tag     = local.resolved_platform_server_image_tag
   resolved_gateway_image_tag         = trimspace(var.gateway_image_tag) != "" ? var.gateway_image_tag : var.gateway_chart_version
   resolved_agent_state_image_tag     = trimspace(var.agent_state_image_tag) != "" ? var.agent_state_image_tag : format("v%s", var.agent_state_chart_version)
@@ -2894,7 +2894,7 @@ resource "argocd_application" "docker_runner" {
     source {
       repo_url        = local.platform_chart_repo_host
       chart           = local.docker_runner_chart_name
-      target_revision = var.platform_chart_version
+      target_revision = var.docker_runner_chart_version
 
       helm {
         values = local.docker_runner_values

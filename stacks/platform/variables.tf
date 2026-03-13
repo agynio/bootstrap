@@ -23,6 +23,12 @@ variable "platform_chart_version" {
   default     = "0.15.2"
 }
 
+variable "docker_runner_chart_version" {
+  type        = string
+  description = "Version of the docker-runner Helm chart published to GHCR"
+  default     = "0.1.0"
+}
+
 variable "gateway_chart_version" {
   type        = string
   description = "Version of the gateway Helm chart published to GHCR"
