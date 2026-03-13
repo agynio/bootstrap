@@ -95,6 +95,18 @@ variable "threads_image_tag" {
   default     = ""
 }
 
+variable "chat_chart_version" {
+  type        = string
+  description = "Version of the chat Helm chart published to GHCR"
+  default     = "0.1.0"
+}
+
+variable "chat_image_tag" {
+  type        = string
+  description = "Optional override for the chat image tag"
+  default     = ""
+}
+
 variable "token_counting_image_tag" {
   type        = string
   description = "Optional override for the token-counting image tag"
