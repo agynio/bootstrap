@@ -10,6 +10,10 @@ terraform {
       source  = "hashicorp/kubernetes"
       version = "~> 2.33"
     }
+    minio = {
+      source  = "aminueza/minio"
+      version = "~> 3.28"
+    }
   }
 
   backend "local" {

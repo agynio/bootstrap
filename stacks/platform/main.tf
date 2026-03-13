@@ -2715,10 +2715,16 @@ resource "argocd_application" "llm" {
   }
 }
 
+resource "minio_s3_bucket" "files" {
+  bucket = var.minio_bucket_name
+  acl    = "private"
+}
+
 resource "argocd_application" "files" {
   depends_on = [
     argocd_repository.litellm_repo,
     kubernetes_stateful_set_v1.files_db,
+    minio_s3_bucket.files,
   ]
   metadata {
     name      = "files"

@@ -187,13 +187,3 @@ resource "kubernetes_manifest" "virtualservice_minio_api" {
     data.terraform_remote_state.system,
   ]
 }
-
-resource "minio_s3_bucket" "files" {
-  bucket = var.minio_bucket_name
-  acl    = "private"
-
-  depends_on = [
-    argocd_application.minio,
-    kubernetes_manifest.virtualservice_minio_api,
-  ]
-}
