@@ -14,7 +14,6 @@ locals {
 
   postgres_image                 = "postgres:16.6-alpine"
   minio_image                    = "quay.io/minio/minio:RELEASE.2024-11-07T00-52-20Z"
-  minio_mc_image                 = "quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z"
   vault_chart_version            = "0.28.1"
   registry_mirror_repo_url       = "https://github.com/twuni/docker-registry.helm.git"
   registry_mirror_chart_path     = "."
@@ -1693,6 +1692,51 @@ resource "kubernetes_manifest" "virtualservice_minio" {
   ]
 }
 
+resource "kubernetes_manifest" "virtualservice_minio_api" {
+  manifest = {
+    "apiVersion" = "networking.istio.io/v1beta1"
+    "kind"       = "VirtualService"
+    "metadata" = {
+      "name"      = "minio-api"
+      "namespace" = local.istio_gateway_namespace
+    }
+    "spec" = {
+      "hosts"    = ["minio-api.${local.base_domain}"]
+      "gateways" = ["platform-gateway"]
+      "http" = [
+        {
+          "match" = [
+            {
+              "uri" = {
+                "prefix" = "/"
+              }
+            }
+          ]
+          "route" = [
+            {
+              "destination" = {
+                "host" = "minio.platform.svc.cluster.local"
+                "port" = {
+                  "number" = 9000
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+
+  computed_fields = [
+    "metadata.annotations",
+    "metadata.labels",
+  ]
+
+  depends_on = [
+    data.terraform_remote_state.system,
+  ]
+}
+
 resource "kubernetes_manifest" "virtualservice_litellm" {
   manifest = {
     "apiVersion" = "networking.istio.io/v1beta1"
@@ -2030,49 +2074,14 @@ resource "kubernetes_stateful_set_v1" "minio" {
   }
 }
 
-resource "kubernetes_job_v1" "minio_bucket" {
-  depends_on = [kubernetes_stateful_set_v1.minio]
+resource "minio_s3_bucket" "files" {
+  bucket = var.minio_bucket_name
+  acl    = "private"
 
-  metadata {
-    name      = "minio-bucket"
-    namespace = kubernetes_namespace.platform.metadata[0].name
-    labels = {
-      "app.kubernetes.io/name" = "minio-bucket"
-    }
-  }
-
-  spec {
-    template {
-      metadata {
-        labels = {
-          "app.kubernetes.io/name" = "minio-bucket"
-        }
-      }
-
-      spec {
-        restart_policy = "OnFailure"
-
-        container {
-          name              = "minio-mc"
-          image             = local.minio_mc_image
-          image_pull_policy = "IfNotPresent"
-          env {
-            name  = "MINIO_ROOT_USER"
-            value = var.minio_root_user
-          }
-          env {
-            name  = "MINIO_ROOT_PASSWORD"
-            value = var.minio_root_password
-          }
-          command = [
-            "/bin/sh",
-            "-c",
-            "mc alias set local http://minio:9000 $MINIO_ROOT_USER $MINIO_ROOT_PASSWORD && mc mb --ignore-existing local/${var.minio_bucket_name}",
-          ]
-        }
-      }
-    }
-  }
+  depends_on = [
+    kubernetes_stateful_set_v1.minio,
+    kubernetes_manifest.virtualservice_minio_api,
+  ]
 }
 
 resource "argocd_repository" "twuni_docker_registry" {
@@ -2945,7 +2954,7 @@ resource "argocd_application" "files" {
     argocd_repository.litellm_repo,
     kubernetes_stateful_set_v1.files_db,
     kubernetes_stateful_set_v1.minio,
-    kubernetes_job_v1.minio_bucket,
+    minio_s3_bucket.files,
   ]
   metadata {
     name      = "files"
