@@ -51,3 +51,17 @@ Default domain and port: `agyn.dev` on `2496`.
 - Argo CD: https://argocd.agyn.dev:2496/
 - LiteLLM: https://litellm.agyn.dev:2496/
 - Vault: https://vault.agyn.dev:2496/
+
+## Gateway DevSpace
+
+After the cluster is running, you can develop the gateway service from source
+with DevSpace:
+
+```sh
+git clone git@github.com:agynio/gateway.git
+cd gateway
+devspace dev
+```
+
+The DevSpace pipeline patches the gateway deployment in the `platform`
+namespace, syncs sources into the pod, and forwards port `8080`.
