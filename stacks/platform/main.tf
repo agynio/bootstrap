@@ -2056,15 +2056,18 @@ resource "kubernetes_job_v1" "minio_bucket" {
           name              = "minio-mc"
           image             = local.minio_mc_image
           image_pull_policy = "IfNotPresent"
+          env {
+            name  = "MINIO_ROOT_USER"
+            value = var.minio_root_user
+          }
+          env {
+            name  = "MINIO_ROOT_PASSWORD"
+            value = var.minio_root_password
+          }
           command = [
             "/bin/sh",
             "-c",
-            format(
-              "mc alias set local http://minio:9000 %s %s && mc mb --ignore-existing local/%s",
-              var.minio_root_user,
-              var.minio_root_password,
-              var.minio_bucket_name
-            ),
+            "mc alias set local http://minio:9000 $MINIO_ROOT_USER $MINIO_ROOT_PASSWORD && mc mb --ignore-existing local/${var.minio_bucket_name}",
           ]
         }
       }
