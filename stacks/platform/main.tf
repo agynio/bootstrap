@@ -871,7 +871,7 @@ locals {
     replicaCount     = 1
     image = {
       repository = "kalbasit/ncps"
-      tag        = "latest"
+      tag        = "v0.9.3"
       pullPolicy = "IfNotPresent"
     }
     securityContext = {
@@ -882,10 +882,11 @@ locals {
       "serve",
       "--server-addr=0.0.0.0:8501",
       "--cache-hostname=ncps",
-      "--cache-data-path=/storage",
+      "--cache-storage-local=/storage",
+      "--cache-temp-path=/storage/tmp",
       "--cache-database-url=sqlite:/storage/var/ncps/db/db.sqlite",
-      "--upstream-cache=https://cache.nixos.org",
-      "--upstream-public-key=cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY="
+      "--cache-upstream-url=https://cache.nixos.org",
+      "--cache-upstream-public-key=cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY="
     ]
     env = [
       {
@@ -900,7 +901,7 @@ locals {
         command = [
           "/bin/sh",
           "-c",
-          "mkdir -m 0755 -p /storage/var && mkdir -m 0700 -p /storage/var/ncps && mkdir -m 0700 -p /storage/var/ncps/db"
+          "mkdir -m 0755 -p /storage/var && mkdir -m 0700 -p /storage/var/ncps && mkdir -m 0700 -p /storage/var/ncps/db && mkdir -m 0700 -p /storage/tmp"
         ]
         volumeMounts = [
           {
@@ -911,7 +912,7 @@ locals {
       },
       {
         name  = "ncps-migrate"
-        image = "kalbasit/ncps:latest"
+        image = "kalbasit/ncps:v0.9.3"
         command = [
           "/bin/dbmate",
         ]
