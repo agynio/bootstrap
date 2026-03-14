@@ -60,6 +60,37 @@ variable "minio_image_tag" {
   default     = "RELEASE.2024-11-07T00-52-20Z"
 }
 
+variable "openfga_namespace" {
+  type        = string
+  description = "Namespace where OpenFGA workloads should be deployed"
+  default     = "openfga"
+}
+
+variable "openfga_chart_version" {
+  type        = string
+  description = "Version of the OpenFGA Helm chart"
+  default     = "0.2.56"
+}
+
+variable "openfga_db_password" {
+  type        = string
+  description = "Password for the OpenFGA PostgreSQL database"
+  default     = "openfga"
+  sensitive   = true
+}
+
+variable "openfga_db_pvc_size" {
+  type        = string
+  description = "Persistent volume claim size for the OpenFGA database"
+  default     = "5Gi"
+}
+
+variable "postgres_chart_version" {
+  type        = string
+  description = "Version of the postgres-helm chart published to GHCR"
+  default     = "0.1.1"
+}
+
 variable "argocd_automated_sync_enabled" {
   type        = bool
   description = "Enable automated sync for Argo CD applications"

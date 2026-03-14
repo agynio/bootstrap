@@ -30,8 +30,8 @@ terraform -chdir=stacks/system apply
 terraform -chdir=stacks/routing init
 terraform -chdir=stacks/routing apply
 
-terraform -chdir=stacks/minio init
-terraform -chdir=stacks/minio apply
+terraform -chdir=stacks/data init
+terraform -chdir=stacks/data apply
 
 terraform -chdir=stacks/platform init
 terraform -chdir=stacks/platform apply
