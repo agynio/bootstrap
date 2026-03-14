@@ -53,6 +53,18 @@ variable "token_counting_chart_version" {
   default     = "0.2.0"
 }
 
+variable "notifications_chart_version" {
+  type        = string
+  description = "Version of the notifications Helm chart published to GHCR"
+  default     = "0.2.0"
+}
+
+variable "notifications_redis_chart_version" {
+  type        = string
+  description = "Version of the Bitnami Redis Helm chart for notifications"
+  default     = "25.3.2"
+}
+
 variable "postgres_chart_version" {
   type        = string
   description = "Version of the postgres-helm chart published to GHCR"
@@ -119,6 +131,12 @@ variable "token_counting_image_tag" {
   default     = ""
 }
 
+variable "notifications_image_tag" {
+  type        = string
+  description = "Optional override for the notifications image tag"
+  default     = ""
+}
+
 variable "teams_image_tag" {
   type        = string
   description = "Optional override for the teams image tag"
@@ -129,6 +147,12 @@ variable "gateway_image_tag" {
   type        = string
   description = "Optional override for the gateway image tag"
   default     = ""
+}
+
+variable "notifications_redis_addr" {
+  type        = string
+  description = "Redis address used by the notifications service"
+  default     = "notifications-redis-master.platform.svc.cluster.local:6379"
 }
 
 variable "docker_runner_replica_count" {
