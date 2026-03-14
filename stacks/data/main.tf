@@ -205,6 +205,8 @@ resource "argocd_application" "openfga_db" {
     }
 
     sync_policy {
+      # DB apps always use automated sync with prune disabled for stateful safety,
+      # independent of var.argocd_automated_sync_enabled.
       automated {
         prune       = false
         self_heal   = true
