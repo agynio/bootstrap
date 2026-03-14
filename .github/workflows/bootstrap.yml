@@ -32,31 +32,8 @@ jobs:
         with:
           terraform_version: 1.6.6
 
-      - name: Apply k8s stack
-        run: |
-          terraform -chdir=stacks/k8s init -input=false
-          terraform -chdir=stacks/k8s apply -auto-approve -input=false
-
-      - name: Apply system stack (Istio + Argo CD)
-        run: |
-          terraform -chdir=stacks/system init -input=false
-          terraform -chdir=stacks/system apply -auto-approve -input=false
-
-      - name: Apply routing stack
-        run: |
-          terraform -chdir=stacks/routing init -input=false
-          terraform -chdir=stacks/routing apply -auto-approve -input=false
-
-      - name: Apply minio stack
-        run: |
-          terraform -chdir=stacks/minio init -input=false
-          terraform -chdir=stacks/minio apply -auto-approve -input=false
-
-      - name: Apply platform stack
-        run: |
-          terraform -chdir=stacks/platform init -input=false
-          terraform -chdir=stacks/platform validate
-          terraform -chdir=stacks/platform apply -auto-approve -input=false
+      - name: Apply all stacks (k8s -> system -> routing -> minio -> platform)
+        run: ./apply.sh -y
 
       - name: Verify platform workloads and Argo CD health
         run: ./.github/scripts/verify_platform_health.sh
