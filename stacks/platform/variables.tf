@@ -383,3 +383,21 @@ variable "secrets_db_pvc_size" {
   description = "Persistent volume claim size for the secrets PostgreSQL primary"
   default     = "5Gi"
 }
+
+variable "authorization_chart_version" {
+  type        = string
+  description = "Version of the authorization Helm chart published to GHCR"
+  default     = "0.1.0"
+}
+
+variable "authorization_image_tag" {
+  type        = string
+  description = "Optional override for the authorization image tag"
+  default     = ""
+}
+
+variable "openfga_namespace" {
+  type        = string
+  description = "Namespace where OpenFGA is deployed"
+  default     = "openfga"
+}
