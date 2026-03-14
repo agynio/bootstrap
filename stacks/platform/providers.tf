@@ -20,5 +20,5 @@ provider "minio" {
 }
 
 provider "openfga" {
-  api_url = local.openfga_api_url
+  api_url = local.openfga_api_url_external
 }

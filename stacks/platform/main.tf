@@ -46,7 +46,8 @@ locals {
   authorization_chart_name       = "agynio/charts/authorization"
   istio_gateway_namespace        = data.terraform_remote_state.system.outputs.istio_gateway_namespace
   istio_gateway_tls_secret_name  = data.terraform_remote_state.system.outputs.wildcard_tls_gateway_secret_name
-  openfga_api_url                = format("http://openfga.%s.svc.cluster.local:8080", var.openfga_namespace)
+  openfga_api_url_external       = format("https://openfga.%s:%d", local.base_domain, local.ingress_port)
+  openfga_api_url_internal       = format("http://openfga.%s.svc.cluster.local:8080", var.openfga_namespace)
 
   default_sync_options = [
     "CreateNamespace=true",
@@ -747,7 +748,7 @@ locals {
       tag        = local.resolved_authorization_image_tag
     }
     openfga = {
-      apiUrl  = local.openfga_api_url
+      apiUrl  = local.openfga_api_url_internal
       storeId = module.openfga_authorization.store_id
       modelId = module.openfga_authorization.model_id
     }
