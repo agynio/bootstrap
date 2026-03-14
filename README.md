@@ -30,8 +30,8 @@ terraform -chdir=stacks/system apply
 terraform -chdir=stacks/routing init
 terraform -chdir=stacks/routing apply
 
-terraform -chdir=stacks/minio init
-terraform -chdir=stacks/minio apply
+terraform -chdir=stacks/data init
+terraform -chdir=stacks/data apply
 
 terraform -chdir=stacks/platform init
 terraform -chdir=stacks/platform apply
@@ -54,3 +54,5 @@ Default domain and port: `agyn.dev` on `2496`.
 - Argo CD: https://argocd.agyn.dev:2496/
 - LiteLLM: https://litellm.agyn.dev:2496/
 - Vault: https://vault.agyn.dev:2496/
+- OpenFGA API: https://openfga.agyn.dev:2496/
+- OpenFGA Playground: https://openfga-playground.agyn.dev:2496/
