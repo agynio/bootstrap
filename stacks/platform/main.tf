@@ -757,9 +757,6 @@ locals {
     auth = {
       enabled = false
     }
-    image = {
-      digest = "sha256:b8ec5360d674ca64d095e968d899f31384898f7b0799acde26e63e73653ee039"
-    }
     master = {
       persistence = {
         enabled = false

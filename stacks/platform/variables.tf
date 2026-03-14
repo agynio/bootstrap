@@ -62,7 +62,7 @@ variable "notifications_chart_version" {
 variable "notifications_redis_chart_version" {
   type        = string
   description = "Version of the Bitnami Redis Helm chart for notifications"
-  default     = "20.6.2"
+  default     = "25.3.2"
 }
 
 variable "postgres_chart_version" {
