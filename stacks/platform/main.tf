@@ -794,9 +794,6 @@ locals {
         }
       ]
     }
-    securityContext = {
-      enabled = false
-    }
     env = [
       {
         name  = "GRPC_ADDR"
