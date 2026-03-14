@@ -47,6 +47,11 @@ jobs:
           terraform -chdir=stacks/routing init -input=false
           terraform -chdir=stacks/routing apply -auto-approve -input=false
 
+      - name: Apply minio stack
+        run: |
+          terraform -chdir=stacks/minio init -input=false
+          terraform -chdir=stacks/minio apply -auto-approve -input=false
+
       - name: Apply platform stack
         run: |
           terraform -chdir=stacks/platform init -input=false
