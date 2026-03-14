@@ -188,7 +188,7 @@ merge_kubeconfig() {
 run_stack "k8s"
 run_stack "system"
 run_stack "routing"
-run_stack "minio"
+run_stack "data"
 run_stack "platform"
 
 echo "All stacks applied successfully."
