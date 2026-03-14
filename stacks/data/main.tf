@@ -72,15 +72,14 @@ locals {
     fullnameOverride = "openfga"
     replicaCount     = 1
     datastore = {
-      engine          = "postgres"
-      uri             = format("postgresql://openfga:%s@openfga-db:5432/openfga?sslmode=disable", var.openfga_db_password)
-      applyMigrations = true
+      engine            = "postgres"
+      uri               = format("postgresql://openfga:%s@openfga-db:5432/openfga?sslmode=disable", var.openfga_db_password)
+      applyMigrations   = true
+      waitForMigrations = false
+      migrationType     = "initContainer"
     }
     postgresql = {
       enabled = false
-    }
-    authn = {
-      method = "none"
     }
     grpc = {
       addr = "0.0.0.0:8081"
