@@ -134,7 +134,7 @@ variable "token_counting_image_tag" {
 variable "notifications_image_tag" {
   type        = string
   description = "Optional override for the notifications image tag"
-  default     = "edge"
+  default     = ""
 }
 
 variable "teams_image_tag" {
