@@ -283,17 +283,12 @@ variable "minio_root_password" {
   sensitive   = true
 }
 
-variable "minio_pvc_size" {
-  type        = string
-  description = "Persistent volume claim size for MinIO data"
-  default     = "10Gi"
-}
-
 variable "minio_bucket_name" {
   type        = string
   description = "Default MinIO bucket name for files service"
   default     = "files"
 }
+
 variable "litellm_master_key" {
   type        = string
   description = "LiteLLM master key used by platform workloads"
