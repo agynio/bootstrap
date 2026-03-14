@@ -1,7 +1,3 @@
-provider "openfga" {
-  api_url = var.openfga_api_url
-}
-
 resource "openfga_store" "this" {
   name = var.store_name
 }

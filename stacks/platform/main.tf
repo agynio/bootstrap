@@ -12,7 +12,7 @@ locals {
   resolved_token_counting_image_tag  = trimspace(var.token_counting_image_tag) != "" ? var.token_counting_image_tag : format("v%s", var.token_counting_chart_version)
   resolved_notifications_image_tag   = trimspace(var.notifications_image_tag) != "" ? var.notifications_image_tag : var.notifications_chart_version
   resolved_teams_image_tag           = trimspace(var.teams_image_tag) != "" ? var.teams_image_tag : format("v%s", var.teams_chart_version)
-  authorization_image_tag            = trimspace(var.authorization_image_tag) != "" ? var.authorization_image_tag : format("v%s", var.authorization_chart_version)
+  resolved_authorization_image_tag   = trimspace(var.authorization_image_tag) != "" ? var.authorization_image_tag : format("v%s", var.authorization_chart_version)
 
   postgres_image                 = "postgres:16.6-alpine"
   vault_chart_version            = "0.28.1"
@@ -744,7 +744,7 @@ locals {
   authorization_values = yamlencode({
     image = {
       repository = "ghcr.io/agynio/authorization"
-      tag        = local.authorization_image_tag
+      tag        = local.resolved_authorization_image_tag
     }
     openfga = {
       apiUrl  = local.openfga_api_url
@@ -1489,8 +1489,7 @@ locals {
 }
 
 module "openfga_authorization" {
-  source          = "./modules/openfga_authorization"
-  openfga_api_url = local.openfga_api_url
+  source = "./modules/openfga_authorization"
 }
 
 resource "kubernetes_namespace" "platform" {
