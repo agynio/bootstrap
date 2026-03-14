@@ -9,6 +9,7 @@ output "platform_app_names" {
     argocd_application.litellm.metadata[0].name,
     argocd_application.ncps.metadata[0].name,
     argocd_application.agent_state.metadata[0].name,
+    argocd_application.authorization.metadata[0].name,
     argocd_application.token_counting.metadata[0].name,
     argocd_application.notifications_redis.metadata[0].name,
     argocd_application.notifications.metadata[0].name,
@@ -30,6 +31,7 @@ output "platform_app_ids" {
     argocd_application.litellm.id,
     argocd_application.ncps.id,
     argocd_application.agent_state.id,
+    argocd_application.authorization.id,
     argocd_application.token_counting.id,
     argocd_application.notifications_redis.id,
     argocd_application.notifications.id,
@@ -43,4 +45,14 @@ output "platform_app_ids" {
 output "platform_namespace" {
   description = "Namespace where platform workloads are deployed"
   value       = var.platform_namespace
+}
+
+output "openfga_store_id" {
+  description = "OpenFGA store identifier for authorization"
+  value       = module.openfga_authorization.store_id
+}
+
+output "openfga_model_id" {
+  description = "OpenFGA model identifier for authorization"
+  value       = module.openfga_authorization.model_id
 }
