@@ -1,9 +1,0 @@
-model
-  schema 1.1
-
-type identity
-
-type tenant
-  relations
-    define owner: [identity]
-    define member: [identity] or owner

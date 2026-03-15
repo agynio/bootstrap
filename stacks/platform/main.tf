@@ -1490,7 +1490,8 @@ locals {
 }
 
 module "openfga_authorization" {
-  source = "./modules/openfga_authorization"
+  source          = "github.com/agynio/authorization//terraform?ref=v0.1.1"
+  openfga_api_url = local.openfga_api_url_external
 }
 
 resource "kubernetes_namespace" "platform" {

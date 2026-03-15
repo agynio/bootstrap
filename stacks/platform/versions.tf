@@ -14,10 +14,6 @@ terraform {
       source  = "aminueza/minio"
       version = "~> 3.28"
     }
-    openfga = {
-      source  = "openfga/openfga"
-      version = "~> 0.5"
-    }
   }
 
   backend "local" {

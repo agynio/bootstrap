@@ -387,7 +387,7 @@ variable "secrets_db_pvc_size" {
 variable "authorization_chart_version" {
   type        = string
   description = "Version of the authorization Helm chart published to GHCR"
-  default     = "0.1.0"
+  default     = "0.1.1"
 }
 
 variable "authorization_image_tag" {

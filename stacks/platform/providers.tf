@@ -18,7 +18,3 @@ provider "minio" {
   minio_ssl      = true
   minio_insecure = true
 }
-
-provider "openfga" {
-  api_url = local.openfga_api_url_external
-}
