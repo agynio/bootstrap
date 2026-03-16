@@ -13,6 +13,25 @@ Options:
 EOF
 }
 
+confirm_or_abort() {
+  if [[ "${auto_yes}" == "true" ]]; then
+    return
+  fi
+  echo "$1"
+  if ! read -r -p "Proceed? [y/N]: " response; then
+    echo "Error: failed to read confirmation." >&2
+    exit 1
+  fi
+  case "${response}" in
+    [yY]|[yY][eE][sS])
+      ;;
+    *)
+      echo "Aborted."
+      exit 1
+      ;;
+  esac
+}
+
 while getopts ":yh" opt; do
   case "${opt}" in
     y)
@@ -79,11 +98,7 @@ if [[ "${platform}" == "linux" ]]; then
   os_id="${ID:-}"
   os_like="${ID_LIKE:-}"
 
-  if [[ "${os_id}" == "ubuntu" || "${os_id}" == "debian" || "${os_like}" == *"debian"* ]]; then
-    dest_dir="/usr/local/share/ca-certificates"
-    dest_path="${dest_dir}/${cert_name}"
-    update_cmd=(update-ca-certificates)
-  elif [[ "${os_id}" == "alpine" ]]; then
+  if [[ "${os_id}" == "ubuntu" || "${os_id}" == "debian" || "${os_id}" == "alpine" || "${os_like}" == *"debian"* ]]; then
     dest_dir="/usr/local/share/ca-certificates"
     dest_path="${dest_dir}/${cert_name}"
     update_cmd=(update-ca-certificates)
@@ -112,21 +127,7 @@ Sudo privileges are required.
 EOF
 )
 
-  if [[ "${auto_yes}" != "true" ]]; then
-    echo "${install_description}"
-    if ! read -r -p "Proceed? [y/N]: " response; then
-      echo "Error: failed to read confirmation." >&2
-      exit 1
-    fi
-    case "${response}" in
-      [yY]|[yY][eE][sS])
-        ;;
-      *)
-        echo "Aborted."
-        exit 1
-        ;;
-    esac
-  fi
+  confirm_or_abort "${install_description}"
 
   "${sudo_prefix[@]}" cp "${cert_path}" "${dest_path}"
   "${sudo_prefix[@]}" "${update_cmd[@]}"
@@ -145,21 +146,7 @@ Sudo privileges are required.
 EOF
 )
 
-  if [[ "${auto_yes}" != "true" ]]; then
-    echo "${install_description}"
-    if ! read -r -p "Proceed? [y/N]: " response; then
-      echo "Error: failed to read confirmation." >&2
-      exit 1
-    fi
-    case "${response}" in
-      [yY]|[yY][eE][sS])
-        ;;
-      *)
-        echo "Aborted."
-        exit 1
-        ;;
-    esac
-  fi
+  confirm_or_abort "${install_description}"
 
   "${sudo_prefix[@]}" security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain "${cert_path}"
 fi
