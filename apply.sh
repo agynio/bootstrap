@@ -187,9 +187,7 @@ merge_kubeconfig() {
 
 run_stack "k8s"
 run_stack "system"
-# Trust the local dev CA so Terraform providers (e.g. OpenFGA in the platform
-# stack) can reach services through the Istio ingress with a self-signed cert.
-export SSL_CERT_FILE="$(pwd)/local-certs/ca-agyn-dev.pem"
+./install-ca-cert.sh -y "$(pwd)/local-certs/ca-agyn-dev.pem"
 run_stack "routing"
 run_stack "data"
 run_stack "platform"
