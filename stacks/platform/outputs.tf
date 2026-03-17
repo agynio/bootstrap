@@ -16,6 +16,8 @@ output "platform_app_names" {
     argocd_application.docker_runner.metadata[0].name,
     argocd_application.platform_server.metadata[0].name,
     argocd_application.platform_ui.metadata[0].name,
+    argocd_application.chat_app.metadata[0].name,
+    argocd_application.tracing_app.metadata[0].name,
   ]
 }
 
@@ -37,6 +39,8 @@ output "platform_app_ids" {
     argocd_application.docker_runner.id,
     argocd_application.platform_server.id,
     argocd_application.platform_ui.id,
+    argocd_application.chat_app.id,
+    argocd_application.tracing_app.id,
   ]
 }
 
