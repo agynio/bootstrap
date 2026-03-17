@@ -187,6 +187,7 @@ merge_kubeconfig() {
 
 run_stack "k8s"
 run_stack "system"
+./install-ca-cert.sh -y "$(pwd)/local-certs/ca-agyn-dev.pem"
 run_stack "routing"
 run_stack "data"
 run_stack "platform"

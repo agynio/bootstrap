@@ -14,6 +14,7 @@ locals {
   resolved_token_counting_image_tag  = trimspace(var.token_counting_image_tag) != "" ? var.token_counting_image_tag : format("v%s", var.token_counting_chart_version)
   resolved_notifications_image_tag   = trimspace(var.notifications_image_tag) != "" ? var.notifications_image_tag : var.notifications_chart_version
   resolved_teams_image_tag           = trimspace(var.teams_image_tag) != "" ? var.teams_image_tag : format("v%s", var.teams_chart_version)
+  resolved_authorization_image_tag   = trimspace(var.authorization_image_tag) != "" ? var.authorization_image_tag : format("v%s", var.authorization_chart_version)
 
   postgres_image                 = "postgres:16.6-alpine"
   vault_chart_version            = "0.28.1"
@@ -46,8 +47,11 @@ locals {
   notifications_chart_name       = "agynio/charts/notifications"
   redis_chart_name               = "redis"
   teams_chart_name               = "agynio/charts/teams"
+  authorization_chart_name       = "agynio/charts/authorization"
   istio_gateway_namespace        = data.terraform_remote_state.system.outputs.istio_gateway_namespace
   istio_gateway_tls_secret_name  = data.terraform_remote_state.system.outputs.wildcard_tls_gateway_secret_name
+  openfga_api_url_external       = format("https://openfga.%s:%d", local.base_domain, local.ingress_port)
+  openfga_api_url_internal       = format("http://openfga.%s.svc.cluster.local:8080", var.openfga_namespace)
 
   default_sync_options = [
     "CreateNamespace=true",
@@ -739,6 +743,18 @@ locals {
       repository = "ghcr.io/agynio/teams"
       tag        = local.resolved_teams_image_tag
       pullPolicy = "IfNotPresent"
+    }
+  })
+
+  authorization_values = yamlencode({
+    image = {
+      repository = "ghcr.io/agynio/authorization"
+      tag        = local.resolved_authorization_image_tag
+    }
+    openfga = {
+      apiUrl  = local.openfga_api_url_internal
+      storeId = module.openfga_authorization.store_id
+      modelId = module.openfga_authorization.model_id
     }
   })
 
@@ -1589,6 +1605,14 @@ locals {
       }
     ]
   })
+}
+
+# NOTE: The module ref (v0.1.1) must be updated in lockstep with
+# var.authorization_chart_version to ensure the provisioned FGA model
+# matches the model expected by the deployed Helm chart.
+module "openfga_authorization" {
+  source          = "github.com/agynio/authorization//terraform?ref=v0.1.1"
+  openfga_api_url = local.openfga_api_url_external
 }
 
 resource "kubernetes_namespace" "platform" {
@@ -2838,6 +2862,52 @@ resource "argocd_application" "secrets" {
 
       helm {
         values = local.secrets_values
+      }
+    }
+
+    destination {
+      server    = var.destination_server
+      namespace = var.platform_namespace
+    }
+
+    sync_policy {
+      dynamic "automated" {
+        for_each = var.argocd_automated_sync_enabled ? [1] : []
+        content {
+          prune       = var.argocd_prune_enabled
+          self_heal   = var.argocd_self_heal_enabled
+          allow_empty = false
+        }
+      }
+
+      sync_options = local.default_sync_options
+    }
+  }
+}
+
+resource "argocd_application" "authorization" {
+  depends_on = [
+    argocd_repository.litellm_repo,
+    module.openfga_authorization,
+  ]
+  metadata {
+    name      = "authorization"
+    namespace = "argocd"
+    annotations = {
+      "argocd.argoproj.io/sync-wave" = "16"
+    }
+  }
+
+  spec {
+    project = "default"
+
+    source {
+      repo_url        = local.platform_chart_repo_host
+      chart           = local.authorization_chart_name
+      target_revision = var.authorization_chart_version
+
+      helm {
+        values = local.authorization_values
       }
     }
 
