@@ -44,7 +44,7 @@ variable "agent_state_chart_version" {
 variable "threads_chart_version" {
   type        = string
   description = "Version of the threads Helm chart published to GHCR"
-  default     = "0.1.2"
+  default     = "0.1.1"
 }
 
 variable "token_counting_chart_version" {
@@ -134,7 +134,7 @@ variable "agent_state_image_tag" {
 variable "threads_image_tag" {
   type        = string
   description = "Optional override for the threads image tag"
-  default     = ""
+  default     = "v0.1.2"
 }
 
 variable "chat_chart_version" {
