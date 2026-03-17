@@ -134,7 +134,7 @@ variable "agent_state_image_tag" {
 variable "threads_image_tag" {
   type        = string
   description = "Optional override for the threads image tag"
-  default     = ""
+  default     = "v0.1.2"
 }
 
 variable "chat_chart_version" {
