@@ -77,6 +77,30 @@ variable "teams_chart_version" {
   default     = "0.1.0"
 }
 
+variable "chat_app_chart_version" {
+  type        = string
+  description = "Version of the chat-app Helm chart published to GHCR"
+  default     = "0.1.0"
+}
+
+variable "chat_app_image_tag" {
+  type        = string
+  description = "Optional override for the chat-app container image tag"
+  default     = ""
+}
+
+variable "tracing_app_chart_version" {
+  type        = string
+  description = "Version of the tracing-app Helm chart published to GHCR"
+  default     = "0.1.0"
+}
+
+variable "tracing_app_image_tag" {
+  type        = string
+  description = "Optional override for the tracing-app container image tag"
+  default     = ""
+}
+
 variable "platform_namespace" {
   type        = string
   description = "Namespace where platform workloads should be deployed"

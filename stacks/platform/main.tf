@@ -6,6 +6,8 @@ locals {
   resolved_agent_state_image_tag     = trimspace(var.agent_state_image_tag) != "" ? var.agent_state_image_tag : format("v%s", var.agent_state_chart_version)
   resolved_threads_image_tag         = trimspace(var.threads_image_tag) != "" ? var.threads_image_tag : format("v%s", var.threads_chart_version)
   resolved_chat_image_tag            = trimspace(var.chat_image_tag) != "" ? var.chat_image_tag : format("v%s", var.chat_chart_version)
+  resolved_chat_app_image_tag        = trimspace(var.chat_app_image_tag) != "" ? var.chat_app_image_tag : var.chat_app_chart_version
+  resolved_tracing_app_image_tag     = trimspace(var.tracing_app_image_tag) != "" ? var.tracing_app_image_tag : var.tracing_app_chart_version
   resolved_files_image_tag           = trimspace(var.files_image_tag) != "" ? var.files_image_tag : var.files_chart_version
   resolved_llm_image_tag             = trimspace(var.llm_image_tag) != "" ? var.llm_image_tag : format("v%s", var.llm_chart_version)
   resolved_secrets_image_tag         = trimspace(var.secrets_image_tag) != "" ? var.secrets_image_tag : format("v%s", var.secrets_chart_version)
@@ -35,6 +37,8 @@ locals {
   agent_state_chart_name         = "agynio/charts/agent-state"
   threads_chart_name             = "agynio/charts/threads"
   chat_chart_name                = "agynio/charts/chat"
+  chat_app_chart_name            = "agynio/charts/chat-app"
+  tracing_app_chart_name         = "agynio/charts/tracing-app"
   files_chart_name               = "agynio/charts/files"
   llm_chart_name                 = "agynio/charts/llm"
   secrets_chart_name             = "agynio/charts/secrets"
@@ -1471,6 +1475,120 @@ locals {
       }
     ]
   })
+
+  chat_app_values = yamlencode({
+    replicaCount     = 1
+    fullnameOverride = "chat-app"
+    image = {
+      repository = "ghcr.io/agynio/chat-app"
+      tag        = local.resolved_chat_app_image_tag
+      pullPolicy = "IfNotPresent"
+    }
+    service = {
+      type = "ClusterIP"
+      ports = [
+        {
+          name       = "http"
+          port       = 3000
+          targetPort = "http"
+          protocol   = "TCP"
+        }
+      ]
+    }
+    extraVolumes = [
+      {
+        name     = "chat-app-cache"
+        emptyDir = {}
+      },
+      {
+        name     = "chat-app-run"
+        emptyDir = {}
+      },
+      {
+        name     = "chat-app-tmp"
+        emptyDir = {}
+      },
+      {
+        name     = "chat-app-conf"
+        emptyDir = {}
+      }
+    ]
+    extraVolumeMounts = [
+      {
+        name      = "chat-app-cache"
+        mountPath = "/var/cache/nginx"
+      },
+      {
+        name      = "chat-app-run"
+        mountPath = "/var/run"
+      },
+      {
+        name      = "chat-app-tmp"
+        mountPath = "/tmp"
+      },
+      {
+        name      = "chat-app-conf"
+        mountPath = "/etc/nginx/conf.d"
+      }
+    ]
+  })
+
+  tracing_app_values = yamlencode({
+    replicaCount     = 1
+    fullnameOverride = "tracing-app"
+    image = {
+      repository = "ghcr.io/agynio/tracing-app"
+      tag        = local.resolved_tracing_app_image_tag
+      pullPolicy = "IfNotPresent"
+    }
+    service = {
+      type = "ClusterIP"
+      ports = [
+        {
+          name       = "http"
+          port       = 3000
+          targetPort = "http"
+          protocol   = "TCP"
+        }
+      ]
+    }
+    extraVolumes = [
+      {
+        name     = "tracing-app-cache"
+        emptyDir = {}
+      },
+      {
+        name     = "tracing-app-run"
+        emptyDir = {}
+      },
+      {
+        name     = "tracing-app-tmp"
+        emptyDir = {}
+      },
+      {
+        name     = "tracing-app-conf"
+        emptyDir = {}
+      }
+    ]
+    extraVolumeMounts = [
+      {
+        name      = "tracing-app-cache"
+        mountPath = "/var/cache/nginx"
+      },
+      {
+        name      = "tracing-app-run"
+        mountPath = "/var/run"
+      },
+      {
+        name      = "tracing-app-tmp"
+        mountPath = "/tmp"
+      },
+      {
+        name      = "tracing-app-conf"
+        mountPath = "/etc/nginx/conf.d"
+      }
+    ]
+  })
 }
 
 resource "kubernetes_namespace" "platform" {
@@ -1644,6 +1762,96 @@ resource "kubernetes_manifest" "virtualservice_platform_ui" {
             {
               "destination" = {
                 "host" = "platform-ui.platform.svc.cluster.local"
+                "port" = {
+                  "number" = 3000
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+
+  computed_fields = [
+    "metadata.annotations",
+    "metadata.labels",
+  ]
+
+  depends_on = [
+    data.terraform_remote_state.system,
+  ]
+}
+
+resource "kubernetes_manifest" "virtualservice_chat_app" {
+  manifest = {
+    "apiVersion" = "networking.istio.io/v1beta1"
+    "kind"       = "VirtualService"
+    "metadata" = {
+      "name"      = "chat-app"
+      "namespace" = local.istio_gateway_namespace
+    }
+    "spec" = {
+      "hosts"    = ["chat.${local.base_domain}"]
+      "gateways" = ["platform-gateway"]
+      "http" = [
+        {
+          "match" = [
+            {
+              "uri" = {
+                "prefix" = "/"
+              }
+            }
+          ]
+          "route" = [
+            {
+              "destination" = {
+                "host" = "chat-app.platform.svc.cluster.local"
+                "port" = {
+                  "number" = 3000
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+
+  computed_fields = [
+    "metadata.annotations",
+    "metadata.labels",
+  ]
+
+  depends_on = [
+    data.terraform_remote_state.system,
+  ]
+}
+
+resource "kubernetes_manifest" "virtualservice_tracing_app" {
+  manifest = {
+    "apiVersion" = "networking.istio.io/v1beta1"
+    "kind"       = "VirtualService"
+    "metadata" = {
+      "name"      = "tracing-app"
+      "namespace" = local.istio_gateway_namespace
+    }
+    "spec" = {
+      "hosts"    = ["tracing.${local.base_domain}"]
+      "gateways" = ["platform-gateway"]
+      "http" = [
+        {
+          "match" = [
+            {
+              "uri" = {
+                "prefix" = "/"
+              }
+            }
+          ]
+          "route" = [
+            {
+              "destination" = {
+                "host" = "tracing-app.platform.svc.cluster.local"
                 "port" = {
                   "number" = 3000
                 }
@@ -3038,6 +3246,92 @@ resource "argocd_application" "platform_ui" {
 
       helm {
         values = local.platform_ui_values
+      }
+    }
+
+    destination {
+      server    = var.destination_server
+      namespace = var.platform_namespace
+    }
+
+    sync_policy {
+      dynamic "automated" {
+        for_each = var.argocd_automated_sync_enabled ? [1] : []
+        content {
+          prune       = var.argocd_prune_enabled
+          self_heal   = var.argocd_self_heal_enabled
+          allow_empty = false
+        }
+      }
+
+      sync_options = local.default_sync_options
+    }
+  }
+}
+
+resource "argocd_application" "chat_app" {
+  depends_on = [argocd_repository.litellm_repo]
+  metadata {
+    name      = "chat-app"
+    namespace = "argocd"
+    annotations = {
+      "argocd.argoproj.io/sync-wave" = "25"
+    }
+  }
+
+  spec {
+    project = "default"
+
+    source {
+      repo_url        = local.platform_chart_repo_host
+      chart           = local.chat_app_chart_name
+      target_revision = var.chat_app_chart_version
+
+      helm {
+        values = local.chat_app_values
+      }
+    }
+
+    destination {
+      server    = var.destination_server
+      namespace = var.platform_namespace
+    }
+
+    sync_policy {
+      dynamic "automated" {
+        for_each = var.argocd_automated_sync_enabled ? [1] : []
+        content {
+          prune       = var.argocd_prune_enabled
+          self_heal   = var.argocd_self_heal_enabled
+          allow_empty = false
+        }
+      }
+
+      sync_options = local.default_sync_options
+    }
+  }
+}
+
+resource "argocd_application" "tracing_app" {
+  depends_on = [argocd_repository.litellm_repo]
+  metadata {
+    name      = "tracing-app"
+    namespace = "argocd"
+    annotations = {
+      "argocd.argoproj.io/sync-wave" = "25"
+    }
+  }
+
+  spec {
+    project = "default"
+
+    source {
+      repo_url        = local.platform_chart_repo_host
+      chart           = local.tracing_app_chart_name
+      target_revision = var.tracing_app_chart_version
+
+      helm {
+        values = local.tracing_app_values
       }
     }
 
