@@ -143,7 +143,7 @@ resource "null_resource" "restart_coredns" {
   }
 
   provisioner "local-exec" {
-    command = "kubectl --kubeconfig ${var.kubeconfig_path} rollout restart deployment/coredns -n kube-system && kubectl --kubeconfig ${var.kubeconfig_path} rollout status deployment/coredns -n kube-system --timeout=60s"
+    command = "kubectl --kubeconfig \"${var.kubeconfig_path}\" rollout restart deployment/coredns -n kube-system && kubectl --kubeconfig \"${var.kubeconfig_path}\" rollout status deployment/coredns -n kube-system --timeout=60s"
   }
 }
 
