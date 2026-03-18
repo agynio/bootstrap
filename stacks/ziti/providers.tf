@@ -1,7 +1,7 @@
 provider "ziti" {
   username = var.ziti_admin_username
   password = var.ziti_admin_password
-  host     = format("https://ziti.%s:%d", local.base_domain, local.ingress_port)
+  host     = format("https://ziti.%s:%d/edge/management/v1", local.base_domain, local.ingress_port)
 }
 
 provider "kubernetes" {
