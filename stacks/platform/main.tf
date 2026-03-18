@@ -788,26 +788,6 @@ locals {
         value = format("postgresql://orchestrator:%s@agents-orchestrator-db:5432/orchestrator?sslmode=disable", var.agents_orchestrator_db_password)
       },
       {
-        name  = "THREADS_ADDRESS"
-        value = "threads:50051"
-      },
-      {
-        name  = "NOTIFICATIONS_ADDRESS"
-        value = "notifications:50051"
-      },
-      {
-        name  = "TEAMS_ADDRESS"
-        value = "teams:50051"
-      },
-      {
-        name  = "SECRETS_ADDRESS"
-        value = "secrets:50051"
-      },
-      {
-        name  = "RUNNER_ADDRESS"
-        value = "docker-runner:50051"
-      },
-      {
         name  = "AGENT_THREADS_ADDRESS"
         value = "threads.platform.svc.cluster.local:50051"
       },
