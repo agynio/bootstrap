@@ -44,8 +44,19 @@ locals {
   })
 }
 
+resource "argocd_repository" "jetstack" {
+  repo = local.jetstack_repository_url
+  type = "helm"
+}
+
+resource "argocd_repository" "openziti" {
+  repo = local.openziti_repository_url
+  type = "helm"
+}
+
 resource "argocd_application" "cert_manager" {
-  wait = true
+  depends_on = [argocd_repository.jetstack]
+  wait       = true
 
   metadata {
     name      = "cert-manager"
@@ -102,8 +113,11 @@ resource "argocd_application" "cert_manager" {
 }
 
 resource "argocd_application" "trust_manager" {
-  depends_on = [argocd_application.cert_manager]
-  wait       = true
+  depends_on = [
+    argocd_application.cert_manager,
+    argocd_repository.jetstack,
+  ]
+  wait = true
 
   metadata {
     name      = "trust-manager"
@@ -163,6 +177,7 @@ resource "argocd_application" "ziti_controller" {
   depends_on = [
     argocd_application.cert_manager,
     argocd_application.trust_manager,
+    argocd_repository.openziti,
   ]
   wait = true
 
