@@ -28,7 +28,16 @@ resource "kubernetes_manifest" "platform_gateway" {
           }
           "hosts" = [
             local.base_domain,
-            "*.${local.base_domain}",
+            "argocd.${local.base_domain}",
+            "chat.${local.base_domain}",
+            "gateway.${local.base_domain}",
+            "litellm.${local.base_domain}",
+            "minio.${local.base_domain}",
+            "minio-api.${local.base_domain}",
+            "openfga.${local.base_domain}",
+            "openfga-playground.${local.base_domain}",
+            "tracing.${local.base_domain}",
+            "vault.${local.base_domain}",
           ]
         }
       ]
