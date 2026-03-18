@@ -8,7 +8,7 @@ locals {
 
   router_values = yamlencode({
     ctrl = {
-      endpoint = "ziti-controller-client.ziti.svc:1280"
+      endpoint = "ziti-controller-client.ziti.svc:2496"
     }
     edge = {
       advertisedHost = "ziti-router.${local.base_domain}"
