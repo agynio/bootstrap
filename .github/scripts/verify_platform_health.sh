@@ -6,6 +6,7 @@ TOTAL_TIMEOUT=${TOTAL_TIMEOUT:-1200}
 POLL_INTERVAL=${POLL_INTERVAL:-10}
 PLATFORM_NAMESPACE=${PLATFORM_NAMESPACE:-platform}
 ARGO_NAMESPACE=${ARGO_NAMESPACE:-argocd}
+ZITI_NAMESPACE=${ZITI_NAMESPACE:-ziti}
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/../.." && pwd)
@@ -44,6 +45,66 @@ join_lines() {
   fi
   echo "$input" | paste -sd ', ' -
 }
+
+log "=== Verifying Ziti namespace health ==="
+ziti_controller_json=$(kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$ZITI_NAMESPACE" \
+  get pods -l app.kubernetes.io/name=ziti-controller -o json 2>/dev/null || echo '{"items": []}')
+ziti_router_json=$(kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$ZITI_NAMESPACE" \
+  get pods -l app.kubernetes.io/name=ziti-router -o json 2>/dev/null || echo '{"items": []}')
+
+ziti_controller_unhealthy=$(jq -r '
+  [.items[] | select(
+    (.status.phase // "") != "Running" or
+    any(.status.containerStatuses[]?; (.ready // false) | not)
+  ) | "\(.metadata.name) (phase=\(.status.phase // "Unknown"))"]
+  | .[]?' <<<"$ziti_controller_json")
+ziti_router_unhealthy=$(jq -r '
+  [.items[] | select(
+    (.status.phase // "") != "Running" or
+    any(.status.containerStatuses[]?; (.ready // false) | not)
+  ) | "\(.metadata.name) (phase=\(.status.phase // "Unknown"))"]
+  | .[]?' <<<"$ziti_router_json")
+
+ziti_missing=()
+ziti_unhealthy=()
+ziti_controller_count=$(jq '.items | length' <<<"$ziti_controller_json")
+ziti_router_count=$(jq '.items | length' <<<"$ziti_router_json")
+if (( ziti_controller_count == 0 )); then
+  ziti_missing+=("ziti-controller")
+fi
+if (( ziti_router_count == 0 )); then
+  ziti_missing+=("ziti-router")
+fi
+
+if [[ -n "$ziti_controller_unhealthy" ]]; then
+  while IFS= read -r line; do
+    [[ -n "$line" ]] && ziti_unhealthy+=("$line")
+  done <<<"$ziti_controller_unhealthy"
+fi
+if [[ -n "$ziti_router_unhealthy" ]]; then
+  while IFS= read -r line; do
+    [[ -n "$line" ]] && ziti_unhealthy+=("$line")
+  done <<<"$ziti_router_unhealthy"
+fi
+
+if (( ${#ziti_missing[@]} > 0 || ${#ziti_unhealthy[@]} > 0 )); then
+  log "Unhealthy pods in Ziti namespace:"
+  if (( ${#ziti_missing[@]} > 0 )); then
+    log "Missing Ziti pods: ${ziti_missing[*]}"
+  fi
+  if (( ${#ziti_unhealthy[@]} > 0 )); then
+    printf '%s\n' "${ziti_unhealthy[@]}"
+  fi
+  kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$ZITI_NAMESPACE" get pods -o wide || true
+  kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$ZITI_NAMESPACE" describe pods || true
+  kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$ZITI_NAMESPACE" \
+    logs -l app.kubernetes.io/name=ziti-controller --tail=50 || true
+  kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$ZITI_NAMESPACE" \
+    logs -l app.kubernetes.io/name=ziti-router --tail=50 || true
+  exit 1
+fi
+
+log "Ziti namespace pods are healthy"
 
 while (( SECONDS < deadline )); do
   time_left=$((deadline - SECONDS))
