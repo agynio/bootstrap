@@ -41,6 +41,12 @@ variable "agent_state_chart_version" {
   default     = "0.1.0"
 }
 
+variable "agents_orchestrator_chart_version" {
+  type        = string
+  description = "Version of the agents-orchestrator Helm chart published to GHCR"
+  default     = "0.1.0"
+}
+
 variable "threads_chart_version" {
   type        = string
   description = "Version of the threads Helm chart published to GHCR"
@@ -128,6 +134,12 @@ variable "docker_runner_image_tag" {
 variable "agent_state_image_tag" {
   type        = string
   description = "Optional override for the agent-state image tag"
+  default     = ""
+}
+
+variable "agents_orchestrator_image_tag" {
+  type        = string
+  description = "Optional override for the agents-orchestrator image tag"
   default     = ""
 }
 
@@ -236,6 +248,13 @@ variable "agent_state_db_password" {
   sensitive   = true
 }
 
+variable "agents_orchestrator_db_password" {
+  type        = string
+  description = "Password for the agents-orchestrator PostgreSQL database user"
+  default     = "orchestrator"
+  sensitive   = true
+}
+
 variable "threads_db_password" {
   type        = string
   description = "Password for the threads PostgreSQL database user"
@@ -246,6 +265,12 @@ variable "threads_db_password" {
 variable "agent_state_db_pvc_size" {
   type        = string
   description = "Persistent volume claim size for the agent-state PostgreSQL primary"
+  default     = "5Gi"
+}
+
+variable "agents_orchestrator_db_pvc_size" {
+  type        = string
+  description = "Persistent volume claim size for the agents-orchestrator PostgreSQL primary"
   default     = "5Gi"
 }
 
