@@ -74,6 +74,8 @@ resource "helm_release" "ziti_controller" {
         }
       }
       managementApi = {
+        advertisedHost = "ziti-mgmt.${local.base_domain}"
+        advertisedPort = local.ingress_port
         service = {
           enabled = true
           type    = "ClusterIP"
