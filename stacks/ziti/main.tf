@@ -53,6 +53,7 @@ resource "helm_release" "ziti_router" {
   namespace  = local.ziti_namespace
   depends_on = [kubernetes_secret_v1.edge_router_enrollment]
   wait       = true
+  timeout    = 600
 
   values = [local.router_values]
 }
@@ -89,7 +90,7 @@ resource "ziti_identity" "orchestrator" {
 resource "kubernetes_secret_v1" "gateway_identity_enrollment" {
   metadata {
     name      = local.gateway_identity_secret_name
-    namespace = var.platform_namespace
+    namespace = local.ziti_namespace
   }
 
   type = "Opaque"
@@ -102,7 +103,7 @@ resource "kubernetes_secret_v1" "gateway_identity_enrollment" {
 resource "kubernetes_secret_v1" "ziti_management_identity_enrollment" {
   metadata {
     name      = local.management_identity_secret_name
-    namespace = var.platform_namespace
+    namespace = local.ziti_namespace
   }
 
   type = "Opaque"
@@ -115,7 +116,7 @@ resource "kubernetes_secret_v1" "ziti_management_identity_enrollment" {
 resource "kubernetes_secret_v1" "orchestrator_identity_enrollment" {
   metadata {
     name      = local.orchestrator_identity_secret_name
-    namespace = var.platform_namespace
+    namespace = local.ziti_namespace
   }
 
   type = "Opaque"
