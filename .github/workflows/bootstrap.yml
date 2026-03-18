@@ -20,7 +20,7 @@ jobs:
       - name: Install kubectl
         uses: azure/setup-kubectl@v4
         with:
-          version: v1.28.7
+          version: v1.34.3
 
       - name: Install k3d
         run: |

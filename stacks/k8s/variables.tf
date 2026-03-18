@@ -18,8 +18,8 @@ variable "agents" {
 
 variable "k3s_version" {
   type        = string
-  description = "k3s version tag (e.g., v1.28.4-k3s1)"
-  default     = "v1.28.4-k3s1"
+  description = "k3s version tag (e.g., v1.34.3-k3s1)"
+  default     = "v1.34.3-k3s1"
 }
 
 variable "k3s_extra_args" {

@@ -1,5 +1,7 @@
 output "installed_namespaces" {
   value = [
+    kubernetes_namespace.cert_manager.metadata[0].name,
+    kubernetes_namespace.ziti.metadata[0].name,
     kubernetes_namespace.istio_system.metadata[0].name,
     kubernetes_namespace.istio_gateway.metadata[0].name,
     kubernetes_namespace.argocd.metadata[0].name,
