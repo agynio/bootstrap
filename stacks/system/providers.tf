@@ -11,5 +11,3 @@ provider "helm" {
 provider "tls" {}
 
 provider "local" {}
-
-provider "null" {}

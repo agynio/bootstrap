@@ -11,9 +11,6 @@ output "installed_namespaces" {
 
 output "releases" {
   value = [
-    "cert-manager",
-    "trust-manager",
-    "ziti-controller",
     helm_release.istio_base.name,
     helm_release.istiod.name,
     helm_release.istio_gateway.name,
