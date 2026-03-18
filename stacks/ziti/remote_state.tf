@@ -6,6 +6,14 @@ data "terraform_remote_state" "k8s" {
   }
 }
 
+data "terraform_remote_state" "system" {
+  backend = "local"
+
+  config = {
+    path = "../system/state/terraform.tfstate"
+  }
+}
+
 locals {
   base_domain  = data.terraform_remote_state.k8s.outputs.domain
   ingress_port = data.terraform_remote_state.k8s.outputs.ingress_port

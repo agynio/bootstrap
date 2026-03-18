@@ -1,5 +1,7 @@
 output "installed_namespaces" {
   value = [
+    kubernetes_namespace.cert_manager.metadata[0].name,
+    kubernetes_namespace.ziti.metadata[0].name,
     kubernetes_namespace.istio_system.metadata[0].name,
     kubernetes_namespace.istio_gateway.metadata[0].name,
     kubernetes_namespace.argocd.metadata[0].name,
@@ -9,6 +11,9 @@ output "installed_namespaces" {
 
 output "releases" {
   value = [
+    helm_release.cert_manager.name,
+    helm_release.trust_manager.name,
+    helm_release.ziti_controller.name,
     helm_release.istio_base.name,
     helm_release.istiod.name,
     helm_release.istio_gateway.name,

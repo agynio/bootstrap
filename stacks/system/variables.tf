@@ -16,6 +16,24 @@ variable "argocd_chart_version" {
   default     = "9.4.3"
 }
 
+variable "cert_manager_chart_version" {
+  type        = string
+  description = "cert-manager chart version"
+  default     = "v1.20.0"
+}
+
+variable "trust_manager_chart_version" {
+  type        = string
+  description = "trust-manager chart version"
+  default     = "v0.22.0"
+}
+
+variable "ziti_controller_chart_version" {
+  type        = string
+  description = "OpenZiti controller chart version"
+  default     = "2.1.2"
+}
+
 variable "save_private_keys" {
   type        = bool
   description = "Write generated private keys to local-certs when true"

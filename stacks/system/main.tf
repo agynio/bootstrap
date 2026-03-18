@@ -1,8 +1,90 @@
 # Helm repositories
 locals {
-  istio_repository_url = "https://istio-release.storage.googleapis.com/charts"
-  argo_repository_url  = "https://argoproj.github.io/argo-helm"
-  local_certs_dir      = abspath("${path.root}/../../local-certs")
+  istio_repository_url    = "https://istio-release.storage.googleapis.com/charts"
+  argo_repository_url     = "https://argoproj.github.io/argo-helm"
+  jetstack_repository_url = "https://charts.jetstack.io"
+  openziti_repository_url = "https://openziti.io/helm-charts"
+  local_certs_dir         = abspath("${path.root}/../../local-certs")
+}
+
+# cert-manager (OpenZiti prerequisite)
+resource "helm_release" "cert_manager" {
+  name       = "cert-manager"
+  repository = local.jetstack_repository_url
+  chart      = "cert-manager"
+  version    = var.cert_manager_chart_version
+  namespace  = kubernetes_namespace.cert_manager.metadata[0].name
+  wait       = true
+
+  values = [
+    yamlencode({
+      crds = {
+        enabled = true
+        keep    = true
+      }
+    })
+  ]
+}
+
+# trust-manager (OpenZiti prerequisite)
+resource "helm_release" "trust_manager" {
+  name       = "trust-manager"
+  repository = local.jetstack_repository_url
+  chart      = "trust-manager"
+  version    = var.trust_manager_chart_version
+  namespace  = kubernetes_namespace.cert_manager.metadata[0].name
+  depends_on = [helm_release.cert_manager]
+  wait       = true
+
+  values = [
+    yamlencode({
+      crds = {
+        keep = false
+      }
+      app = {
+        trust = {
+          namespace = kubernetes_namespace.ziti.metadata[0].name
+        }
+      }
+    })
+  ]
+}
+
+# OpenZiti controller
+resource "helm_release" "ziti_controller" {
+  name       = "ziti-controller"
+  repository = local.openziti_repository_url
+  chart      = "ziti-controller"
+  version    = var.ziti_controller_chart_version
+  namespace  = kubernetes_namespace.ziti.metadata[0].name
+  depends_on = [
+    helm_release.cert_manager,
+    helm_release.trust_manager,
+  ]
+  wait = true
+
+  values = [
+    yamlencode({
+      clientApi = {
+        advertisedHost = "ziti.${local.base_domain}"
+        advertisedPort = local.ingress_port
+        service = {
+          enabled = true
+          type    = "ClusterIP"
+        }
+      }
+      managementApi = {
+        service = {
+          enabled = true
+          type    = "ClusterIP"
+        }
+      }
+      persistence = {
+        enabled = true
+        size    = "2Gi"
+      }
+    })
+  ]
 }
 
 # Istio base (CRDs)
