@@ -1543,7 +1543,7 @@ locals {
     env = [
       {
         name  = "API_UPSTREAM"
-        value = "http://gateway-gateway:8080"
+        value = "http://platform-server:3010"
       }
     ]
   })
@@ -1603,12 +1603,6 @@ locals {
         mountPath = "/etc/nginx/conf.d"
       }
     ]
-    env = [
-      {
-        name  = "API_UPSTREAM"
-        value = "http://gateway-gateway:8080"
-      }
-    ]
   })
 
   tracing_app_values = yamlencode({
@@ -1664,12 +1658,6 @@ locals {
       {
         name      = "tracing-app-conf"
         mountPath = "/etc/nginx/conf.d"
-      }
-    ]
-    env = [
-      {
-        name  = "API_UPSTREAM"
-        value = "http://gateway-gateway:8080"
       }
     ]
   })
@@ -1815,9 +1803,9 @@ resource "kubernetes_manifest" "virtualservice_platform_ui" {
           "route" = [
             {
               "destination" = {
-                "host" = "gateway-gateway.platform.svc.cluster.local"
+                "host" = "platform-server.platform.svc.cluster.local"
                 "port" = {
-                  "number" = 8080
+                  "number" = 3010
                 }
               }
             }
@@ -1834,9 +1822,9 @@ resource "kubernetes_manifest" "virtualservice_platform_ui" {
           "route" = [
             {
               "destination" = {
-                "host" = "gateway-gateway.platform.svc.cluster.local"
+                "host" = "platform-server.platform.svc.cluster.local"
                 "port" = {
-                  "number" = 8080
+                  "number" = 3010
                 }
               }
             }
@@ -1887,33 +1875,6 @@ resource "kubernetes_manifest" "virtualservice_chat_app" {
       "hosts"    = ["chat.${local.base_domain}"]
       "gateways" = ["platform-gateway"]
       "http" = [
-        {
-          "match" = [
-            {
-              "uri" = {
-                "prefix" = "/apiv2/"
-              }
-            },
-            {
-              "uri" = {
-                "exact" = "/apiv2"
-              }
-            }
-          ]
-          "rewrite" = {
-            "uri" = "/"
-          }
-          "route" = [
-            {
-              "destination" = {
-                "host" = "gateway-gateway.platform.svc.cluster.local"
-                "port" = {
-                  "number" = 8080
-                }
-              }
-            }
-          ]
-        },
         {
           "match" = [
             {
@@ -1997,33 +1958,6 @@ resource "kubernetes_manifest" "virtualservice_tracing_app" {
       "hosts"    = ["tracing.${local.base_domain}"]
       "gateways" = ["platform-gateway"]
       "http" = [
-        {
-          "match" = [
-            {
-              "uri" = {
-                "prefix" = "/apiv2/"
-              }
-            },
-            {
-              "uri" = {
-                "exact" = "/apiv2"
-              }
-            }
-          ]
-          "rewrite" = {
-            "uri" = "/"
-          }
-          "route" = [
-            {
-              "destination" = {
-                "host" = "gateway-gateway.platform.svc.cluster.local"
-                "port" = {
-                  "number" = 8080
-                }
-              }
-            }
-          ]
-        },
         {
           "match" = [
             {
