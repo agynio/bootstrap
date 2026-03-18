@@ -8,85 +8,227 @@ locals {
 }
 
 # cert-manager (OpenZiti prerequisite)
-resource "helm_release" "cert_manager" {
-  name       = "cert-manager"
-  repository = local.jetstack_repository_url
-  chart      = "cert-manager"
-  version    = var.cert_manager_chart_version
-  namespace  = kubernetes_namespace.cert_manager.metadata[0].name
-  wait       = true
-
-  values = [
-    yamlencode({
-      crds = {
-        enabled = true
-        keep    = true
+resource "kubernetes_manifest" "argocd_app_cert_manager" {
+  manifest = {
+    "apiVersion" = "argoproj.io/v1alpha1"
+    "kind"       = "Application"
+    "metadata" = {
+      "name"      = "cert-manager"
+      "namespace" = kubernetes_namespace.argocd.metadata[0].name
+    }
+    "spec" = {
+      "project" = "default"
+      "source" = {
+        "repoURL"        = local.jetstack_repository_url
+        "chart"          = "cert-manager"
+        "targetRevision" = var.cert_manager_chart_version
+        "helm" = {
+          "valuesObject" = {
+            "crds" = {
+              "enabled" = true
+              "keep"    = true
+            }
+          }
+        }
       }
-    })
-  ]
+      "destination" = {
+        "server"    = "https://kubernetes.default.svc"
+        "namespace" = kubernetes_namespace.cert_manager.metadata[0].name
+      }
+      "syncPolicy" = {
+        "automated" = {
+          "prune"    = true
+          "selfHeal" = true
+        }
+        "syncOptions" = ["CreateNamespace=false"]
+      }
+    }
+  }
+
+  depends_on = [helm_release.argo_cd]
+}
+
+resource "null_resource" "wait_cert_manager" {
+  depends_on = [kubernetes_manifest.argocd_app_cert_manager]
+
+  triggers = {
+    chart_version = var.cert_manager_chart_version
+  }
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      until [ "$(kubectl --kubeconfig "${var.kubeconfig_path}" \
+        get application cert-manager -n ${kubernetes_namespace.argocd.metadata[0].name} \
+        -o jsonpath='{.status.health.status}' 2>/dev/null)" = "Healthy" ] && \
+        [ "$(kubectl --kubeconfig "${var.kubeconfig_path}" \
+        get application cert-manager -n ${kubernetes_namespace.argocd.metadata[0].name} \
+        -o jsonpath='{.status.sync.status}' 2>/dev/null)" = "Synced" ]; do
+        echo "Waiting for cert-manager ArgoCD app to become Healthy and Synced..."
+        sleep 5
+      done
+      echo "cert-manager is Healthy and Synced"
+    EOT
+  }
 }
 
 # trust-manager (OpenZiti prerequisite)
-resource "helm_release" "trust_manager" {
-  name       = "trust-manager"
-  repository = local.jetstack_repository_url
-  chart      = "trust-manager"
-  version    = var.trust_manager_chart_version
-  namespace  = kubernetes_namespace.cert_manager.metadata[0].name
-  depends_on = [helm_release.cert_manager]
-  wait       = true
-
-  values = [
-    yamlencode({
-      crds = {
-        keep = false
-      }
-      app = {
-        trust = {
-          namespace = kubernetes_namespace.ziti.metadata[0].name
+resource "kubernetes_manifest" "argocd_app_trust_manager" {
+  manifest = {
+    "apiVersion" = "argoproj.io/v1alpha1"
+    "kind"       = "Application"
+    "metadata" = {
+      "name"      = "trust-manager"
+      "namespace" = kubernetes_namespace.argocd.metadata[0].name
+    }
+    "spec" = {
+      "project" = "default"
+      "source" = {
+        "repoURL"        = local.jetstack_repository_url
+        "chart"          = "trust-manager"
+        "targetRevision" = var.trust_manager_chart_version
+        "helm" = {
+          "valuesObject" = {
+            "crds" = {
+              "keep" = false
+            }
+            "app" = {
+              "trust" = {
+                "namespace" = kubernetes_namespace.ziti.metadata[0].name
+              }
+            }
+          }
         }
       }
-    })
+      "destination" = {
+        "server"    = "https://kubernetes.default.svc"
+        "namespace" = kubernetes_namespace.cert_manager.metadata[0].name
+      }
+      "syncPolicy" = {
+        "automated" = {
+          "prune"    = true
+          "selfHeal" = true
+        }
+        "syncOptions" = ["CreateNamespace=false"]
+      }
+    }
+  }
+
+  depends_on = [
+    helm_release.argo_cd,
+    null_resource.wait_cert_manager,
   ]
 }
 
-# OpenZiti controller
-resource "helm_release" "ziti_controller" {
-  name       = "ziti-controller"
-  repository = local.openziti_repository_url
-  chart      = "ziti-controller"
-  version    = var.ziti_controller_chart_version
-  namespace  = kubernetes_namespace.ziti.metadata[0].name
+resource "null_resource" "wait_trust_manager" {
   depends_on = [
-    helm_release.cert_manager,
-    helm_release.trust_manager,
+    kubernetes_manifest.argocd_app_trust_manager,
+    null_resource.wait_cert_manager,
   ]
-  wait = true
 
-  values = [
-    yamlencode({
-      clientApi = {
-        advertisedHost = "ziti.${local.base_domain}"
-        advertisedPort = local.ingress_port
-        service = {
-          enabled = true
-          type    = "ClusterIP"
+  triggers = {
+    chart_version = var.trust_manager_chart_version
+  }
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      until [ "$(kubectl --kubeconfig "${var.kubeconfig_path}" \
+        get application trust-manager -n ${kubernetes_namespace.argocd.metadata[0].name} \
+        -o jsonpath='{.status.health.status}' 2>/dev/null)" = "Healthy" ] && \
+        [ "$(kubectl --kubeconfig "${var.kubeconfig_path}" \
+        get application trust-manager -n ${kubernetes_namespace.argocd.metadata[0].name} \
+        -o jsonpath='{.status.sync.status}' 2>/dev/null)" = "Synced" ]; do
+        echo "Waiting for trust-manager ArgoCD app to become Healthy and Synced..."
+        sleep 5
+      done
+      echo "trust-manager is Healthy and Synced"
+    EOT
+  }
+}
+
+# OpenZiti controller
+resource "kubernetes_manifest" "argocd_app_ziti_controller" {
+  manifest = {
+    "apiVersion" = "argoproj.io/v1alpha1"
+    "kind"       = "Application"
+    "metadata" = {
+      "name"      = "ziti-controller"
+      "namespace" = kubernetes_namespace.argocd.metadata[0].name
+    }
+    "spec" = {
+      "project" = "default"
+      "source" = {
+        "repoURL"        = local.openziti_repository_url
+        "chart"          = "ziti-controller"
+        "targetRevision" = var.ziti_controller_chart_version
+        "helm" = {
+          "valuesObject" = {
+            "clientApi" = {
+              "advertisedHost" = "ziti.${local.base_domain}"
+              "advertisedPort" = local.ingress_port
+              "service" = {
+                "enabled" = true
+                "type"    = "ClusterIP"
+              }
+            }
+            "managementApi" = {
+              "advertisedHost" = "ziti-mgmt.${local.base_domain}"
+              "advertisedPort" = local.ingress_port
+              "service" = {
+                "enabled" = true
+                "type"    = "ClusterIP"
+              }
+            }
+            "persistence" = {
+              "enabled" = true
+              "size"    = "2Gi"
+            }
+          }
         }
       }
-      managementApi = {
-        advertisedHost = "ziti-mgmt.${local.base_domain}"
-        advertisedPort = local.ingress_port
-        service = {
-          enabled = true
-          type    = "ClusterIP"
+      "destination" = {
+        "server"    = "https://kubernetes.default.svc"
+        "namespace" = kubernetes_namespace.ziti.metadata[0].name
+      }
+      "syncPolicy" = {
+        "automated" = {
+          "prune"    = true
+          "selfHeal" = true
         }
+        "syncOptions" = ["CreateNamespace=false"]
       }
-      persistence = {
-        enabled = true
-        size    = "2Gi"
-      }
-    })
+    }
+  }
+
+  depends_on = [
+    helm_release.argo_cd,
+    null_resource.wait_trust_manager,
   ]
+}
+
+resource "null_resource" "wait_ziti_controller" {
+  depends_on = [
+    kubernetes_manifest.argocd_app_ziti_controller,
+    null_resource.wait_trust_manager,
+  ]
+
+  triggers = {
+    chart_version = var.ziti_controller_chart_version
+  }
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      until [ "$(kubectl --kubeconfig "${var.kubeconfig_path}" \
+        get application ziti-controller -n ${kubernetes_namespace.argocd.metadata[0].name} \
+        -o jsonpath='{.status.health.status}' 2>/dev/null)" = "Healthy" ] && \
+        [ "$(kubectl --kubeconfig "${var.kubeconfig_path}" \
+        get application ziti-controller -n ${kubernetes_namespace.argocd.metadata[0].name} \
+        -o jsonpath='{.status.sync.status}' 2>/dev/null)" = "Synced" ]; do
+        echo "Waiting for ziti-controller ArgoCD app to become Healthy and Synced..."
+        sleep 5
+      done
+      echo "ziti-controller is Healthy and Synced"
+    EOT
+  }
 }
 
 # CoreDNS rewrite rules for OpenZiti in-cluster resolution.
@@ -106,8 +248,17 @@ resource "kubernetes_config_map_v1_data" "coredns_ziti_rewrites" {
           errors
           health
           ready
+          # The controller bakes its external hostname into enrollment JWTs.
+          # Router pods must contact this URL to enroll. Without the rewrite it
+          # resolves to 127.0.0.1 (loopback) and enrollment fails.
           rewrite name ziti.${local.base_domain} ziti-controller-client.${kubernetes_namespace.ziti.metadata[0].name}.svc.cluster.local
+          # In-cluster bootstrap/admin tooling reaches the management API via its
+          # advertised hostname. Without this rewrite it resolves to loopback
+          # and management calls fail.
           rewrite name ziti-mgmt.${local.base_domain} ziti-controller-mgmt.${kubernetes_namespace.ziti.metadata[0].name}.svc.cluster.local
+          # The router advertises its external hostname to peers/clients. Ziti
+          # workloads must resolve it to the router service; without the rewrite
+          # it points at loopback and edge connectivity fails.
           rewrite name ziti-router.${local.base_domain} ziti-router-edge.${kubernetes_namespace.ziti.metadata[0].name}.svc.cluster.local
           kubernetes cluster.local in-addr.arpa ip6.arpa {
             pods insecure
@@ -132,19 +283,7 @@ resource "kubernetes_config_map_v1_data" "coredns_ziti_rewrites" {
     ignore_changes = [data["NodeHosts"]]
   }
 
-  depends_on = [helm_release.ziti_controller]
-}
-
-resource "null_resource" "restart_coredns" {
-  depends_on = [kubernetes_config_map_v1_data.coredns_ziti_rewrites]
-
-  triggers = {
-    corefile_hash = sha256(kubernetes_config_map_v1_data.coredns_ziti_rewrites.data["Corefile"])
-  }
-
-  provisioner "local-exec" {
-    command = "kubectl --kubeconfig \"${var.kubeconfig_path}\" rollout restart deployment/coredns -n kube-system && kubectl --kubeconfig \"${var.kubeconfig_path}\" rollout status deployment/coredns -n kube-system --timeout=60s"
-  }
+  depends_on = [null_resource.wait_ziti_controller]
 }
 
 # Istio base (CRDs)

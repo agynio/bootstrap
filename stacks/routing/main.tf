@@ -158,7 +158,7 @@ resource "kubernetes_manifest" "virtualservice_ziti_controller" {
               "destination" = {
                 "host" = "ziti-controller-client.ziti.svc.cluster.local"
                 "port" = {
-                  "number" = 1280
+                  "number" = local.ingress_port
                 }
               }
             }
@@ -200,7 +200,7 @@ resource "kubernetes_manifest" "virtualservice_ziti_router" {
               "destination" = {
                 "host" = "ziti-router-edge.ziti.svc.cluster.local"
                 "port" = {
-                  "number" = 3022
+                  "number" = local.ingress_port
                 }
               }
             }
@@ -242,7 +242,7 @@ resource "kubernetes_manifest" "virtualservice_ziti_mgmt" {
               "destination" = {
                 "host" = "ziti-controller-mgmt.ziti.svc.cluster.local"
                 "port" = {
-                  "number" = 1281
+                  "number" = local.ingress_port
                 }
               }
             }
