@@ -61,6 +61,9 @@ resource "argocd_application" "cert_manager" {
   metadata {
     name      = "cert-manager"
     namespace = local.argocd_namespace
+    annotations = {
+      "argocd.argoproj.io/compare-options" = "ServerSideDiff=true"
+    }
   }
 
   spec {
@@ -81,6 +84,22 @@ resource "argocd_application" "cert_manager" {
       namespace = local.cert_manager_namespace
     }
 
+    ignore_difference {
+      group = "admissionregistration.k8s.io"
+      kind  = "MutatingWebhookConfiguration"
+      jq_path_expressions = [
+        ".webhooks[]?.clientConfig.caBundle",
+      ]
+    }
+
+    ignore_difference {
+      group = "admissionregistration.k8s.io"
+      kind  = "ValidatingWebhookConfiguration"
+      jq_path_expressions = [
+        ".webhooks[]?.clientConfig.caBundle",
+      ]
+    }
+
     sync_policy {
       automated {
         prune       = true
@@ -92,6 +111,7 @@ resource "argocd_application" "cert_manager" {
         "ServerSideApply=true",
         "ApplyOutOfSyncOnly=true",
         "CreateNamespace=false",
+        "RespectIgnoreDifferences=true",
       ]
 
       retry {
