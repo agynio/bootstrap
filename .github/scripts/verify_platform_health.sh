@@ -68,7 +68,7 @@ jq_unhealthy_pods() {
 jq_crash_backoffs() {
   jq -r '
     [.items[] as $pod |
-      ($pod.status.containerStatuses // [] + $pod.status.initContainerStatuses // []) as $statuses |
+      (($pod.status.containerStatuses // []) + ($pod.status.initContainerStatuses // [])) as $statuses |
       [$statuses[]? | select((.state.waiting.reason? // "") as $reason | ($reason == "CrashLoopBackOff" or $reason == "ImagePullBackOff" or $reason == "ErrImagePull"))]
       as $crash |
       select($crash | length > 0)
