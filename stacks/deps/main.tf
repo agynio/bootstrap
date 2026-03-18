@@ -77,8 +77,27 @@ resource "argocd_application" "cert_manager" {
         allow_empty = false
       }
 
-      sync_options = ["CreateNamespace=false"]
+      sync_options = [
+        "ServerSideApply=true",
+        "ApplyOutOfSyncOnly=true",
+        "CreateNamespace=false",
+      ]
+
+      retry {
+        limit = 5
+        backoff {
+          duration     = "5s"
+          factor       = 2
+          max_duration = "3m"
+        }
+      }
     }
+  }
+
+  timeouts {
+    create = "10m"
+    update = "5m"
+    delete = "5m"
   }
 }
 
@@ -116,8 +135,27 @@ resource "argocd_application" "trust_manager" {
         allow_empty = false
       }
 
-      sync_options = ["CreateNamespace=false"]
+      sync_options = [
+        "ServerSideApply=true",
+        "ApplyOutOfSyncOnly=true",
+        "CreateNamespace=false",
+      ]
+
+      retry {
+        limit = 5
+        backoff {
+          duration     = "5s"
+          factor       = 2
+          max_duration = "3m"
+        }
+      }
     }
+  }
+
+  timeouts {
+    create = "10m"
+    update = "5m"
+    delete = "5m"
   }
 }
 
@@ -158,8 +196,27 @@ resource "argocd_application" "ziti_controller" {
         allow_empty = false
       }
 
-      sync_options = ["CreateNamespace=false"]
+      sync_options = [
+        "ServerSideApply=true",
+        "ApplyOutOfSyncOnly=true",
+        "CreateNamespace=false",
+      ]
+
+      retry {
+        limit = 5
+        backoff {
+          duration     = "5s"
+          factor       = 2
+          max_duration = "3m"
+        }
+      }
     }
+  }
+
+  timeouts {
+    create = "10m"
+    update = "5m"
+    delete = "5m"
   }
 }
 
