@@ -164,8 +164,11 @@ resource "argocd_application" "ziti_controller" {
 }
 
 # CoreDNS rewrite rules for OpenZiti in-cluster resolution.
-# The controller advertises external hostnames (ziti.agyn.dev) in enrollment
-# JWTs. Pods (e.g. the edge router) must resolve these to in-cluster services.
+# The controller bakes ziti.<domain> into enrollment JWTs as the issuer URL.
+# Router pods must resolve this hostname during enrollment; without the rewrite
+# it resolves to loopback and enrollment fails. The ziti-mgmt and ziti-router
+# hostnames are only used by external clients or host-side tooling, so they do
+# not need in-cluster rewrites.
 resource "kubernetes_config_map_v1_data" "coredns_ziti_rewrites" {
   metadata {
     name      = "coredns"
@@ -184,14 +187,6 @@ resource "kubernetes_config_map_v1_data" "coredns_ziti_rewrites" {
           # Router pods must contact this URL to enroll. Without the rewrite it
           # resolves to 127.0.0.1 (loopback) and enrollment fails.
           rewrite name ziti.${local.base_domain} ziti-controller-client.${local.ziti_namespace}.svc.cluster.local
-          # In-cluster bootstrap/admin tooling reaches the management API via its
-          # advertised hostname. Without this rewrite it resolves to loopback
-          # and management calls fail.
-          rewrite name ziti-mgmt.${local.base_domain} ziti-controller-mgmt.${local.ziti_namespace}.svc.cluster.local
-          # The router advertises its external hostname to peers/clients. Ziti
-          # workloads must resolve it to the router service; without the rewrite
-          # it points at loopback and edge connectivity fails.
-          rewrite name ziti-router.${local.base_domain} ziti-router-edge.${local.ziti_namespace}.svc.cluster.local
           kubernetes cluster.local in-addr.arpa ip6.arpa {
             pods insecure
             fallthrough in-addr.arpa ip6.arpa
