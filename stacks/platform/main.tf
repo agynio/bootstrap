@@ -788,14 +788,6 @@ locals {
         value = format("postgresql://orchestrator:%s@agents-orchestrator-db:5432/orchestrator?sslmode=disable", var.agents_orchestrator_db_password)
       },
       {
-        name  = "AGENT_THREADS_ADDRESS"
-        value = "threads.platform.svc.cluster.local:50051"
-      },
-      {
-        name  = "AGENT_NOTIFICATIONS_ADDRESS"
-        value = "notifications.platform.svc.cluster.local:50051"
-      },
-      {
         name  = "DEFAULT_AGENT_IMAGE"
         value = "alpine:3.21"
       },
