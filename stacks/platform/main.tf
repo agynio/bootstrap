@@ -1,20 +1,21 @@
 locals {
-  resolved_platform_server_image_tag = trimspace(var.platform_server_image_tag) != "" ? var.platform_server_image_tag : var.platform_chart_version
-  resolved_docker_runner_image_tag   = trimspace(var.docker_runner_image_tag) != "" ? var.docker_runner_image_tag : var.docker_runner_chart_version
-  resolved_platform_ui_image_tag     = local.resolved_platform_server_image_tag
-  resolved_gateway_image_tag         = trimspace(var.gateway_image_tag) != "" ? var.gateway_image_tag : var.gateway_chart_version
-  resolved_agent_state_image_tag     = trimspace(var.agent_state_image_tag) != "" ? var.agent_state_image_tag : format("v%s", var.agent_state_chart_version)
-  resolved_threads_image_tag         = trimspace(var.threads_image_tag) != "" ? var.threads_image_tag : format("v%s", var.threads_chart_version)
-  resolved_chat_image_tag            = trimspace(var.chat_image_tag) != "" ? var.chat_image_tag : format("v%s", var.chat_chart_version)
-  resolved_chat_app_image_tag        = trimspace(var.chat_app_image_tag) != "" ? var.chat_app_image_tag : var.chat_app_chart_version
-  resolved_tracing_app_image_tag     = trimspace(var.tracing_app_image_tag) != "" ? var.tracing_app_image_tag : var.tracing_app_chart_version
-  resolved_files_image_tag           = trimspace(var.files_image_tag) != "" ? var.files_image_tag : var.files_chart_version
-  resolved_llm_image_tag             = trimspace(var.llm_image_tag) != "" ? var.llm_image_tag : format("v%s", var.llm_chart_version)
-  resolved_secrets_image_tag         = trimspace(var.secrets_image_tag) != "" ? var.secrets_image_tag : format("v%s", var.secrets_chart_version)
-  resolved_token_counting_image_tag  = trimspace(var.token_counting_image_tag) != "" ? var.token_counting_image_tag : format("v%s", var.token_counting_chart_version)
-  resolved_notifications_image_tag   = trimspace(var.notifications_image_tag) != "" ? var.notifications_image_tag : var.notifications_chart_version
-  resolved_teams_image_tag           = trimspace(var.teams_image_tag) != "" ? var.teams_image_tag : format("v%s", var.teams_chart_version)
-  resolved_authorization_image_tag   = trimspace(var.authorization_image_tag) != "" ? var.authorization_image_tag : format("v%s", var.authorization_chart_version)
+  resolved_platform_server_image_tag     = trimspace(var.platform_server_image_tag) != "" ? var.platform_server_image_tag : var.platform_chart_version
+  resolved_docker_runner_image_tag       = trimspace(var.docker_runner_image_tag) != "" ? var.docker_runner_image_tag : var.docker_runner_chart_version
+  resolved_platform_ui_image_tag         = local.resolved_platform_server_image_tag
+  resolved_gateway_image_tag             = trimspace(var.gateway_image_tag) != "" ? var.gateway_image_tag : var.gateway_chart_version
+  resolved_agent_state_image_tag         = trimspace(var.agent_state_image_tag) != "" ? var.agent_state_image_tag : format("v%s", var.agent_state_chart_version)
+  resolved_agents_orchestrator_image_tag = trimspace(var.agents_orchestrator_image_tag) != "" ? var.agents_orchestrator_image_tag : var.agents_orchestrator_chart_version
+  resolved_threads_image_tag             = trimspace(var.threads_image_tag) != "" ? var.threads_image_tag : format("v%s", var.threads_chart_version)
+  resolved_chat_image_tag                = trimspace(var.chat_image_tag) != "" ? var.chat_image_tag : format("v%s", var.chat_chart_version)
+  resolved_chat_app_image_tag            = trimspace(var.chat_app_image_tag) != "" ? var.chat_app_image_tag : var.chat_app_chart_version
+  resolved_tracing_app_image_tag         = trimspace(var.tracing_app_image_tag) != "" ? var.tracing_app_image_tag : var.tracing_app_chart_version
+  resolved_files_image_tag               = trimspace(var.files_image_tag) != "" ? var.files_image_tag : var.files_chart_version
+  resolved_llm_image_tag                 = trimspace(var.llm_image_tag) != "" ? var.llm_image_tag : format("v%s", var.llm_chart_version)
+  resolved_secrets_image_tag             = trimspace(var.secrets_image_tag) != "" ? var.secrets_image_tag : format("v%s", var.secrets_chart_version)
+  resolved_token_counting_image_tag      = trimspace(var.token_counting_image_tag) != "" ? var.token_counting_image_tag : format("v%s", var.token_counting_chart_version)
+  resolved_notifications_image_tag       = trimspace(var.notifications_image_tag) != "" ? var.notifications_image_tag : var.notifications_chart_version
+  resolved_teams_image_tag               = trimspace(var.teams_image_tag) != "" ? var.teams_image_tag : format("v%s", var.teams_chart_version)
+  resolved_authorization_image_tag       = trimspace(var.authorization_image_tag) != "" ? var.authorization_image_tag : format("v%s", var.authorization_chart_version)
 
   postgres_image                 = "postgres:16.6-alpine"
   vault_chart_version            = "0.28.1"
@@ -36,6 +37,7 @@ locals {
   platform_server_chart_name     = "agynio/charts/platform-server"
   platform_ui_chart_name         = "agynio/charts/platform-ui"
   agent_state_chart_name         = "agynio/charts/agent-state"
+  agents_orchestrator_chart_name = "agynio/charts/agents-orchestrator"
   threads_chart_name             = "agynio/charts/threads"
   chat_chart_name                = "agynio/charts/chat"
   chat_app_chart_name            = "agynio/charts/chat-app"
@@ -617,6 +619,29 @@ locals {
     }
   })
 
+  agents_orchestrator_db_values = yamlencode({
+    fullnameOverride = "agents-orchestrator-db"
+    postgres = {
+      database = "orchestrator"
+      username = "orchestrator"
+      password = var.agents_orchestrator_db_password
+      pgdata   = "/var/lib/postgresql/data/pgdata"
+    }
+    persistence = {
+      size                    = var.agents_orchestrator_db_pvc_size
+      mountPath               = "/var/lib/postgresql/data"
+      volumeClaimTemplateName = "data"
+    }
+    probes = {
+      readiness = {
+        execCommand = ["pg_isready", "-U", "orchestrator", "-d", "orchestrator"]
+      }
+      liveness = {
+        execCommand = ["pg_isready", "-U", "orchestrator", "-d", "orchestrator"]
+      }
+    }
+  })
+
   litellm_values = yamlencode({
     fullnameOverride = "litellm"
     replicaCount     = 1
@@ -744,6 +769,37 @@ locals {
       tag        = local.resolved_teams_image_tag
       pullPolicy = "IfNotPresent"
     }
+  })
+
+  agents_orchestrator_values = yamlencode({
+    replicaCount     = 1
+    fullnameOverride = "agents-orchestrator"
+    service = {
+      enabled = false
+    }
+    image = {
+      repository = "ghcr.io/agynio/agents-orchestrator"
+      tag        = local.resolved_agents_orchestrator_image_tag
+      pullPolicy = "IfNotPresent"
+    }
+    env = [
+      {
+        name  = "DATABASE_URL"
+        value = format("postgresql://orchestrator:%s@agents-orchestrator-db:5432/orchestrator?sslmode=disable", var.agents_orchestrator_db_password)
+      },
+      {
+        name  = "DEFAULT_AGENT_IMAGE"
+        value = "alpine:3.21"
+      },
+      {
+        name  = "POLL_INTERVAL"
+        value = "5s"
+      },
+      {
+        name  = "IDLE_TIMEOUT"
+        value = "30s"
+      }
+    ]
   })
 
   authorization_values = yamlencode({
@@ -2516,6 +2572,56 @@ resource "argocd_application" "teams_db" {
   }
 }
 
+resource "argocd_application" "agents_orchestrator_db" {
+  depends_on = [argocd_repository.litellm_repo]
+  wait       = true
+
+  metadata {
+    name      = "agents-orchestrator-db"
+    namespace = "argocd"
+    annotations = {
+      "argocd.argoproj.io/sync-wave" = "8"
+    }
+  }
+
+  spec {
+    project = "default"
+
+    source {
+      repo_url        = local.postgres_chart_repo_host
+      chart           = local.postgres_chart_name
+      target_revision = var.postgres_chart_version
+
+      helm {
+        values = local.agents_orchestrator_db_values
+      }
+    }
+
+    destination {
+      server    = var.destination_server
+      namespace = var.platform_namespace
+    }
+
+    sync_policy {
+      # DB apps always use automated sync with prune disabled for stateful safety,
+      # independent of var.argocd_automated_sync_enabled.
+      automated {
+        prune       = false
+        self_heal   = true
+        allow_empty = false
+      }
+
+      sync_options = local.postgres_sync_options
+    }
+  }
+
+  timeouts {
+    create = "5m"
+    update = "5m"
+    delete = "5m"
+  }
+}
+
 resource "argocd_application" "vault" {
   depends_on = [kubernetes_config_map_v1.vault_auto_init]
 
@@ -3227,6 +3333,57 @@ resource "argocd_application" "docker_runner" {
 
       helm {
         values = local.docker_runner_values
+      }
+    }
+
+    destination {
+      server    = var.destination_server
+      namespace = var.platform_namespace
+    }
+
+    sync_policy {
+      dynamic "automated" {
+        for_each = var.argocd_automated_sync_enabled ? [1] : []
+        content {
+          prune       = var.argocd_prune_enabled
+          self_heal   = var.argocd_self_heal_enabled
+          allow_empty = false
+        }
+      }
+
+      sync_options = local.default_sync_options
+    }
+  }
+}
+
+resource "argocd_application" "agents_orchestrator" {
+  depends_on = [
+    argocd_repository.litellm_repo,
+    argocd_application.agents_orchestrator_db,
+    argocd_application.threads,
+    argocd_application.notifications,
+    argocd_application.teams,
+    argocd_application.secrets,
+    argocd_application.docker_runner,
+  ]
+  metadata {
+    name      = "agents-orchestrator"
+    namespace = "argocd"
+    annotations = {
+      "argocd.argoproj.io/sync-wave" = "19"
+    }
+  }
+
+  spec {
+    project = "default"
+
+    source {
+      repo_url        = local.platform_chart_repo_host
+      chart           = local.agents_orchestrator_chart_name
+      target_revision = var.agents_orchestrator_chart_version
+
+      helm {
+        values = local.agents_orchestrator_values
       }
     }
 
