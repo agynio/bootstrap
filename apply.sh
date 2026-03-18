@@ -185,17 +185,138 @@ merge_kubeconfig() {
   echo "Merged k3d kubeconfig into ${target_config}."
 }
 
+declare -a step_names=()
+declare -a step_durations=()
+step_started_at=0
+
+format_duration() {
+  local total_seconds="$1"
+  local minutes
+  local seconds
+
+  if (( total_seconds < 60 )); then
+    printf '%ss' "${total_seconds}"
+    return
+  fi
+
+  minutes=$(( total_seconds / 60 ))
+  seconds=$(( total_seconds % 60 ))
+  printf '%sm %ss' "${minutes}" "${seconds}"
+}
+
+step_start() {
+  local label="$1"
+
+  step_started_at="${SECONDS}"
+  printf '[TIMING] \xE2\x96\xB6 %s\n' "${label}"
+}
+
+step_end() {
+  local label="$1"
+  local elapsed
+  local formatted_duration
+
+  elapsed=$(( SECONDS - step_started_at ))
+  step_names+=("${label}")
+  step_durations+=("${elapsed}")
+  formatted_duration="$(format_duration "${elapsed}")"
+  printf '[TIMING] \xE2\x9C\x94 %s completed in %s\n' "${label}" "${formatted_duration}"
+}
+
+print_timing_summary() {
+  local header_step="Step"
+  local header_duration="Duration"
+  local total_label="Total"
+  local max_label_len=${#header_step}
+  local max_duration_len=${#header_duration}
+  local -a formatted_durations=()
+  local i
+  local label
+  local duration
+  local total_elapsed
+  local total_duration
+  local line_width
+  local border_line
+  local divider_line
+
+  for i in "${!step_names[@]}"; do
+    label="${step_names[$i]}"
+    duration="$(format_duration "${step_durations[$i]}")"
+    formatted_durations+=("${duration}")
+
+    if (( ${#label} > max_label_len )); then
+      max_label_len=${#label}
+    fi
+
+    if (( ${#duration} > max_duration_len )); then
+      max_duration_len=${#duration}
+    fi
+  done
+
+  if (( ${#total_label} > max_label_len )); then
+    max_label_len=${#total_label}
+  fi
+
+  total_elapsed=$(( SECONDS - global_start ))
+  total_duration="$(format_duration "${total_elapsed}")"
+  if (( ${#total_duration} > max_duration_len )); then
+    max_duration_len=${#total_duration}
+  fi
+
+  line_width=$(( max_label_len + 2 + max_duration_len ))
+
+  border_line="$(printf '%*s' "${line_width}" '')"
+  border_line="${border_line// /=}"
+  divider_line="$(printf '%*s' "${line_width}" '')"
+  divider_line="${divider_line// /-}"
+
+  printf '%s\n' "${border_line}"
+  printf '%-*s  %-*s\n' "${max_label_len}" "${header_step}" "${max_duration_len}" "${header_duration}"
+  printf '%s\n' "${divider_line}"
+
+  for i in "${!step_names[@]}"; do
+    printf '%-*s  %-*s\n' "${max_label_len}" "${step_names[$i]}" "${max_duration_len}" "${formatted_durations[$i]}"
+  done
+
+  printf '%s\n' "${divider_line}"
+  printf '%-*s  %-*s\n' "${max_label_len}" "${total_label}" "${max_duration_len}" "${total_duration}"
+  printf '%s\n' "${border_line}"
+}
+
+global_start="${SECONDS}"
+
+step_start "stack:k8s"
 run_stack "k8s"
+step_end "stack:k8s"
+
+step_start "stack:system"
 run_stack "system"
+step_end "stack:system"
+
+step_start "install-ca-cert"
 ./install-ca-cert.sh -y "$(pwd)/local-certs/ca-agyn-dev.pem"
+step_end "install-ca-cert"
+
+step_start "stack:routing"
 run_stack "routing"
+step_end "stack:routing"
+
+step_start "stack:data"
 run_stack "data"
+step_end "stack:data"
+
+step_start "stack:platform"
 run_stack "platform"
+step_end "stack:platform"
 
 echo "All stacks applied successfully."
 
 if should_merge_kubeconfig; then
+  step_start "merge-kubeconfig"
   merge_kubeconfig
+  step_end "merge-kubeconfig"
 else
   echo "Skipping kubeconfig merge."
 fi
+
+print_timing_summary
