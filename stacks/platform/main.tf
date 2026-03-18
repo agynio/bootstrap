@@ -1543,7 +1543,7 @@ locals {
     env = [
       {
         name  = "API_UPSTREAM"
-        value = "http://platform-server:3010"
+        value = "http://gateway-gateway:8080"
       }
     ]
   })
@@ -1603,6 +1603,12 @@ locals {
         mountPath = "/etc/nginx/conf.d"
       }
     ]
+    env = [
+      {
+        name  = "API_UPSTREAM"
+        value = "http://gateway-gateway:8080"
+      }
+    ]
   })
 
   tracing_app_values = yamlencode({
@@ -1658,6 +1664,12 @@ locals {
       {
         name      = "tracing-app-conf"
         mountPath = "/etc/nginx/conf.d"
+      }
+    ]
+    env = [
+      {
+        name  = "API_UPSTREAM"
+        value = "http://gateway-gateway:8080"
       }
     ]
   })
@@ -1803,9 +1815,9 @@ resource "kubernetes_manifest" "virtualservice_platform_ui" {
           "route" = [
             {
               "destination" = {
-                "host" = "platform-server.platform.svc.cluster.local"
+                "host" = "gateway-gateway.platform.svc.cluster.local"
                 "port" = {
-                  "number" = 3010
+                  "number" = 8080
                 }
               }
             }
@@ -1822,9 +1834,9 @@ resource "kubernetes_manifest" "virtualservice_platform_ui" {
           "route" = [
             {
               "destination" = {
-                "host" = "platform-server.platform.svc.cluster.local"
+                "host" = "gateway-gateway.platform.svc.cluster.local"
                 "port" = {
-                  "number" = 3010
+                  "number" = 8080
                 }
               }
             }
@@ -1913,9 +1925,9 @@ resource "kubernetes_manifest" "virtualservice_chat_app" {
           "route" = [
             {
               "destination" = {
-                "host" = "platform-server.platform.svc.cluster.local"
+                "host" = "gateway-gateway.platform.svc.cluster.local"
                 "port" = {
-                  "number" = 3010
+                  "number" = 8080
                 }
               }
             }
@@ -1932,9 +1944,9 @@ resource "kubernetes_manifest" "virtualservice_chat_app" {
           "route" = [
             {
               "destination" = {
-                "host" = "platform-server.platform.svc.cluster.local"
+                "host" = "gateway-gateway.platform.svc.cluster.local"
                 "port" = {
-                  "number" = 3010
+                  "number" = 8080
                 }
               }
             }
@@ -2023,9 +2035,9 @@ resource "kubernetes_manifest" "virtualservice_tracing_app" {
           "route" = [
             {
               "destination" = {
-                "host" = "platform-server.platform.svc.cluster.local"
+                "host" = "gateway-gateway.platform.svc.cluster.local"
                 "port" = {
-                  "number" = 3010
+                  "number" = 8080
                 }
               }
             }
@@ -2042,9 +2054,9 @@ resource "kubernetes_manifest" "virtualservice_tracing_app" {
           "route" = [
             {
               "destination" = {
-                "host" = "platform-server.platform.svc.cluster.local"
+                "host" = "gateway-gateway.platform.svc.cluster.local"
                 "port" = {
-                  "number" = 3010
+                  "number" = 8080
                 }
               }
             }
