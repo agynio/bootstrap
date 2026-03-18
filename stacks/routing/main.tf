@@ -1,6 +1,21 @@
 locals {
   istio_gateway_namespace       = data.terraform_remote_state.system.outputs.istio_gateway_namespace
   istio_gateway_tls_secret_name = data.terraform_remote_state.system.outputs.wildcard_tls_gateway_secret_name
+  # Explicit host list prevents platform SIMPLE TLS from shadowing
+  # Ziti passthrough SNI; add new platform hosts here as needed.
+  platform_gateway_hosts = [
+    local.base_domain,
+    "argocd.${local.base_domain}",
+    "chat.${local.base_domain}",
+    "gateway.${local.base_domain}",
+    "litellm.${local.base_domain}",
+    "minio.${local.base_domain}",
+    "minio-api.${local.base_domain}",
+    "openfga.${local.base_domain}",
+    "openfga-playground.${local.base_domain}",
+    "tracing.${local.base_domain}",
+    "vault.${local.base_domain}",
+  ]
 }
 
 resource "kubernetes_manifest" "platform_gateway" {
@@ -26,9 +41,44 @@ resource "kubernetes_manifest" "platform_gateway" {
             "mode"           = "SIMPLE"
             "credentialName" = local.istio_gateway_tls_secret_name
           }
+          "hosts" = local.platform_gateway_hosts
+        }
+      ]
+    }
+  }
+
+  computed_fields = [
+    "metadata.annotations",
+    "metadata.labels",
+  ]
+}
+
+resource "kubernetes_manifest" "ziti_passthrough_gateway" {
+  manifest = {
+    "apiVersion" = "networking.istio.io/v1beta1"
+    "kind"       = "Gateway"
+    "metadata" = {
+      "name"      = "ziti-passthrough-gateway"
+      "namespace" = local.istio_gateway_namespace
+    }
+    "spec" = {
+      "selector" = {
+        "istio" = "ingressgateway"
+      }
+      "servers" = [
+        {
+          "port" = {
+            "number"   = 443
+            "name"     = "tls-ziti"
+            "protocol" = "TLS"
+          }
+          "tls" = {
+            "mode" = "PASSTHROUGH"
+          }
           "hosts" = [
-            local.base_domain,
-            "*.${local.base_domain}",
+            "ziti.${local.base_domain}",
+            "ziti-mgmt.${local.base_domain}",
+            "ziti-router.${local.base_domain}",
           ]
         }
       ]
@@ -67,6 +117,132 @@ resource "kubernetes_manifest" "virtualservice_argocd" {
                 "host" = "argo-cd-argocd-server.argocd.svc.cluster.local"
                 "port" = {
                   "number" = 8080
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+
+  computed_fields = [
+    "metadata.annotations",
+    "metadata.labels",
+  ]
+}
+
+resource "kubernetes_manifest" "virtualservice_ziti_controller" {
+  manifest = {
+    "apiVersion" = "networking.istio.io/v1beta1"
+    "kind"       = "VirtualService"
+    "metadata" = {
+      "name"      = "ziti-controller"
+      "namespace" = local.istio_gateway_namespace
+    }
+    "spec" = {
+      "hosts" = ["ziti.${local.base_domain}"]
+      "gateways" = [
+        kubernetes_manifest.ziti_passthrough_gateway.manifest.metadata.name,
+      ]
+      "tls" = [
+        {
+          "match" = [
+            {
+              "port"     = 443
+              "sniHosts" = ["ziti.${local.base_domain}"]
+            }
+          ]
+          "route" = [
+            {
+              "destination" = {
+                "host" = "ziti-controller-client.ziti.svc.cluster.local"
+                "port" = {
+                  "number" = local.ingress_port
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+
+  computed_fields = [
+    "metadata.annotations",
+    "metadata.labels",
+  ]
+}
+
+resource "kubernetes_manifest" "virtualservice_ziti_router" {
+  manifest = {
+    "apiVersion" = "networking.istio.io/v1beta1"
+    "kind"       = "VirtualService"
+    "metadata" = {
+      "name"      = "ziti-router"
+      "namespace" = local.istio_gateway_namespace
+    }
+    "spec" = {
+      "hosts" = ["ziti-router.${local.base_domain}"]
+      "gateways" = [
+        kubernetes_manifest.ziti_passthrough_gateway.manifest.metadata.name,
+      ]
+      "tls" = [
+        {
+          "match" = [
+            {
+              "port"     = 443
+              "sniHosts" = ["ziti-router.${local.base_domain}"]
+            }
+          ]
+          "route" = [
+            {
+              "destination" = {
+                "host" = "ziti-router-edge.ziti.svc.cluster.local"
+                "port" = {
+                  "number" = local.ingress_port
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+
+  computed_fields = [
+    "metadata.annotations",
+    "metadata.labels",
+  ]
+}
+
+resource "kubernetes_manifest" "virtualservice_ziti_mgmt" {
+  manifest = {
+    "apiVersion" = "networking.istio.io/v1beta1"
+    "kind"       = "VirtualService"
+    "metadata" = {
+      "name"      = "ziti-controller-mgmt"
+      "namespace" = local.istio_gateway_namespace
+    }
+    "spec" = {
+      "hosts" = ["ziti-mgmt.${local.base_domain}"]
+      "gateways" = [
+        kubernetes_manifest.ziti_passthrough_gateway.manifest.metadata.name,
+      ]
+      "tls" = [
+        {
+          "match" = [
+            {
+              "port"     = 443
+              "sniHosts" = ["ziti-mgmt.${local.base_domain}"]
+            }
+          ]
+          "route" = [
+            {
+              "destination" = {
+                "host" = "ziti-controller-mgmt.ziti.svc.cluster.local"
+                "port" = {
+                  "number" = local.ingress_port
                 }
               }
             }

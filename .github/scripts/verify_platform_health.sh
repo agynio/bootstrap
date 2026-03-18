@@ -6,6 +6,7 @@ TOTAL_TIMEOUT=${TOTAL_TIMEOUT:-1200}
 POLL_INTERVAL=${POLL_INTERVAL:-10}
 PLATFORM_NAMESPACE=${PLATFORM_NAMESPACE:-platform}
 ARGO_NAMESPACE=${ARGO_NAMESPACE:-argocd}
+ZITI_NAMESPACE=${ZITI_NAMESPACE:-ziti}
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/../.." && pwd)
@@ -16,7 +17,7 @@ if [[ ! -f "$KUBECONFIG_PATH" ]]; then
   exit 1
 fi
 
-REQUIRED_APPS_JSON='["vault","registry-mirror","minio","platform-db","litellm-db","agent-state-db","threads-db","litellm","agent-state","notifications-redis","notifications","threads","chat","docker-runner","platform-server","platform-ui"]'
+REQUIRED_APPS_JSON='["cert-manager","trust-manager","ziti-controller","vault","registry-mirror","minio","platform-db","litellm-db","agent-state-db","threads-db","litellm","agent-state","notifications-redis","notifications","threads","chat","docker-runner","platform-server","platform-ui"]'
 
 deadline=$((SECONDS + TOTAL_TIMEOUT))
 
@@ -29,6 +30,16 @@ dump_diagnostics() {
   kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$PLATFORM_NAMESPACE" get pods -o wide || true
   kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$PLATFORM_NAMESPACE" describe pods || true
   kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$ARGO_NAMESPACE" get applications.argoproj.io -o yaml | grep -E "(name:|status:)" | sed -n '1,200p' || true
+}
+
+dump_ziti_diagnostics() {
+  log "Collecting Ziti diagnostics before exit"
+  kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$ZITI_NAMESPACE" get pods -o wide || true
+  kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$ZITI_NAMESPACE" describe pods || true
+  kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$ZITI_NAMESPACE" \
+    logs -l app.kubernetes.io/name=ziti-controller --tail=50 || true
+  kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$ZITI_NAMESPACE" \
+    logs -l app.kubernetes.io/name=ziti-router --tail=50 || true
 }
 
 fail_with_diagnostics() {
@@ -45,6 +56,26 @@ join_lines() {
   echo "$input" | paste -sd ', ' -
 }
 
+jq_unhealthy_pods() {
+  jq -r '
+    [.items[] | select(
+      (.status.phase // "") != "Running" or
+      any(.status.containerStatuses[]?; (.ready // false) | not)
+    ) | "\(.metadata.name) (phase=\(.status.phase // "Unknown"))"]
+    | .[]?'
+}
+
+jq_crash_backoffs() {
+  jq -r '
+    [.items[] as $pod |
+      (($pod.status.containerStatuses // []) + ($pod.status.initContainerStatuses // [])) as $statuses |
+      [$statuses[]? | select((.state.waiting.reason? // "") as $reason | ($reason == "CrashLoopBackOff" or $reason == "ImagePullBackOff" or $reason == "ErrImagePull"))]
+      as $crash |
+      select($crash | length > 0)
+      | "\($pod.metadata.name) (reason=\($crash[0].state.waiting.reason))"
+    ] | .[]?'
+}
+
 while (( SECONDS < deadline )); do
   time_left=$((deadline - SECONDS))
 
@@ -53,6 +84,10 @@ while (( SECONDS < deadline )); do
   sts_json=$(kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$PLATFORM_NAMESPACE" get statefulsets -o json 2>/dev/null || echo '{"items": []}')
   pods_json=$(kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$PLATFORM_NAMESPACE" get pods -o json 2>/dev/null || echo '{"items": []}')
   apps_json=$(kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$ARGO_NAMESPACE" get applications.argoproj.io -o json 2>/dev/null || echo '{"items": []}')
+  ziti_controller_json=$(kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$ZITI_NAMESPACE" \
+    get pods -l app.kubernetes.io/name=ziti-controller -o json 2>/dev/null || echo '{"items": []}')
+  ziti_router_json=$(kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$ZITI_NAMESPACE" \
+    get pods -l app.kubernetes.io/name=ziti-router -o json 2>/dev/null || echo '{"items": []}')
 
   degraded_apps=$(jq -r --argjson required "$REQUIRED_APPS_JSON" '
     [.items[]? | select(.metadata.name as $n | $required | index($n) != null)
@@ -92,14 +127,7 @@ while (( SECONDS < deadline )); do
     fail_with_diagnostics
   fi
 
-  pod_crash_backoffs=$(jq -r '
-    [.items[] as $pod |
-      ($pod.status.containerStatuses // [] + $pod.status.initContainerStatuses // []) as $statuses |
-      [$statuses[]? | select((.state.waiting.reason? // "") as $reason | ($reason == "CrashLoopBackOff" or $reason == "ImagePullBackOff" or $reason == "ErrImagePull"))]
-      as $crash |
-      select($crash | length > 0)
-      | "\($pod.metadata.name) (reason=\($crash[0].state.waiting.reason))"
-    ] | .[]?' <<<"$pods_json")
+  pod_crash_backoffs=$(jq_crash_backoffs <<<"$pods_json")
 
   deploy_failures=$(jq -r '
     [.items[] as $dep |
@@ -166,6 +194,35 @@ while (( SECONDS < deadline )); do
       | "\($pod.metadata.name) (phase=\($pod.status.phase // "Unknown"))"
     ] | .[]?' <<<"$pods_json")
 
+  ziti_missing=()
+  ziti_controller_count=$(jq '.items | length' <<<"$ziti_controller_json")
+  ziti_router_count=$(jq '.items | length' <<<"$ziti_router_json")
+  if (( ziti_controller_count == 0 )); then
+    ziti_missing+=("ziti-controller")
+  fi
+  if (( ziti_router_count == 0 )); then
+    ziti_missing+=("ziti-router")
+  fi
+
+  ziti_unhealthy=$(
+    {
+      jq_unhealthy_pods <<<"$ziti_controller_json"
+      jq_unhealthy_pods <<<"$ziti_router_json"
+    } | sed '/^$/d'
+  )
+  ziti_crash_backoffs=$(
+    {
+      jq_crash_backoffs <<<"$ziti_controller_json"
+      jq_crash_backoffs <<<"$ziti_router_json"
+    } | sed '/^$/d'
+  )
+  if [[ -n "$ziti_crash_backoffs" ]]; then
+    log "Detected Ziti pods in CrashLoopBackOff/ImagePull errors"
+    echo "$ziti_crash_backoffs"
+    dump_ziti_diagnostics
+    exit 1
+  fi
+
   outstanding=()
 
   if [[ -n "$missing_apps" ]]; then
@@ -188,6 +245,12 @@ while (( SECONDS < deadline )); do
   fi
   if [[ -n "$pod_crash_backoffs" ]]; then
     outstanding+=("pods restarting: $(join_lines "$pod_crash_backoffs")")
+  fi
+  if (( ${#ziti_missing[@]} > 0 )); then
+    outstanding+=("waiting for Ziti pods: $(join_lines "$(printf '%s\n' "${ziti_missing[@]}")")")
+  fi
+  if [[ -n "$ziti_unhealthy" ]]; then
+    outstanding+=("waiting for Ziti pods ready: $(join_lines "$ziti_unhealthy")")
   fi
 
   if (( ${#outstanding[@]} == 0 )); then

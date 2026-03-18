@@ -4,6 +4,7 @@ set -euo pipefail
 
 DEFAULT_DOMAIN="agyn.dev"
 DEFAULT_PORT="2496"
+KUBECONFIG_PATH="stacks/k8s/.kube/agyn-local-kubeconfig.yaml"
 
 auto_approve="false"
 
@@ -97,6 +98,8 @@ printf '\nUsing domain: %s\nUsing port:   %s\n\n' "${domain}" "${port}"
 
 run_stack() {
   local stack="$1"
+  shift
+  local extra_args=("$@")
 
   echo "=== Initializing ${stack} stack ==="
   local init_cmd=(terraform -chdir="stacks/${stack}" init)
@@ -110,6 +113,10 @@ run_stack() {
 
   if [[ "${stack}" == "k8s" ]]; then
     apply_cmd+=(-var "domain=${domain}" -var "port=${port}")
+  fi
+
+  if [[ "${#extra_args[@]}" -gt 0 ]]; then
+    apply_cmd+=("${extra_args[@]}")
   fi
 
   if [[ "${auto_approve}" == "true" ]]; then
@@ -151,7 +158,7 @@ merge_kubeconfig() {
   local merged
 
   repo_root="$(pwd)"
-  generated_config="${repo_root}/stacks/k8s/.kube/agyn-local-kubeconfig.yaml"
+  generated_config="${repo_root}/${KUBECONFIG_PATH}"
   kube_dir="${HOME}/.kube"
   target_config="${kube_dir}/config"
 
@@ -300,6 +307,105 @@ step_end "install-ca-cert"
 step_start "stack:routing"
 run_stack "routing"
 step_end "stack:routing"
+
+step_start "stack:deps"
+run_stack "deps"
+
+echo "=== Waiting for ArgoCD applications to sync ==="
+for app in cert-manager trust-manager ziti-controller; do
+  echo "--- Waiting for ${app} ---"
+  synced=0
+  for i in $(seq 1 60); do
+    sync_status=$(kubectl --kubeconfig "${KUBECONFIG_PATH}" \
+      -n argocd get application "${app}" \
+      -o jsonpath='{.status.sync.status}' 2>/dev/null || echo "Unknown")
+    health_status=$(kubectl --kubeconfig "${KUBECONFIG_PATH}" \
+      -n argocd get application "${app}" \
+      -o jsonpath='{.status.health.status}' 2>/dev/null || echo "Unknown")
+
+    if [[ "${sync_status}" == "Synced" && "${health_status}" == "Healthy" ]]; then
+      echo "${app}: Synced and Healthy"
+      synced=1
+      break
+    fi
+    echo "  ${app}: sync=${sync_status} health=${health_status} (${i}/60)"
+    sleep 10
+  done
+
+  if [[ "${synced}" -ne 1 ]]; then
+    echo "ERROR: ${app} did not become Synced+Healthy within timeout"
+    echo "--- Full Application status ---"
+    kubectl --kubeconfig "${KUBECONFIG_PATH}" \
+      -n argocd get application "${app}" -o yaml 2>&1 || true
+    echo "--- ${app} namespace pods ---"
+    ns=$(kubectl --kubeconfig "${KUBECONFIG_PATH}" \
+      -n argocd get application "${app}" \
+      -o jsonpath='{.spec.destination.namespace}' 2>/dev/null || echo "unknown")
+    kubectl --kubeconfig "${KUBECONFIG_PATH}" \
+      -n "${ns}" get pods -o wide 2>&1 || true
+    echo "--- ${app} namespace events ---"
+    kubectl --kubeconfig "${KUBECONFIG_PATH}" \
+      -n "${ns}" get events --sort-by='.lastTimestamp' 2>&1 | tail -30 || true
+    exit 1
+  fi
+done
+step_end "stack:deps"
+
+step_start "stack:ziti"
+echo "=== Waiting for OpenZiti Controller secret ==="
+for i in $(seq 1 30); do
+  ZITI_ADMIN_PASSWORD=$(kubectl --kubeconfig "${KUBECONFIG_PATH}" \
+    -n ziti get secret ziti-controller-admin-secret \
+    -o go-template='{{index .data "admin-password" | base64decode}}' 2>/dev/null) && break
+  echo "Waiting for ziti-controller admin secret... (${i}/30)"
+  sleep 5
+done
+
+if [[ -z "${ZITI_ADMIN_PASSWORD:-}" ]]; then
+  echo "ERROR: Could not retrieve ziti-controller admin password" >&2
+  exit 1
+fi
+
+echo "=== Waiting for OpenZiti Management API ==="
+management_ready=0
+for i in $(seq 1 60); do
+  if curl -sk "https://ziti-mgmt.${domain}:${port}/edge/management/v1/version" >/dev/null 2>&1; then
+    echo "OpenZiti Management API is ready."
+    management_ready=1
+    break
+  fi
+  echo "Waiting for OpenZiti Management API... (${i}/60)"
+  sleep 5
+done
+
+if [[ "${management_ready}" -ne 1 ]]; then
+  echo "ERROR: OpenZiti Management API did not become ready." >&2
+  exit 1
+fi
+
+ZITI_EXIT=0
+run_stack "ziti" -var "ziti_admin_password=${ZITI_ADMIN_PASSWORD}" || ZITI_EXIT=$?
+
+if [ "${ZITI_EXIT}" -ne 0 ]; then
+  echo "=== Ziti stack failed (exit code: ${ZITI_EXIT}). Dumping diagnostics ==="
+  echo "--- Router pod status ---"
+  kubectl --kubeconfig "${KUBECONFIG_PATH}" \
+    -n ziti get pods -l app.kubernetes.io/name=ziti-router -o wide 2>&1 || true
+  echo "--- Router pod describe ---"
+  kubectl --kubeconfig "${KUBECONFIG_PATH}" \
+    -n ziti describe pod -l app.kubernetes.io/name=ziti-router 2>&1 | tail -60 || true
+  echo "--- Router pod logs ---"
+  kubectl --kubeconfig "${KUBECONFIG_PATH}" \
+    -n ziti logs -l app.kubernetes.io/name=ziti-router --tail=100 2>&1 || true
+  echo "--- Controller client service ---"
+  kubectl --kubeconfig "${KUBECONFIG_PATH}" \
+    -n ziti get svc -l app.kubernetes.io/name=ziti-controller -o wide 2>&1 || true
+  echo "--- Router events ---"
+  kubectl --kubeconfig "${KUBECONFIG_PATH}" \
+    -n ziti get events --sort-by='.lastTimestamp' --field-selector reason!=Pulled 2>&1 | tail -20 || true
+  exit "${ZITI_EXIT}"
+fi
+step_end "stack:ziti"
 
 step_start "stack:data"
 run_stack "data"
