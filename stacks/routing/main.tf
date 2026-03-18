@@ -56,7 +56,7 @@ resource "kubernetes_manifest" "ziti_passthrough_gateway" {
       "servers" = [
         {
           "port" = {
-            "number"   = local.ingress_port
+            "number"   = 443
             "name"     = "tls-ziti"
             "protocol" = "TLS"
           }
@@ -135,7 +135,7 @@ resource "kubernetes_manifest" "virtualservice_ziti_controller" {
         {
           "match" = [
             {
-              "port"     = local.ingress_port
+              "port"     = 443
               "sniHosts" = ["ziti.${local.base_domain}"]
             }
           ]
@@ -175,7 +175,7 @@ resource "kubernetes_manifest" "virtualservice_ziti_router" {
         {
           "match" = [
             {
-              "port"     = local.ingress_port
+              "port"     = 443
               "sniHosts" = ["ziti-router.${local.base_domain}"]
             }
           ]
@@ -217,7 +217,7 @@ resource "kubernetes_manifest" "virtualservice_ziti_mgmt" {
         {
           "match" = [
             {
-              "port"     = local.ingress_port
+              "port"     = 443
               "sniHosts" = ["ziti-mgmt.${local.base_domain}"]
             }
           ]
