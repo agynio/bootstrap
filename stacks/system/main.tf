@@ -89,6 +89,64 @@ resource "helm_release" "ziti_controller" {
   ]
 }
 
+# CoreDNS rewrite rules for OpenZiti in-cluster resolution.
+# The controller advertises external hostnames (ziti.agyn.dev) in enrollment
+# JWTs. Pods (e.g. the edge router) must resolve these to in-cluster services.
+resource "kubernetes_config_map_v1_data" "coredns_ziti_rewrites" {
+  metadata {
+    name      = "coredns"
+    namespace = "kube-system"
+  }
+
+  force = true
+
+  data = {
+    Corefile = <<-COREFILE
+      .:53 {
+          errors
+          health
+          ready
+          rewrite name ziti.${local.base_domain} ziti-controller-client.${kubernetes_namespace.ziti.metadata[0].name}.svc.cluster.local
+          rewrite name ziti-mgmt.${local.base_domain} ziti-controller-mgmt.${kubernetes_namespace.ziti.metadata[0].name}.svc.cluster.local
+          rewrite name ziti-router.${local.base_domain} ziti-router-edge.${kubernetes_namespace.ziti.metadata[0].name}.svc.cluster.local
+          kubernetes cluster.local in-addr.arpa ip6.arpa {
+            pods insecure
+            fallthrough in-addr.arpa ip6.arpa
+          }
+          hosts /etc/coredns/NodeHosts {
+            ttl 60
+            reload 15s
+            fallthrough
+          }
+          prometheus :9153
+          forward . /etc/resolv.conf
+          cache 30
+          loop
+          reload
+          loadbalance
+      }
+    COREFILE
+  }
+
+  lifecycle {
+    ignore_changes = [data["NodeHosts"]]
+  }
+
+  depends_on = [helm_release.ziti_controller]
+}
+
+resource "null_resource" "restart_coredns" {
+  depends_on = [kubernetes_config_map_v1_data.coredns_ziti_rewrites]
+
+  triggers = {
+    corefile_hash = sha256(kubernetes_config_map_v1_data.coredns_ziti_rewrites.data["Corefile"])
+  }
+
+  provisioner "local-exec" {
+    command = "kubectl --kubeconfig ${var.kubeconfig_path} rollout restart deployment/coredns -n kube-system && kubectl --kubeconfig ${var.kubeconfig_path} rollout status deployment/coredns -n kube-system --timeout=60s"
+  }
+}
+
 # Istio base (CRDs)
 resource "helm_release" "istio_base" {
   name       = "istio-base"
