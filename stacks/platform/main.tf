@@ -785,7 +785,7 @@ locals {
     env = [
       {
         name  = "DATABASE_URL"
-        value = format("postgresql://orchestrator:%s@agents-orchestrator-db:5432/orchestrator", var.agents_orchestrator_db_password)
+        value = format("postgresql://orchestrator:%s@agents-orchestrator-db:5432/orchestrator?sslmode=disable", var.agents_orchestrator_db_password)
       },
       {
         name  = "THREADS_ADDRESS"
