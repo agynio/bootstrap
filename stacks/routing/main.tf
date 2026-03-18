@@ -1,6 +1,21 @@
 locals {
   istio_gateway_namespace       = data.terraform_remote_state.system.outputs.istio_gateway_namespace
   istio_gateway_tls_secret_name = data.terraform_remote_state.system.outputs.wildcard_tls_gateway_secret_name
+  # Explicit host list prevents platform SIMPLE TLS from shadowing
+  # Ziti passthrough SNI; add new platform hosts here as needed.
+  platform_gateway_hosts = [
+    local.base_domain,
+    "argocd.${local.base_domain}",
+    "chat.${local.base_domain}",
+    "gateway.${local.base_domain}",
+    "litellm.${local.base_domain}",
+    "minio.${local.base_domain}",
+    "minio-api.${local.base_domain}",
+    "openfga.${local.base_domain}",
+    "openfga-playground.${local.base_domain}",
+    "tracing.${local.base_domain}",
+    "vault.${local.base_domain}",
+  ]
 }
 
 resource "kubernetes_manifest" "platform_gateway" {
@@ -26,19 +41,7 @@ resource "kubernetes_manifest" "platform_gateway" {
             "mode"           = "SIMPLE"
             "credentialName" = local.istio_gateway_tls_secret_name
           }
-          "hosts" = [
-            local.base_domain,
-            "argocd.${local.base_domain}",
-            "chat.${local.base_domain}",
-            "gateway.${local.base_domain}",
-            "litellm.${local.base_domain}",
-            "minio.${local.base_domain}",
-            "minio-api.${local.base_domain}",
-            "openfga.${local.base_domain}",
-            "openfga-playground.${local.base_domain}",
-            "tracing.${local.base_domain}",
-            "vault.${local.base_domain}",
-          ]
+          "hosts" = local.platform_gateway_hosts
         }
       ]
     }
@@ -138,8 +141,10 @@ resource "kubernetes_manifest" "virtualservice_ziti_controller" {
       "namespace" = local.istio_gateway_namespace
     }
     "spec" = {
-      "hosts"    = ["ziti.${local.base_domain}"]
-      "gateways" = ["ziti-passthrough-gateway"]
+      "hosts" = ["ziti.${local.base_domain}"]
+      "gateways" = [
+        kubernetes_manifest.ziti_passthrough_gateway.manifest.metadata.name,
+      ]
       "tls" = [
         {
           "match" = [
@@ -178,8 +183,10 @@ resource "kubernetes_manifest" "virtualservice_ziti_router" {
       "namespace" = local.istio_gateway_namespace
     }
     "spec" = {
-      "hosts"    = ["ziti-router.${local.base_domain}"]
-      "gateways" = ["ziti-passthrough-gateway"]
+      "hosts" = ["ziti-router.${local.base_domain}"]
+      "gateways" = [
+        kubernetes_manifest.ziti_passthrough_gateway.manifest.metadata.name,
+      ]
       "tls" = [
         {
           "match" = [

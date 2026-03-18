@@ -21,9 +21,3 @@ variable "ziti_router_chart_version" {
   description = "OpenZiti router chart version"
   default     = "2.1.0"
 }
-
-variable "platform_namespace" {
-  type        = string
-  description = "Namespace where platform services and identity secrets live"
-  default     = "agyn"
-}

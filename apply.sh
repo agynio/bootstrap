@@ -4,6 +4,7 @@ set -euo pipefail
 
 DEFAULT_DOMAIN="agyn.dev"
 DEFAULT_PORT="2496"
+KUBECONFIG_PATH="stacks/k8s/.kube/agyn-local-kubeconfig.yaml"
 
 auto_approve="false"
 
@@ -157,7 +158,7 @@ merge_kubeconfig() {
   local merged
 
   repo_root="$(pwd)"
-  generated_config="${repo_root}/stacks/k8s/.kube/agyn-local-kubeconfig.yaml"
+  generated_config="${repo_root}/${KUBECONFIG_PATH}"
   kube_dir="${HOME}/.kube"
   target_config="${kube_dir}/config"
 
