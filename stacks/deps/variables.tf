@@ -20,7 +20,7 @@ variable "argocd_admin_password" {
 variable "cert_manager_chart_version" {
   type        = string
   description = "cert-manager chart version"
-  default     = "v1.16.5"
+  default     = "v1.20.0"
 }
 
 variable "trust_manager_chart_version" {
