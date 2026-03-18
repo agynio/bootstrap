@@ -309,39 +309,46 @@ run_stack "routing"
 step_end "stack:routing"
 
 step_start "stack:deps"
-DEPS_EXIT=0
-run_stack "deps" || DEPS_EXIT=$?
+run_stack "deps"
 
-if [ "${DEPS_EXIT}" -ne 0 ]; then
-  echo "=== Deps stack failed (exit code: ${DEPS_EXIT}). Dumping ArgoCD app diagnostics ==="
-  for app in cert-manager trust-manager ziti-controller; do
-    echo "--- ArgoCD Application: ${app} ---"
-    kubectl --kubeconfig "${KUBECONFIG_PATH}" \
-      -n argocd get application "${app}" -o jsonpath='{.status.sync.status}' 2>&1 && echo "" || true
-    echo "Sync status:"
-    kubectl --kubeconfig "${KUBECONFIG_PATH}" \
-      -n argocd get application "${app}" -o jsonpath='{.status.sync}' 2>&1 && echo "" || true
-    echo "Health status:"
-    kubectl --kubeconfig "${KUBECONFIG_PATH}" \
-      -n argocd get application "${app}" -o jsonpath='{.status.health}' 2>&1 && echo "" || true
-    echo "Conditions:"
-    kubectl --kubeconfig "${KUBECONFIG_PATH}" \
-      -n argocd get application "${app}" -o jsonpath='{.status.conditions}' 2>&1 && echo "" || true
-    echo "Operation state:"
-    kubectl --kubeconfig "${KUBECONFIG_PATH}" \
-      -n argocd get application "${app}" -o jsonpath='{.status.operationState}' 2>&1 && echo "" || true
-    echo "Resource statuses (non-synced only):"
-    kubectl --kubeconfig "${KUBECONFIG_PATH}" \
-      -n argocd get application "${app}" -o json 2>/dev/null | \
-      jq -r '.status.resources[]? | select(.status != "Synced") | "\(.kind)/\(.name): sync=\(.status) health=\(.health.status // "n/a")"' 2>&1 || true
-    echo ""
+echo "=== Waiting for ArgoCD applications to sync ==="
+for app in cert-manager trust-manager ziti-controller; do
+  echo "--- Waiting for ${app} ---"
+  synced=0
+  for i in $(seq 1 60); do
+    sync_status=$(kubectl --kubeconfig "${KUBECONFIG_PATH}" \
+      -n argocd get application "${app}" \
+      -o jsonpath='{.status.sync.status}' 2>/dev/null || echo "Unknown")
+    health_status=$(kubectl --kubeconfig "${KUBECONFIG_PATH}" \
+      -n argocd get application "${app}" \
+      -o jsonpath='{.status.health.status}' 2>/dev/null || echo "Unknown")
+
+    if [[ "${sync_status}" == "Synced" && "${health_status}" == "Healthy" ]]; then
+      echo "${app}: Synced and Healthy"
+      synced=1
+      break
+    fi
+    echo "  ${app}: sync=${sync_status} health=${health_status} (${i}/60)"
+    sleep 10
   done
-  echo "--- cert-manager namespace pods ---"
-  kubectl --kubeconfig "${KUBECONFIG_PATH}" -n cert-manager get pods -o wide 2>&1 || true
-  echo "--- cert-manager namespace events ---"
-  kubectl --kubeconfig "${KUBECONFIG_PATH}" -n cert-manager get events --sort-by='.lastTimestamp' 2>&1 | tail -30 || true
-  exit "${DEPS_EXIT}"
-fi
+
+  if [[ "${synced}" -ne 1 ]]; then
+    echo "ERROR: ${app} did not become Synced+Healthy within timeout"
+    echo "--- Full Application status ---"
+    kubectl --kubeconfig "${KUBECONFIG_PATH}" \
+      -n argocd get application "${app}" -o yaml 2>&1 || true
+    echo "--- ${app} namespace pods ---"
+    ns=$(kubectl --kubeconfig "${KUBECONFIG_PATH}" \
+      -n argocd get application "${app}" \
+      -o jsonpath='{.spec.destination.namespace}' 2>/dev/null || echo "unknown")
+    kubectl --kubeconfig "${KUBECONFIG_PATH}" \
+      -n "${ns}" get pods -o wide 2>&1 || true
+    echo "--- ${app} namespace events ---"
+    kubectl --kubeconfig "${KUBECONFIG_PATH}" \
+      -n "${ns}" get events --sort-by='.lastTimestamp' 2>&1 | tail -30 || true
+    exit 1
+  fi
+done
 step_end "stack:deps"
 
 step_start "stack:ziti"

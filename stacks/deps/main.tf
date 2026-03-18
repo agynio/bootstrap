@@ -56,7 +56,7 @@ resource "argocd_repository" "openziti" {
 
 resource "argocd_application" "cert_manager" {
   depends_on = [argocd_repository.jetstack]
-  wait       = true
+  wait       = false
 
   metadata {
     name      = "cert-manager"
@@ -137,7 +137,7 @@ resource "argocd_application" "trust_manager" {
     argocd_application.cert_manager,
     argocd_repository.jetstack,
   ]
-  wait = true
+  wait = false
 
   metadata {
     name      = "trust-manager"
@@ -199,7 +199,7 @@ resource "argocd_application" "ziti_controller" {
     argocd_application.trust_manager,
     argocd_repository.openziti,
   ]
-  wait = true
+  wait = false
 
   metadata {
     name      = "ziti-controller"
