@@ -808,10 +808,6 @@ locals {
         name  = "DATABASE_URL"
         value = format("postgresql://tenants:%s@tenants-db:5432/tenants?sslmode=disable", var.tenants_db_password)
       },
-      {
-        name  = "AUTHORIZATION_ADDRESS"
-        value = "authorization:50051"
-      },
     ]
   })
 
