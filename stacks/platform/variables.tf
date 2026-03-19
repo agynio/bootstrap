@@ -44,7 +44,7 @@ variable "agent_state_chart_version" {
 variable "agents_orchestrator_chart_version" {
   type        = string
   description = "Version of the agents-orchestrator Helm chart published to GHCR"
-  default     = "0.1.6"
+  default     = "0.1.7"
 }
 
 variable "threads_chart_version" {
