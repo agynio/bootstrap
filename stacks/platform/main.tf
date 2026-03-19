@@ -758,17 +758,17 @@ locals {
 
   teams_values = yamlencode({
     fullnameOverride = "teams"
-    service = {
-      port = 50051
-    }
-    database = {
-      url = format("postgresql://teams:%s@teams-db:5432/teams?sslmode=disable", var.teams_db_password)
-    }
     image = {
       repository = "ghcr.io/agynio/teams"
       tag        = local.resolved_teams_image_tag
       pullPolicy = "IfNotPresent"
     }
+    env = [
+      {
+        name  = "DATABASE_URL"
+        value = format("postgresql://teams:%s@teams-db:5432/teams?sslmode=disable", var.teams_db_password)
+      },
+    ]
   })
 
   agents_orchestrator_values = yamlencode({
