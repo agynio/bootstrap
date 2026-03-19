@@ -798,6 +798,10 @@ locals {
       {
         name  = "IDLE_TIMEOUT"
         value = "30s"
+      },
+      {
+        name  = "DOCKER_RUNNER_SHARED_SECRET"
+        value = var.docker_runner_shared_secret
       }
     ]
   })
