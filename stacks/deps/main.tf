@@ -279,6 +279,8 @@ resource "kubernetes_config_map_v1_data" "coredns_ziti_rewrites" {
           # Router pods must contact this URL to enroll. Without the rewrite it
           # resolves to 127.0.0.1 (loopback) and enrollment fails.
           rewrite name ziti.${local.base_domain} ziti-controller-client.${local.ziti_namespace}.svc.cluster.local
+          rewrite name chat.${local.base_domain} istio-ingressgateway.${local.istio_gateway_namespace}.svc.cluster.local
+          rewrite name tracing.${local.base_domain} istio-ingressgateway.${local.istio_gateway_namespace}.svc.cluster.local
           kubernetes cluster.local in-addr.arpa ip6.arpa {
             pods insecure
             fallthrough in-addr.arpa ip6.arpa
