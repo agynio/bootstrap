@@ -1879,6 +1879,44 @@ resource "kubernetes_manifest" "virtualservice_chat_app" {
           "match" = [
             {
               "uri" = {
+                "prefix" = "/api"
+              }
+            }
+          ]
+          "route" = [
+            {
+              "destination" = {
+                "host" = "gateway-gateway.platform.svc.cluster.local"
+                "port" = {
+                  "number" = 8080
+                }
+              }
+            }
+          ]
+        },
+        {
+          "match" = [
+            {
+              "uri" = {
+                "prefix" = "/socket.io"
+              }
+            }
+          ]
+          "route" = [
+            {
+              "destination" = {
+                "host" = "gateway-gateway.platform.svc.cluster.local"
+                "port" = {
+                  "number" = 8080
+                }
+              }
+            }
+          ]
+        },
+        {
+          "match" = [
+            {
+              "uri" = {
                 "prefix" = "/"
               }
             }
@@ -1920,6 +1958,44 @@ resource "kubernetes_manifest" "virtualservice_tracing_app" {
       "hosts"    = ["tracing.${local.base_domain}"]
       "gateways" = ["platform-gateway"]
       "http" = [
+        {
+          "match" = [
+            {
+              "uri" = {
+                "prefix" = "/api"
+              }
+            }
+          ]
+          "route" = [
+            {
+              "destination" = {
+                "host" = "gateway-gateway.platform.svc.cluster.local"
+                "port" = {
+                  "number" = 8080
+                }
+              }
+            }
+          ]
+        },
+        {
+          "match" = [
+            {
+              "uri" = {
+                "prefix" = "/socket.io"
+              }
+            }
+          ]
+          "route" = [
+            {
+              "destination" = {
+                "host" = "gateway-gateway.platform.svc.cluster.local"
+                "port" = {
+                  "number" = 8080
+                }
+              }
+            }
+          ]
+        },
         {
           "match" = [
             {
