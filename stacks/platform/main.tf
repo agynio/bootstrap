@@ -14,7 +14,7 @@ locals {
   resolved_secrets_image_tag             = trimspace(var.secrets_image_tag) != "" ? var.secrets_image_tag : format("v%s", var.secrets_chart_version)
   resolved_token_counting_image_tag      = trimspace(var.token_counting_image_tag) != "" ? var.token_counting_image_tag : format("v%s", var.token_counting_chart_version)
   resolved_notifications_image_tag       = trimspace(var.notifications_image_tag) != "" ? var.notifications_image_tag : var.notifications_chart_version
-  resolved_teams_image_tag               = trimspace(var.teams_image_tag) != "" ? var.teams_image_tag : format("v%s", var.teams_chart_version)
+  resolved_teams_image_tag               = trimspace(var.teams_image_tag) != "" ? var.teams_image_tag : var.teams_chart_version
   resolved_authorization_image_tag       = trimspace(var.authorization_image_tag) != "" ? var.authorization_image_tag : format("v%s", var.authorization_chart_version)
 
   postgres_image                 = "postgres:16.6-alpine"
@@ -758,17 +758,17 @@ locals {
 
   teams_values = yamlencode({
     fullnameOverride = "teams"
-    service = {
-      port = 50051
-    }
-    database = {
-      url = format("postgresql://teams:%s@teams-db:5432/teams?sslmode=disable", var.teams_db_password)
-    }
     image = {
       repository = "ghcr.io/agynio/teams"
       tag        = local.resolved_teams_image_tag
       pullPolicy = "IfNotPresent"
     }
+    env = [
+      {
+        name  = "DATABASE_URL"
+        value = format("postgresql://teams:%s@teams-db:5432/teams?sslmode=disable", var.teams_db_password)
+      },
+    ]
   })
 
   agents_orchestrator_values = yamlencode({
