@@ -931,10 +931,6 @@ locals {
       {
         name  = "RUNNER_ADDRESS"
         value = "k8s-runner:50051"
-      },
-      {
-        name  = "AGENTS_ADDRESS"
-        value = "agents:50051"
       }
     ]
   })
