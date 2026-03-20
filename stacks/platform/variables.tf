@@ -83,6 +83,12 @@ variable "teams_chart_version" {
   default     = "0.2.0"
 }
 
+variable "users_chart_version" {
+  type        = string
+  description = "Version of the users Helm chart published to GHCR"
+  default     = "0.1.0"
+}
+
 variable "tenants_chart_version" {
   type        = string
   description = "Version of the tenants Helm chart published to GHCR"
@@ -182,6 +188,12 @@ variable "notifications_image_tag" {
 variable "teams_image_tag" {
   type        = string
   description = "Optional override for the teams image tag"
+  default     = ""
+}
+
+variable "users_image_tag" {
+  type        = string
+  description = "Optional override for the users image tag"
   default     = ""
 }
 
@@ -359,6 +371,19 @@ variable "tenants_db_password" {
 variable "teams_db_pvc_size" {
   type        = string
   description = "Persistent volume claim size for the teams PostgreSQL primary"
+  default     = "5Gi"
+}
+
+variable "users_db_password" {
+  type        = string
+  description = "Password for the users PostgreSQL database user"
+  default     = "users"
+  sensitive   = true
+}
+
+variable "users_db_pvc_size" {
+  type        = string
+  description = "Persistent volume claim size for the users PostgreSQL primary"
   default     = "5Gi"
 }
 
