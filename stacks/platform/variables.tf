@@ -71,9 +71,9 @@ variable "postgres_chart_version" {
   default     = "0.1.1"
 }
 
-variable "teams_chart_version" {
+variable "agents_chart_version" {
   type        = string
-  description = "Version of the teams Helm chart published to GHCR"
+  description = "Version of the agents Helm chart published to GHCR"
   default     = "0.2.0"
 }
 
@@ -173,9 +173,9 @@ variable "notifications_image_tag" {
   default     = ""
 }
 
-variable "teams_image_tag" {
+variable "agents_image_tag" {
   type        = string
-  description = "Optional override for the teams image tag"
+  description = "Optional override for the agents image tag"
   default     = ""
 }
 
@@ -336,10 +336,10 @@ variable "llm_db_pvc_size" {
   default     = "5Gi"
 }
 
-variable "teams_db_password" {
+variable "agents_db_password" {
   type        = string
-  description = "Password for the teams PostgreSQL database user"
-  default     = "teams"
+  description = "Password for the agents PostgreSQL database user"
+  default     = "agents"
   sensitive   = true
 }
 
@@ -350,9 +350,9 @@ variable "tenants_db_password" {
   sensitive   = true
 }
 
-variable "teams_db_pvc_size" {
+variable "agents_db_pvc_size" {
   type        = string
-  description = "Persistent volume claim size for the teams PostgreSQL primary"
+  description = "Persistent volume claim size for the agents PostgreSQL primary"
   default     = "5Gi"
 }
 
