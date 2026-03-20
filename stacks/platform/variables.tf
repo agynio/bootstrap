@@ -92,7 +92,7 @@ variable "tenants_chart_version" {
 variable "chat_app_chart_version" {
   type        = string
   description = "Version of the chat-app Helm chart published to GHCR"
-  default     = "0.1.2"
+  default     = "0.1.3"
 }
 
 variable "chat_app_image_tag" {
@@ -123,7 +123,7 @@ variable "oidc_client_secret" {
 variable "tracing_app_chart_version" {
   type        = string
   description = "Version of the tracing-app Helm chart published to GHCR"
-  default     = "0.1.2"
+  default     = "0.1.3"
 }
 
 variable "tracing_app_image_tag" {
@@ -308,7 +308,7 @@ variable "threads_db_pvc_size" {
 variable "files_chart_version" {
   type        = string
   description = "Version of the files Helm chart published to GHCR"
-  default     = "0.1.2"
+  default     = "0.1.3"
 }
 
 variable "files_image_tag" {
