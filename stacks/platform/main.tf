@@ -13,7 +13,7 @@ locals {
   resolved_secrets_image_tag             = trimspace(var.secrets_image_tag) != "" ? var.secrets_image_tag : format("v%s", var.secrets_chart_version)
   resolved_token_counting_image_tag      = trimspace(var.token_counting_image_tag) != "" ? var.token_counting_image_tag : format("v%s", var.token_counting_chart_version)
   resolved_notifications_image_tag       = trimspace(var.notifications_image_tag) != "" ? var.notifications_image_tag : var.notifications_chart_version
-  resolved_teams_image_tag               = trimspace(var.teams_image_tag) != "" ? var.teams_image_tag : var.teams_chart_version
+  resolved_agents_image_tag              = trimspace(var.agents_image_tag) != "" ? var.agents_image_tag : var.agents_chart_version
   resolved_users_image_tag               = trimspace(var.users_image_tag) != "" ? var.users_image_tag : var.users_chart_version
   resolved_tenants_image_tag             = trimspace(var.tenants_image_tag) != "" ? var.tenants_image_tag : var.tenants_chart_version
   resolved_authorization_image_tag       = trimspace(var.authorization_image_tag) != "" ? var.authorization_image_tag : format("v%s", var.authorization_chart_version)
@@ -48,7 +48,7 @@ locals {
   token_counting_chart_name      = "agynio/charts/token-counting"
   notifications_chart_name       = "agynio/charts/notifications"
   redis_chart_name               = "redis"
-  teams_chart_name               = "agynio/charts/teams"
+  agents_chart_name              = "agynio/charts/agents"
   users_chart_name               = "agynio/charts/users"
   tenants_chart_name             = "agynio/charts/tenants"
   authorization_chart_name       = "agynio/charts/authorization"
@@ -598,25 +598,25 @@ locals {
     }
   })
 
-  teams_db_values = yamlencode({
-    fullnameOverride = "teams-db"
+  agents_db_values = yamlencode({
+    fullnameOverride = "agents-db"
     postgres = {
-      database = "teams"
-      username = "teams"
-      password = var.teams_db_password
+      database = "agents"
+      username = "agents"
+      password = var.agents_db_password
       pgdata   = "/var/lib/postgresql/data/pgdata"
     }
     persistence = {
-      size                    = var.teams_db_pvc_size
+      size                    = var.agents_db_pvc_size
       mountPath               = "/var/lib/postgresql/data"
       volumeClaimTemplateName = "data"
     }
     probes = {
       readiness = {
-        execCommand = ["pg_isready", "-U", "teams", "-d", "teams"]
+        execCommand = ["pg_isready", "-U", "agents", "-d", "agents"]
       }
       liveness = {
-        execCommand = ["pg_isready", "-U", "teams", "-d", "teams"]
+        execCommand = ["pg_isready", "-U", "agents", "-d", "agents"]
       }
     }
   })
@@ -804,17 +804,17 @@ locals {
     }
   })
 
-  teams_values = yamlencode({
-    fullnameOverride = "teams"
+  agents_values = yamlencode({
+    fullnameOverride = "agents"
     image = {
-      repository = "ghcr.io/agynio/teams"
-      tag        = local.resolved_teams_image_tag
+      repository = "ghcr.io/agynio/agents"
+      tag        = local.resolved_agents_image_tag
       pullPolicy = "IfNotPresent"
     }
     env = [
       {
         name  = "DATABASE_URL"
-        value = format("postgresql://teams:%s@teams-db:5432/teams?sslmode=disable", var.teams_db_password)
+        value = format("postgresql://agents:%s@agents-db:5432/agents?sslmode=disable", var.agents_db_password)
       },
     ]
   })
@@ -2543,12 +2543,12 @@ resource "argocd_application" "llm_db" {
   }
 }
 
-resource "argocd_application" "teams_db" {
+resource "argocd_application" "agents_db" {
   depends_on = [argocd_repository.litellm_repo]
   wait       = true
 
   metadata {
-    name      = "teams-db"
+    name      = "agents-db"
     namespace = "argocd"
     annotations = {
       "argocd.argoproj.io/sync-wave" = "8"
@@ -2564,7 +2564,7 @@ resource "argocd_application" "teams_db" {
       target_revision = var.postgres_chart_version
 
       helm {
-        values = local.teams_db_values
+        values = local.agents_db_values
       }
     }
 
@@ -3244,13 +3244,13 @@ resource "argocd_application" "notifications_redis" {
   }
 }
 
-resource "argocd_application" "teams" {
+resource "argocd_application" "agents" {
   depends_on = [
     argocd_repository.litellm_repo,
-    argocd_application.teams_db,
+    argocd_application.agents_db,
   ]
   metadata {
-    name      = "teams"
+    name      = "agents"
     namespace = "argocd"
     annotations = {
       "argocd.argoproj.io/sync-wave" = "17"
@@ -3262,11 +3262,11 @@ resource "argocd_application" "teams" {
 
     source {
       repo_url        = local.platform_chart_repo_host
-      chart           = local.teams_chart_name
-      target_revision = var.teams_chart_version
+      chart           = local.agents_chart_name
+      target_revision = var.agents_chart_version
 
       helm {
-        values = local.teams_values
+        values = local.agents_values
       }
     }
 
@@ -3533,7 +3533,7 @@ resource "argocd_application" "agents_orchestrator" {
     argocd_application.agents_orchestrator_db,
     argocd_application.threads,
     argocd_application.notifications,
-    argocd_application.teams,
+    argocd_application.agents,
     argocd_application.secrets,
   ]
   metadata {
