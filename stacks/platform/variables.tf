@@ -23,12 +23,6 @@ variable "platform_chart_version" {
   default     = "0.15.2"
 }
 
-variable "docker_runner_chart_version" {
-  type        = string
-  description = "Version of the docker-runner Helm chart published to GHCR"
-  default     = "0.1.2"
-}
-
 variable "gateway_chart_version" {
   type        = string
   description = "Version of the gateway Helm chart published to GHCR"
@@ -137,12 +131,6 @@ variable "platform_server_image_tag" {
   default     = ""
 }
 
-variable "docker_runner_image_tag" {
-  type        = string
-  description = "Optional override for the docker-runner image tag"
-  default     = ""
-}
-
 variable "agent_state_image_tag" {
   type        = string
   description = "Optional override for the agent-state image tag"
@@ -213,12 +201,6 @@ variable "notifications_redis_addr" {
   type        = string
   description = "Redis address used by the notifications service"
   default     = "notifications-redis-master.platform.svc.cluster.local:6379"
-}
-
-variable "docker_runner_replica_count" {
-  type        = number
-  description = "Replica count for the docker-runner deployment"
-  default     = 1
 }
 
 variable "argocd_automated_sync_enabled" {
@@ -436,13 +418,6 @@ variable "litellm_ui_password" {
   type        = string
   description = "LiteLLM UI password for dev-only admin access"
   default     = "admin"
-  sensitive   = true
-}
-
-variable "docker_runner_shared_secret" {
-  type        = string
-  description = "Shared secret used by docker-runner and platform-server"
-  default     = "change-me"
   sensitive   = true
 }
 
