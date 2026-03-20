@@ -864,28 +864,8 @@ locals {
     }
     env = [
       {
-        name  = "GRPC_ADDR"
-        value = "0.0.0.0:50051"
-      },
-      {
         name  = "KUBE_NAMESPACE"
         value = "agyn-workloads"
-      },
-      {
-        name  = "PVC_STORAGE_SIZE"
-        value = "10Gi"
-      },
-      {
-        name  = "ZITI_SERVICE_NAME"
-        value = "runner"
-      },
-      {
-        name  = "LOG_LEVEL"
-        value = "info"
-      },
-      {
-        name  = "ZITI_IDENTITY_FILE"
-        value = ""
       }
     ]
     containerPorts = [
@@ -3647,7 +3627,6 @@ resource "argocd_application" "agents_orchestrator" {
     argocd_application.notifications,
     argocd_application.agents,
     argocd_application.k8s_runner,
-    argocd_application.teams,
     argocd_application.secrets,
   ]
   metadata {
