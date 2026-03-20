@@ -878,6 +878,10 @@ locals {
         value = "30s"
       },
       {
+        name  = "DOCKER_RUNNER_SHARED_SECRET"
+        value = "unused-docker-runner-removed"
+      },
+      {
         name  = "RUNNER_ADDRESS"
         value = "k8s-runner:50051"
       }
