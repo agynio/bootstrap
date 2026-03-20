@@ -16,6 +16,7 @@ locals {
   resolved_notifications_image_tag       = trimspace(var.notifications_image_tag) != "" ? var.notifications_image_tag : var.notifications_chart_version
   resolved_teams_image_tag               = trimspace(var.teams_image_tag) != "" ? var.teams_image_tag : var.teams_chart_version
   resolved_users_image_tag               = trimspace(var.users_image_tag) != "" ? var.users_image_tag : var.users_chart_version
+  resolved_tenants_image_tag             = trimspace(var.tenants_image_tag) != "" ? var.tenants_image_tag : var.tenants_chart_version
   resolved_authorization_image_tag       = trimspace(var.authorization_image_tag) != "" ? var.authorization_image_tag : format("v%s", var.authorization_chart_version)
 
   postgres_image                 = "postgres:16.6-alpine"
@@ -51,6 +52,7 @@ locals {
   redis_chart_name               = "redis"
   teams_chart_name               = "agynio/charts/teams"
   users_chart_name               = "agynio/charts/users"
+  tenants_chart_name             = "agynio/charts/tenants"
   authorization_chart_name       = "agynio/charts/authorization"
   istio_gateway_namespace        = data.terraform_remote_state.system.outputs.istio_gateway_namespace
   istio_gateway_tls_secret_name  = data.terraform_remote_state.system.outputs.wildcard_tls_gateway_secret_name
@@ -644,6 +646,29 @@ locals {
     }
   })
 
+  tenants_db_values = yamlencode({
+    fullnameOverride = "tenants-db"
+    postgres = {
+      database = "tenants"
+      username = "tenants"
+      password = var.tenants_db_password
+      pgdata   = "/var/lib/postgresql/data/pgdata"
+    }
+    persistence = {
+      size                    = var.tenants_db_pvc_size
+      mountPath               = "/var/lib/postgresql/data"
+      volumeClaimTemplateName = "data"
+    }
+    probes = {
+      readiness = {
+        execCommand = ["pg_isready", "-U", "tenants", "-d", "tenants"]
+      }
+      liveness = {
+        execCommand = ["pg_isready", "-U", "tenants", "-d", "tenants"]
+      }
+    }
+  })
+
   agents_orchestrator_db_values = yamlencode({
     fullnameOverride = "agents-orchestrator-db"
     postgres = {
@@ -807,6 +832,21 @@ locals {
       {
         name  = "DATABASE_URL"
         value = format("postgresql://users:%s@users-db:5432/users?sslmode=disable", var.users_db_password)
+      },
+    ]
+  })
+
+  tenants_values = yamlencode({
+    fullnameOverride = "tenants"
+    image = {
+      repository = "ghcr.io/agynio/tenants"
+      tag        = local.resolved_tenants_image_tag
+      pullPolicy = "IfNotPresent"
+    }
+    env = [
+      {
+        name  = "DATABASE_URL"
+        value = format("postgresql://tenants:%s@tenants-db:5432/tenants?sslmode=disable", var.tenants_db_password)
       },
     ]
   })
@@ -2742,6 +2782,56 @@ resource "argocd_application" "users_db" {
   }
 }
 
+resource "argocd_application" "tenants_db" {
+  depends_on = [argocd_repository.litellm_repo]
+  wait       = true
+
+  metadata {
+    name      = "tenants-db"
+    namespace = "argocd"
+    annotations = {
+      "argocd.argoproj.io/sync-wave" = "8"
+    }
+  }
+
+  spec {
+    project = "default"
+
+    source {
+      repo_url        = local.postgres_chart_repo_host
+      chart           = local.postgres_chart_name
+      target_revision = var.postgres_chart_version
+
+      helm {
+        values = local.tenants_db_values
+      }
+    }
+
+    destination {
+      server    = var.destination_server
+      namespace = var.platform_namespace
+    }
+
+    sync_policy {
+      # DB apps always use automated sync with prune disabled for stateful safety,
+      # independent of var.argocd_automated_sync_enabled.
+      automated {
+        prune       = false
+        self_heal   = true
+        allow_empty = false
+      }
+
+      sync_options = local.postgres_sync_options
+    }
+  }
+
+  timeouts {
+    create = "5m"
+    update = "5m"
+    delete = "5m"
+  }
+}
+
 resource "argocd_application" "agents_orchestrator_db" {
   depends_on = [argocd_repository.litellm_repo]
   wait       = true
@@ -3362,6 +3452,53 @@ resource "argocd_application" "users" {
 
       helm {
         values = local.users_values
+      }
+    }
+
+    destination {
+      server    = var.destination_server
+      namespace = var.platform_namespace
+    }
+
+    sync_policy {
+      dynamic "automated" {
+        for_each = var.argocd_automated_sync_enabled ? [1] : []
+        content {
+          prune       = var.argocd_prune_enabled
+          self_heal   = var.argocd_self_heal_enabled
+          allow_empty = false
+        }
+      }
+
+      sync_options = local.default_sync_options
+    }
+  }
+}
+
+resource "argocd_application" "tenants" {
+  depends_on = [
+    argocd_repository.litellm_repo,
+    argocd_application.tenants_db,
+    argocd_application.authorization,
+  ]
+  metadata {
+    name      = "tenants"
+    namespace = "argocd"
+    annotations = {
+      "argocd.argoproj.io/sync-wave" = "17"
+    }
+  }
+
+  spec {
+    project = "default"
+
+    source {
+      repo_url        = local.platform_chart_repo_host
+      chart           = local.tenants_chart_name
+      target_revision = var.tenants_chart_version
+
+      helm {
+        values = local.tenants_values
       }
     }
 

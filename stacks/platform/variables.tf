@@ -89,10 +89,16 @@ variable "users_chart_version" {
   default     = "0.1.0"
 }
 
+variable "tenants_chart_version" {
+  type        = string
+  description = "Version of the tenants Helm chart published to GHCR"
+  default     = "0.1.0"
+}
+
 variable "chat_app_chart_version" {
   type        = string
   description = "Version of the chat-app Helm chart published to GHCR"
-  default     = "0.1.1"
+  default     = "0.1.2"
 }
 
 variable "chat_app_image_tag" {
@@ -104,7 +110,7 @@ variable "chat_app_image_tag" {
 variable "tracing_app_chart_version" {
   type        = string
   description = "Version of the tracing-app Helm chart published to GHCR"
-  default     = "0.1.1"
+  default     = "0.1.2"
 }
 
 variable "tracing_app_image_tag" {
@@ -188,6 +194,12 @@ variable "teams_image_tag" {
 variable "users_image_tag" {
   type        = string
   description = "Optional override for the users image tag"
+  default     = ""
+}
+
+variable "tenants_image_tag" {
+  type        = string
+  description = "Optional override for the tenants image tag"
   default     = ""
 }
 
@@ -349,6 +361,13 @@ variable "teams_db_password" {
   sensitive   = true
 }
 
+variable "tenants_db_password" {
+  type        = string
+  description = "Password for the tenants PostgreSQL database user"
+  default     = "tenants"
+  sensitive   = true
+}
+
 variable "teams_db_pvc_size" {
   type        = string
   description = "Persistent volume claim size for the teams PostgreSQL primary"
@@ -365,6 +384,12 @@ variable "users_db_password" {
 variable "users_db_pvc_size" {
   type        = string
   description = "Persistent volume claim size for the users PostgreSQL primary"
+  default     = "5Gi"
+}
+
+variable "tenants_db_pvc_size" {
+  type        = string
+  description = "Persistent volume claim size for the tenants PostgreSQL primary"
   default     = "5Gi"
 }
 
