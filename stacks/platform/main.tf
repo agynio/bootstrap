@@ -1,6 +1,5 @@
 locals {
   resolved_platform_server_image_tag     = trimspace(var.platform_server_image_tag) != "" ? var.platform_server_image_tag : var.platform_chart_version
-  resolved_docker_runner_image_tag       = trimspace(var.docker_runner_image_tag) != "" ? var.docker_runner_image_tag : var.docker_runner_chart_version
   resolved_platform_ui_image_tag         = local.resolved_platform_server_image_tag
   resolved_gateway_image_tag             = trimspace(var.gateway_image_tag) != "" ? var.gateway_image_tag : var.gateway_chart_version
   resolved_agent_state_image_tag         = trimspace(var.agent_state_image_tag) != "" ? var.agent_state_image_tag : format("v%s", var.agent_state_chart_version)
@@ -35,7 +34,6 @@ locals {
   platform_chart_repo_host       = "ghcr.io"
   postgres_chart_repo_host       = "ghcr.io"
   postgres_chart_name            = "agynio/charts/postgres-helm"
-  docker_runner_chart_name       = "agynio/charts/docker-runner"
   platform_server_chart_name     = "agynio/charts/platform-server"
   platform_ui_chart_name         = "agynio/charts/platform-ui"
   agent_state_chart_name         = "agynio/charts/agent-state"
@@ -880,8 +878,8 @@ locals {
         value = "30s"
       },
       {
-        name  = "DOCKER_RUNNER_SHARED_SECRET"
-        value = var.docker_runner_shared_secret
+        name  = "RUNNER_ADDRESS"
+        value = "k8s-runner:50051"
       }
     ]
   })
@@ -1223,107 +1221,6 @@ locals {
     }
   })
 
-  docker_runner_values = yamlencode({
-    replicaCount = var.docker_runner_replica_count
-    image = {
-      repository = "ghcr.io/agynio/docker-runner"
-      tag        = local.resolved_docker_runner_image_tag
-      pullPolicy = "IfNotPresent"
-    }
-    fullnameOverride = "docker-runner"
-    securityContext = {
-      enabled                  = true
-      runAsNonRoot             = true
-      runAsUser                = 1000
-      runAsGroup               = 1000
-      readOnlyRootFilesystem   = true
-      allowPrivilegeEscalation = false
-      capabilities = {
-        drop = ["ALL"]
-      }
-      seccompProfile = {
-        type = "RuntimeDefault"
-      }
-    }
-    podSecurityContext = {
-      enabled = true
-      fsGroup = 1000
-    }
-    serviceAccount = {
-      create = false
-      name   = "default"
-    }
-    automountServiceAccountToken = true
-    extraVolumes = [
-      {
-        name     = "tmp"
-        emptyDir = {}
-      }
-    ]
-    extraVolumeMounts = [
-      {
-        name      = "tmp"
-        mountPath = "/tmp"
-      }
-    ]
-    runtime = {
-      mode = "dind"
-      dind = {
-        image = {
-          registry   = "public.ecr.aws/docker/library"
-          repository = "docker"
-          tag        = "24.0.7-dind"
-          pullPolicy = "IfNotPresent"
-        }
-        args = [
-          "--host=unix:///var/run/docker/docker.sock",
-          "--host=tcp://0.0.0.0:2375",
-          "--group=1000",
-        ]
-      }
-    }
-    env = [
-      {
-        name  = "DOCKER_RUNNER_SHARED_SECRET"
-        value = var.docker_runner_shared_secret
-      },
-      {
-        name  = "DOCKER_RUNNER_GRPC_HOST"
-        value = "0.0.0.0"
-      },
-      {
-        name  = "DOCKER_RUNNER_PORT"
-        value = "50051"
-      },
-      {
-        name  = "DOCKER_RUNNER_SIGNATURE_TTL_MS"
-        value = "60000"
-      },
-      {
-        name  = "DOCKER_RUNNER_LOG_LEVEL"
-        value = "info"
-      }
-    ]
-    service = {
-      enabled = true
-      ports = [
-        {
-          name       = "grpc"
-          port       = 50051
-          targetPort = "grpc"
-          protocol   = "TCP"
-        }
-      ]
-    }
-    containerPorts = [
-      {
-        name          = "grpc"
-        containerPort = 50051
-        protocol      = "TCP"
-      }
-    ]
-  })
-
   platform_server_values = yamlencode({
     replicaCount = 1
     image = {
@@ -1486,48 +1383,8 @@ locals {
         value = var.litellm_master_key
       },
       {
-        name  = "DOCKER_RUNNER_GRPC_HOST"
-        value = "docker-runner"
-      },
-      {
-        name  = "DOCKER_RUNNER_GRPC_PORT"
-        value = "50051"
-      },
-      {
-        name  = "DOCKER_RUNNER_PORT"
-        value = "50051"
-      },
-      {
         name  = "DOCKER_RUNNER_SHARED_SECRET"
-        value = var.docker_runner_shared_secret
-      },
-      {
-        name  = "DOCKER_RUNNER_OPTIONAL"
-        value = "true"
-      },
-      {
-        name  = "DOCKER_RUNNER_TIMEOUT_MS"
-        value = "60000"
-      },
-      {
-        name  = "DOCKER_RUNNER_CONNECT_RETRY_BASE_DELAY_MS"
-        value = "1000"
-      },
-      {
-        name  = "DOCKER_RUNNER_CONNECT_RETRY_MAX_DELAY_MS"
-        value = "60000"
-      },
-      {
-        name  = "DOCKER_RUNNER_CONNECT_RETRY_JITTER_MS"
-        value = "500"
-      },
-      {
-        name  = "DOCKER_RUNNER_CONNECT_PROBE_INTERVAL_MS"
-        value = "10000"
-      },
-      {
-        name  = "DOCKER_RUNNER_CONNECT_MAX_RETRIES"
-        value = "120"
+        value = "unused-docker-runner-removed"
       },
       {
         name  = "VAULT_ENABLED"
@@ -3666,49 +3523,6 @@ resource "argocd_application" "notifications" {
   }
 }
 
-resource "argocd_application" "docker_runner" {
-  depends_on = [argocd_repository.litellm_repo]
-  metadata {
-    name      = "docker-runner"
-    namespace = "argocd"
-    annotations = {
-      "argocd.argoproj.io/sync-wave" = "18"
-    }
-  }
-
-  spec {
-    project = "default"
-
-    source {
-      repo_url        = local.platform_chart_repo_host
-      chart           = local.docker_runner_chart_name
-      target_revision = var.docker_runner_chart_version
-
-      helm {
-        values = local.docker_runner_values
-      }
-    }
-
-    destination {
-      server    = var.destination_server
-      namespace = var.platform_namespace
-    }
-
-    sync_policy {
-      dynamic "automated" {
-        for_each = var.argocd_automated_sync_enabled ? [1] : []
-        content {
-          prune       = var.argocd_prune_enabled
-          self_heal   = var.argocd_self_heal_enabled
-          allow_empty = false
-        }
-      }
-
-      sync_options = local.default_sync_options
-    }
-  }
-}
-
 resource "argocd_application" "agents_orchestrator" {
   depends_on = [
     argocd_repository.litellm_repo,
@@ -3717,7 +3531,6 @@ resource "argocd_application" "agents_orchestrator" {
     argocd_application.notifications,
     argocd_application.teams,
     argocd_application.secrets,
-    argocd_application.docker_runner,
   ]
   metadata {
     name      = "agents-orchestrator"
