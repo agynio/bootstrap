@@ -862,6 +862,13 @@ locals {
     rbac = {
       clusterWide = true
     }
+    securityContext = {
+      runAsNonRoot             = true
+      runAsUser                = 100
+      runAsGroup               = 101
+      readOnlyRootFilesystem   = true
+      allowPrivilegeEscalation = false
+    }
     env = [
       {
         name  = "KUBE_NAMESPACE"
