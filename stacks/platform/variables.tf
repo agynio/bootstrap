@@ -101,6 +101,25 @@ variable "chat_app_image_tag" {
   default     = ""
 }
 
+variable "oidc_issuer_url" {
+  type        = string
+  description = "OIDC issuer URL (authority) for frontend apps"
+  default     = "https://mockauth.dev/r/301ebb13-15a8-48f4-baac-e3fa25be29fc/oidc"
+}
+
+variable "oidc_client_id" {
+  type        = string
+  description = "OIDC client ID for frontend apps (public client)"
+  default     = "client_MU95KU3gHQf5Ir7p"
+}
+
+variable "oidc_client_secret" {
+  type        = string
+  description = "OIDC client secret (dev/QA only - production should use a K8s Secret)"
+  default     = "XPKka2i9uzISrKZ95zxli8sY51BK4eTJ"
+  sensitive   = true
+}
+
 variable "tracing_app_chart_version" {
   type        = string
   description = "Version of the tracing-app Helm chart published to GHCR"
