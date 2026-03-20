@@ -4,6 +4,7 @@ locals {
   resolved_gateway_image_tag             = trimspace(var.gateway_image_tag) != "" ? var.gateway_image_tag : var.gateway_chart_version
   resolved_agent_state_image_tag         = trimspace(var.agent_state_image_tag) != "" ? var.agent_state_image_tag : format("v%s", var.agent_state_chart_version)
   resolved_agents_orchestrator_image_tag = trimspace(var.agents_orchestrator_image_tag) != "" ? var.agents_orchestrator_image_tag : var.agents_orchestrator_chart_version
+  resolved_k8s_runner_image_tag          = trimspace(var.k8s_runner_image_tag) != "" ? var.k8s_runner_image_tag : var.k8s_runner_chart_version
   resolved_threads_image_tag             = trimspace(var.threads_image_tag) != "" ? var.threads_image_tag : format("v%s", var.threads_chart_version)
   resolved_chat_image_tag                = trimspace(var.chat_image_tag) != "" ? var.chat_image_tag : format("v%s", var.chat_chart_version)
   resolved_chat_app_image_tag            = trimspace(var.chat_app_image_tag) != "" ? var.chat_app_image_tag : var.chat_app_chart_version
@@ -38,6 +39,7 @@ locals {
   platform_ui_chart_name         = "agynio/charts/platform-ui"
   agent_state_chart_name         = "agynio/charts/agent-state"
   agents_orchestrator_chart_name = "agynio/charts/agents-orchestrator"
+  k8s_runner_chart_name          = "agynio/charts/k8s-runner"
   threads_chart_name             = "agynio/charts/threads"
   chat_chart_name                = "agynio/charts/chat"
   chat_app_chart_name            = "agynio/charts/chat-app"
@@ -849,6 +851,51 @@ locals {
     ]
   })
 
+  k8s_runner_values = yamlencode({
+    replicaCount     = 1
+    fullnameOverride = "k8s-runner"
+    image = {
+      repository = "ghcr.io/agynio/k8s-runner"
+      tag        = local.resolved_k8s_runner_image_tag
+      pullPolicy = "IfNotPresent"
+    }
+    rbac = {
+      clusterWide = true
+    }
+    securityContext = {
+      runAsNonRoot             = true
+      runAsUser                = 100
+      runAsGroup               = 101
+      readOnlyRootFilesystem   = true
+      allowPrivilegeEscalation = false
+    }
+    env = [
+      {
+        name  = "KUBE_NAMESPACE"
+        value = "agyn-workloads"
+      }
+    ]
+    containerPorts = [
+      {
+        name          = "grpc"
+        containerPort = 50051
+        protocol      = "TCP"
+      }
+    ]
+    service = {
+      enabled = true
+      type    = "ClusterIP"
+      ports = [
+        {
+          name       = "grpc"
+          port       = 50051
+          targetPort = "grpc"
+          protocol   = "TCP"
+        }
+      ]
+    }
+  })
+
   agents_orchestrator_values = yamlencode({
     replicaCount     = 1
     fullnameOverride = "agents-orchestrator"
@@ -1619,6 +1666,12 @@ module "openfga_authorization" {
 resource "kubernetes_namespace" "platform" {
   metadata {
     name = var.platform_namespace
+  }
+}
+
+resource "kubernetes_namespace_v1" "agyn_workloads" {
+  metadata {
+    name = "agyn-workloads"
   }
 }
 
@@ -3527,6 +3580,52 @@ resource "argocd_application" "notifications" {
   }
 }
 
+resource "argocd_application" "k8s_runner" {
+  depends_on = [
+    argocd_repository.litellm_repo,
+    kubernetes_namespace_v1.agyn_workloads,
+  ]
+  metadata {
+    name      = "k8s-runner"
+    namespace = "argocd"
+    annotations = {
+      "argocd.argoproj.io/sync-wave" = "18"
+    }
+  }
+
+  spec {
+    project = "default"
+
+    source {
+      repo_url        = local.platform_chart_repo_host
+      chart           = local.k8s_runner_chart_name
+      target_revision = var.k8s_runner_chart_version
+
+      helm {
+        values = local.k8s_runner_values
+      }
+    }
+
+    destination {
+      server    = var.destination_server
+      namespace = var.platform_namespace
+    }
+
+    sync_policy {
+      dynamic "automated" {
+        for_each = var.argocd_automated_sync_enabled ? [1] : []
+        content {
+          prune       = var.argocd_prune_enabled
+          self_heal   = var.argocd_self_heal_enabled
+          allow_empty = false
+        }
+      }
+
+      sync_options = local.default_sync_options
+    }
+  }
+}
+
 resource "argocd_application" "agents_orchestrator" {
   depends_on = [
     argocd_repository.litellm_repo,
@@ -3534,6 +3633,7 @@ resource "argocd_application" "agents_orchestrator" {
     argocd_application.threads,
     argocd_application.notifications,
     argocd_application.agents,
+    argocd_application.k8s_runner,
     argocd_application.secrets,
   ]
   metadata {
