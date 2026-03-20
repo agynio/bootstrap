@@ -92,7 +92,6 @@ The jobs wait for successful completion during `terraform apply` to ensure boots
 | 10        | `vault`            | HashiCorp Vault in standalone mode  | Sidecar consumes the Terraform-managed script and PVC for init/unseal |
 | 12        | `litellm`          | LiteLLM API deployment              | Connects to Argo CD-managed `litellm-db`; master key sourced from `litellm-master-key` secret |
 | 16        | `agent-state`      | Agent state gRPC service            | Internal-only gRPC; no external routing required |
-| 18        | `docker-runner`    | Platform workspace runner           | Uses shared secret and exposes gRPC on 50051 |
 | 20        | `platform-server`  | Core platform API                   | Depends on `platform-db`, LiteLLM bootstrap, and Vault dev-root token |
 | 25        | `platform-ui`      | Platform web UI                     | Connects to `platform-server` |
 
