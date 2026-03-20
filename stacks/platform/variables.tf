@@ -74,7 +74,7 @@ variable "postgres_chart_version" {
 variable "agents_chart_version" {
   type        = string
   description = "Version of the agents Helm chart published to GHCR"
-  default     = "0.2.0"
+  default     = "0.3.0"
 }
 
 variable "users_chart_version" {
