@@ -41,6 +41,12 @@ variable "agents_orchestrator_chart_version" {
   default     = "0.1.7"
 }
 
+variable "k8s_runner_chart_version" {
+  type        = string
+  description = "Version of the k8s-runner Helm chart published to GHCR"
+  default     = "0.1.0"
+}
+
 variable "threads_chart_version" {
   type        = string
   description = "Version of the threads Helm chart published to GHCR"
@@ -140,6 +146,12 @@ variable "agent_state_image_tag" {
 variable "agents_orchestrator_image_tag" {
   type        = string
   description = "Optional override for the agents-orchestrator image tag"
+  default     = ""
+}
+
+variable "k8s_runner_image_tag" {
+  type        = string
+  description = "Optional override for the k8s-runner image tag"
   default     = ""
 }
 
