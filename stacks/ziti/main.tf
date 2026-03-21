@@ -6,7 +6,8 @@ locals {
   management_identity_secret_name   = "ziti-management-identity"
   orchestrator_identity_secret_name = "ziti-orchestrator-identity"
   runner_identity_secret_name       = "ziti-runner-identity"
-  identity_enrollment_dir           = "${path.module}/.terraform/ziti-identities"
+  # Stores enrolled identity JSON containing private keys.
+  identity_enrollment_dir = "${path.module}/.terraform/ziti-identities"
 
   router_values = yamlencode({
     ctrl = {
@@ -96,178 +97,41 @@ resource "ziti_identity" "runner" {
   role_attributes = ["runners"]
 }
 
-resource "terraform_data" "gateway_identity_enrollment" {
-  triggers_replace = {
-    enrollment_token = ziti_identity.gateway.enrollment_token
-  }
-
-  provisioner "local-exec" {
-    interpreter = ["/bin/bash", "-c"]
-    command     = <<-EOT
-      set -euo pipefail
-      enrollment_dir="${local.identity_enrollment_dir}"
-      jwt_file="${local.identity_enrollment_dir}/gateway.jwt"
-      identity_file="${local.identity_enrollment_dir}/gateway.json"
-
-      mkdir -p "$enrollment_dir"
-      printf '%s' "$ZITI_JWT" > "$jwt_file"
-      ziti edge enroll --jwt "$jwt_file" --out "$identity_file"
-    EOT
-
-    environment = {
-      ZITI_JWT = ziti_identity.gateway.enrollment_token
-    }
-  }
+module "gateway_identity_enrollment" {
+  source           = "../../modules/ziti-identity-enrollment"
+  identity_name    = "gateway"
+  enrollment_token = ziti_identity.gateway.enrollment_token
+  secret_name      = local.gateway_identity_secret_name
+  namespace        = local.ziti_namespace
+  enrollment_dir   = local.identity_enrollment_dir
 }
 
-data "local_file" "gateway_identity" {
-  depends_on = [terraform_data.gateway_identity_enrollment]
-  filename   = "${local.identity_enrollment_dir}/gateway.json"
+module "ziti_management_identity_enrollment" {
+  source           = "../../modules/ziti-identity-enrollment"
+  identity_name    = "ziti-management"
+  enrollment_token = ziti_identity.ziti_management.enrollment_token
+  secret_name      = local.management_identity_secret_name
+  namespace        = local.ziti_namespace
+  enrollment_dir   = local.identity_enrollment_dir
+  unpack_id        = true
 }
 
-resource "kubernetes_secret_v1" "gateway_identity" {
-  metadata {
-    name      = local.gateway_identity_secret_name
-    namespace = local.ziti_namespace
-  }
-
-  type = "Opaque"
-
-  data = {
-    "identity.json" = data.local_file.gateway_identity.content
-  }
+module "orchestrator_identity_enrollment" {
+  source           = "../../modules/ziti-identity-enrollment"
+  identity_name    = "orchestrator"
+  enrollment_token = ziti_identity.orchestrator.enrollment_token
+  secret_name      = local.orchestrator_identity_secret_name
+  namespace        = local.ziti_namespace
+  enrollment_dir   = local.identity_enrollment_dir
 }
 
-resource "terraform_data" "ziti_management_identity_enrollment" {
-  triggers_replace = {
-    enrollment_token = ziti_identity.ziti_management.enrollment_token
-  }
-
-  provisioner "local-exec" {
-    interpreter = ["/bin/bash", "-c"]
-    command     = <<-EOT
-      set -euo pipefail
-      enrollment_dir="${local.identity_enrollment_dir}"
-      jwt_file="${local.identity_enrollment_dir}/ziti-management.jwt"
-      identity_file="${local.identity_enrollment_dir}/ziti-management.json"
-
-      mkdir -p "$enrollment_dir"
-      printf '%s' "$ZITI_JWT" > "$jwt_file"
-      ziti edge enroll --jwt "$jwt_file" --out "$identity_file"
-    EOT
-
-    environment = {
-      ZITI_JWT = ziti_identity.ziti_management.enrollment_token
-    }
-  }
-}
-
-data "local_file" "ziti_management_identity" {
-  depends_on = [terraform_data.ziti_management_identity_enrollment]
-  filename   = "${local.identity_enrollment_dir}/ziti-management.json"
-}
-
-locals {
-  ziti_management_identity = jsondecode(data.local_file.ziti_management_identity.content)
-}
-
-resource "kubernetes_secret_v1" "ziti_management_identity" {
-  metadata {
-    name      = local.management_identity_secret_name
-    namespace = local.ziti_namespace
-  }
-
-  type = "Opaque"
-
-  data = {
-    cert = local.ziti_management_identity.cert
-    key  = local.ziti_management_identity.key
-    ca   = local.ziti_management_identity.ca
-  }
-}
-
-resource "terraform_data" "orchestrator_identity_enrollment" {
-  triggers_replace = {
-    enrollment_token = ziti_identity.orchestrator.enrollment_token
-  }
-
-  provisioner "local-exec" {
-    interpreter = ["/bin/bash", "-c"]
-    command     = <<-EOT
-      set -euo pipefail
-      enrollment_dir="${local.identity_enrollment_dir}"
-      jwt_file="${local.identity_enrollment_dir}/orchestrator.jwt"
-      identity_file="${local.identity_enrollment_dir}/orchestrator.json"
-
-      mkdir -p "$enrollment_dir"
-      printf '%s' "$ZITI_JWT" > "$jwt_file"
-      ziti edge enroll --jwt "$jwt_file" --out "$identity_file"
-    EOT
-
-    environment = {
-      ZITI_JWT = ziti_identity.orchestrator.enrollment_token
-    }
-  }
-}
-
-data "local_file" "orchestrator_identity" {
-  depends_on = [terraform_data.orchestrator_identity_enrollment]
-  filename   = "${local.identity_enrollment_dir}/orchestrator.json"
-}
-
-resource "kubernetes_secret_v1" "orchestrator_identity" {
-  metadata {
-    name      = local.orchestrator_identity_secret_name
-    namespace = local.ziti_namespace
-  }
-
-  type = "Opaque"
-
-  data = {
-    "identity.json" = data.local_file.orchestrator_identity.content
-  }
-}
-
-resource "terraform_data" "runner_identity_enrollment" {
-  triggers_replace = {
-    enrollment_token = ziti_identity.runner.enrollment_token
-  }
-
-  provisioner "local-exec" {
-    interpreter = ["/bin/bash", "-c"]
-    command     = <<-EOT
-      set -euo pipefail
-      enrollment_dir="${local.identity_enrollment_dir}"
-      jwt_file="${local.identity_enrollment_dir}/runner.jwt"
-      identity_file="${local.identity_enrollment_dir}/runner.json"
-
-      mkdir -p "$enrollment_dir"
-      printf '%s' "$ZITI_JWT" > "$jwt_file"
-      ziti edge enroll --jwt "$jwt_file" --out "$identity_file"
-    EOT
-
-    environment = {
-      ZITI_JWT = ziti_identity.runner.enrollment_token
-    }
-  }
-}
-
-data "local_file" "runner_identity" {
-  depends_on = [terraform_data.runner_identity_enrollment]
-  filename   = "${local.identity_enrollment_dir}/runner.json"
-}
-
-resource "kubernetes_secret_v1" "runner_identity" {
-  metadata {
-    name      = local.runner_identity_secret_name
-    namespace = local.ziti_namespace
-  }
-
-  type = "Opaque"
-
-  data = {
-    "identity.json" = data.local_file.runner_identity.content
-  }
+module "runner_identity_enrollment" {
+  source           = "../../modules/ziti-identity-enrollment"
+  identity_name    = "runner"
+  enrollment_token = ziti_identity.runner.enrollment_token
+  secret_name      = local.runner_identity_secret_name
+  namespace        = local.ziti_namespace
+  enrollment_dir   = local.identity_enrollment_dir
 }
 
 resource "ziti_service_policy" "agents_dial_gateway" {
