@@ -8,6 +8,7 @@ output "identity_ids" {
     gateway         = ziti_identity.gateway.id
     ziti_management = ziti_identity.ziti_management.id
     orchestrator    = ziti_identity.orchestrator.id
+    runner          = ziti_identity.runner.id
   }
   description = "Ziti identity IDs"
 }
