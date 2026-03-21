@@ -3902,6 +3902,11 @@ resource "argocd_application" "gateway" {
           image = {
             tag = local.resolved_gateway_image_tag
           }
+          gateway = {
+            oidcIssuerUrl   = var.oidc_issuer_url
+            oidcClientId    = var.oidc_client_id
+            usersGrpcTarget = "users:50051"
+          }
         })
       }
     }
