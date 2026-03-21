@@ -1595,6 +1595,32 @@ locals {
         mountPath = "/etc/nginx/conf.d"
       }
     ]
+    env = [
+      {
+        name  = "OIDC_AUTHORITY"
+        value = var.oidc_issuer_url
+      },
+      {
+        name  = "OIDC_CLIENT_ID"
+        value = var.oidc_client_id
+      },
+      {
+        name  = "OIDC_REDIRECT_URI"
+        value = format("https://chat.%s:%d/callback", local.base_domain, local.ingress_port)
+      },
+      {
+        name  = "OIDC_POST_LOGOUT_REDIRECT_URI"
+        value = format("https://chat.%s:%d", local.base_domain, local.ingress_port)
+      },
+      {
+        name  = "OIDC_SCOPE"
+        value = "openid profile email"
+      },
+      {
+        name  = "API_BASE_URL"
+        value = "/api"
+      }
+    ]
   })
 
   tracing_app_values = yamlencode({
