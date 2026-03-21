@@ -4,6 +4,9 @@ set -euo pipefail
 
 DEFAULT_DOMAIN="agyn.dev"
 DEFAULT_PORT="2496"
+DEFAULT_OIDC_ISSUER_URL="https://mockauth.dev/r/301ebb13-15a8-48f4-baac-e3fa25be29fc/oidc"
+DEFAULT_OIDC_CLIENT_ID="client_MU95KU3gHQf5Ir7p"
+DEFAULT_OIDC_CLIENT_SECRET="XPKka2i9uzISrKZ95zxli8sY51BK4eTJ"
 KUBECONFIG_PATH="stacks/k8s/.kube/agyn-local-kubeconfig.yaml"
 
 auto_approve="false"
@@ -19,6 +22,9 @@ Options:
 Environment variables:
   DOMAIN  Override the ingress domain (default: agyn.dev)
   PORT    Override the ingress port (default: 2496)
+  OIDC_ISSUER_URL     Override the OIDC issuer URL (default: https://mockauth.dev/r/301ebb13-15a8-48f4-baac-e3fa25be29fc/oidc)
+  OIDC_CLIENT_ID      Override the OIDC client ID (default: client_MU95KU3gHQf5Ir7p)
+  OIDC_CLIENT_SECRET  Override the OIDC client secret (default: XPKka2i9uzISrKZ95zxli8sY51BK4eTJ)
 EOF
 }
 
@@ -94,6 +100,42 @@ if (( port < 1 || port > 65535 )); then
   exit 1
 fi
 
+oidc_issuer_url="${OIDC_ISSUER_URL:-}"
+if [[ -z "${oidc_issuer_url}" ]]; then
+  if [[ "${auto_approve}" == "true" ]]; then
+    oidc_issuer_url="${DEFAULT_OIDC_ISSUER_URL}"
+    echo "OIDC issuer URL defaulting to ${oidc_issuer_url} (auto-apply mode)."
+  else
+    oidc_issuer_url="$(prompt_with_default "OIDC issuer URL" "${DEFAULT_OIDC_ISSUER_URL}")"
+  fi
+else
+  echo "OIDC issuer URL provided via OIDC_ISSUER_URL environment variable: ${oidc_issuer_url}"
+fi
+
+oidc_client_id="${OIDC_CLIENT_ID:-}"
+if [[ -z "${oidc_client_id}" ]]; then
+  if [[ "${auto_approve}" == "true" ]]; then
+    oidc_client_id="${DEFAULT_OIDC_CLIENT_ID}"
+    echo "OIDC client ID defaulting to ${oidc_client_id} (auto-apply mode)."
+  else
+    oidc_client_id="$(prompt_with_default "OIDC client ID" "${DEFAULT_OIDC_CLIENT_ID}")"
+  fi
+else
+  echo "OIDC client ID provided via OIDC_CLIENT_ID environment variable: ${oidc_client_id}"
+fi
+
+oidc_client_secret="${OIDC_CLIENT_SECRET:-}"
+if [[ -z "${oidc_client_secret}" ]]; then
+  if [[ "${auto_approve}" == "true" ]]; then
+    oidc_client_secret="${DEFAULT_OIDC_CLIENT_SECRET}"
+    echo "OIDC client secret defaulting to ${oidc_client_secret} (auto-apply mode)."
+  else
+    oidc_client_secret="$(prompt_with_default "OIDC client secret" "${DEFAULT_OIDC_CLIENT_SECRET}")"
+  fi
+else
+  echo "OIDC client secret provided via OIDC_CLIENT_SECRET environment variable: ${oidc_client_secret}"
+fi
+
 printf '\nUsing domain: %s\nUsing port:   %s\n\n' "${domain}" "${port}"
 
 run_stack() {
@@ -113,6 +155,14 @@ run_stack() {
 
   if [[ "${stack}" == "k8s" ]]; then
     apply_cmd+=(-var "domain=${domain}" -var "port=${port}")
+  fi
+
+  if [[ "${stack}" == "platform" ]]; then
+    apply_cmd+=(
+      -var "oidc_issuer_url=${oidc_issuer_url}"
+      -var "oidc_client_id=${oidc_client_id}"
+      -var "oidc_client_secret=${oidc_client_secret}"
+    )
   fi
 
   if [[ "${#extra_args[@]}" -gt 0 ]]; then
