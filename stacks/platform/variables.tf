@@ -53,6 +53,12 @@ variable "threads_chart_version" {
   default     = "0.1.1"
 }
 
+variable "tracing_chart_version" {
+  type        = string
+  description = "Version of the tracing Helm chart published to GHCR"
+  default     = "0.1.0"
+}
+
 variable "token_counting_chart_version" {
   type        = string
   description = "Version of the token-counting Helm chart published to GHCR"
@@ -180,6 +186,12 @@ variable "threads_image_tag" {
   default     = "v0.1.2"
 }
 
+variable "tracing_image_tag" {
+  type        = string
+  description = "Optional override for the tracing image tag"
+  default     = ""
+}
+
 variable "chat_chart_version" {
   type        = string
   description = "Version of the chat Helm chart published to GHCR"
@@ -299,6 +311,13 @@ variable "threads_db_password" {
   sensitive   = true
 }
 
+variable "tracing_db_password" {
+  type        = string
+  description = "Password for the tracing PostgreSQL database user"
+  default     = "tracing"
+  sensitive   = true
+}
+
 variable "agent_state_db_pvc_size" {
   type        = string
   description = "Persistent volume claim size for the agent-state PostgreSQL primary"
@@ -314,6 +333,12 @@ variable "agents_orchestrator_db_pvc_size" {
 variable "threads_db_pvc_size" {
   type        = string
   description = "Persistent volume claim size for the threads PostgreSQL primary"
+  default     = "5Gi"
+}
+
+variable "tracing_db_pvc_size" {
+  type        = string
+  description = "Persistent volume claim size for the tracing PostgreSQL primary"
   default     = "5Gi"
 }
 
