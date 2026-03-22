@@ -1907,6 +1907,9 @@ resource "kubernetes_manifest" "virtualservice_chat_app" {
               }
             }
           ]
+          "rewrite" = {
+            "uri" = "/"
+          }
           "route" = [
             {
               "destination" = {
