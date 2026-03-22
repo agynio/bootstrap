@@ -1903,7 +1903,12 @@ resource "kubernetes_manifest" "virtualservice_chat_app" {
           "match" = [
             {
               "uri" = {
-                "prefix" = "/api"
+                "prefix" = "/api/"
+              }
+            },
+            {
+              "uri" = {
+                "exact" = "/api"
               }
             }
           ]
