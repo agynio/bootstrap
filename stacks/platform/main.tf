@@ -807,7 +807,7 @@ locals {
     service = {
       port = 50051
     }
-    env = [
+    extraEnvVars = [
       {
         name  = "DATABASE_URL"
         value = format("postgresql://tracing:%s@tracing-db:5432/tracing?sslmode=disable", var.tracing_db_password)
