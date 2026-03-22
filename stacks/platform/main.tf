@@ -807,12 +807,20 @@ locals {
     service = {
       port = 50051
     }
-    database = {
-      url = format("postgresql://tracing:%s@tracing-db:5432/tracing?sslmode=disable", var.tracing_db_password)
-    }
-    notifications = {
-      address = "notifications:50051"
-    }
+    env = [
+      {
+        name  = "GRPC_ADDRESS"
+        value = ":50051"
+      },
+      {
+        name  = "DATABASE_URL"
+        value = format("postgresql://tracing:%s@tracing-db:5432/tracing?sslmode=disable", var.tracing_db_password)
+      },
+      {
+        name  = "NOTIFICATIONS_ADDRESS"
+        value = "notifications:50051"
+      },
+    ]
     image = {
       repository = "ghcr.io/agynio/tracing"
       tag        = local.resolved_tracing_image_tag
