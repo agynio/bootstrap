@@ -457,6 +457,14 @@ if [ "${ZITI_EXIT}" -ne 0 ]; then
 fi
 step_end "stack:ziti"
 
+step_start "stack:data"
+run_stack "data"
+step_end "stack:data"
+
+step_start "stack:platform"
+run_stack "platform"
+step_end "stack:platform"
+
 step_start "enroll-ziti-management"
 if kubectl --kubeconfig "${KUBECONFIG_PATH}" -n platform get secret ziti-certs >/dev/null 2>&1; then
   echo "ziti-certs secret already exists; skipping ziti-management enrollment."
@@ -466,9 +474,6 @@ else
     echo "ERROR: ziti CLI not found; install the OpenZiti CLI before running apply.sh." >&2
     exit 1
   fi
-
-  kubectl --kubeconfig "${KUBECONFIG_PATH}" create namespace platform --dry-run=client -o yaml | \
-    kubectl --kubeconfig "${KUBECONFIG_PATH}" apply -f -
 
   tmp_dir="$(mktemp -d)"
   cleanup_enroll_dir() {
@@ -511,13 +516,7 @@ else
   step_end "enroll-ziti-management"
 fi
 
-step_start "stack:data"
-run_stack "data"
-step_end "stack:data"
 
-step_start "stack:platform"
-run_stack "platform"
-step_end "stack:platform"
 
 echo "All stacks applied successfully."
 
