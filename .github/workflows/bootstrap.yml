@@ -32,10 +32,6 @@ jobs:
         with:
           terraform_version: 1.6.6
 
-      - name: Install OpenZiti CLI
-        run: |
-          curl -sS https://get.openziti.io/install.bash | sudo bash -s -- openziti
-
       - name: Apply all stacks (k8s -> system -> routing -> minio -> platform)
         run: ./apply.sh -y
 

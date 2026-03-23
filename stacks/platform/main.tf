@@ -853,6 +853,9 @@ locals {
       tag        = local.resolved_ziti_management_image_tag
       pullPolicy = "IfNotPresent"
     }
+    updateStrategy = {
+      type = "Recreate"
+    }
     securityContext = {
       enabled                  = true
       runAsNonRoot             = true
@@ -867,6 +870,20 @@ locals {
         type = "RuntimeDefault"
       }
     }
+    persistence = {
+      enabled     = true
+      accessMode  = "ReadWriteOnce"
+      size        = "10Mi"
+    }
+    configMounts = [
+      {
+        name       = "ziti-enrollment"
+        sourceName = "ziti-management-enrollment"
+        type       = "secret"
+        mountPath  = "/etc/ziti-enrollment"
+        readOnly   = true
+      },
+    ]
     env = [
       {
         name  = "DATABASE_URL"
@@ -878,15 +895,19 @@ locals {
       },
       {
         name  = "ZITI_CERT_FILE"
-        value = "/etc/ziti/tls.crt"
+        value = "/var/lib/ziti/tls.crt"
       },
       {
         name  = "ZITI_KEY_FILE"
-        value = "/etc/ziti/tls.key"
+        value = "/var/lib/ziti/tls.key"
       },
       {
         name  = "ZITI_CA_FILE"
-        value = "/etc/ziti/ca.crt"
+        value = "/var/lib/ziti/ca.crt"
+      },
+      {
+        name  = "ZITI_ENROLLMENT_JWT_FILE"
+        value = "/etc/ziti-enrollment/enrollmentJwt"
       },
     ]
   })
@@ -1768,6 +1789,21 @@ resource "kubernetes_namespace" "platform" {
 resource "kubernetes_namespace_v1" "agyn_workloads" {
   metadata {
     name = "agyn-workloads"
+  }
+}
+
+# Enrollment JWT for ziti-management self-enrollment at startup.
+# The token is created by the ziti stack and passed via remote state.
+resource "kubernetes_secret_v1" "ziti_management_enrollment" {
+  metadata {
+    name      = "ziti-management-enrollment"
+    namespace = kubernetes_namespace.platform.metadata[0].name
+  }
+
+  type = "Opaque"
+
+  data = {
+    enrollmentJwt = data.terraform_remote_state.ziti.outputs.ziti_management_enrollment_token
   }
 }
 
