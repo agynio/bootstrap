@@ -4052,12 +4052,20 @@ resource "argocd_application" "gateway" {
             tag = local.resolved_gateway_image_tag
           }
           gateway = {
-            oidcIssuerUrl            = var.oidc_issuer_url
-            oidcClientId             = var.oidc_client_id
-            usersGrpcTarget          = "users:50051"
-            zitiEnabled              = true
-            zitiManagementGrpcTarget = "ziti-management:50051"
+            oidcIssuerUrl   = var.oidc_issuer_url
+            oidcClientId    = var.oidc_client_id
+            usersGrpcTarget = "users:50051"
           }
+          env = [
+            {
+              name  = "ZITI_ENABLED"
+              value = "true"
+            },
+            {
+              name  = "ZITI_MANAGEMENT_GRPC_TARGET"
+              value = "ziti-management:50051"
+            },
+          ]
         })
       }
     }
