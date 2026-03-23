@@ -853,6 +853,20 @@ locals {
       tag        = local.resolved_ziti_management_image_tag
       pullPolicy = "IfNotPresent"
     }
+    securityContext = {
+      enabled                  = true
+      runAsNonRoot             = true
+      runAsUser                = 100
+      runAsGroup               = 101
+      readOnlyRootFilesystem   = true
+      allowPrivilegeEscalation = false
+      capabilities = {
+        drop = ["ALL"]
+      }
+      seccompProfile = {
+        type = "RuntimeDefault"
+      }
+    }
     env = [
       {
         name  = "DATABASE_URL"
