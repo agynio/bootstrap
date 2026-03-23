@@ -19,3 +19,9 @@ output "service_ids" {
   }
   description = "Ziti service IDs"
 }
+
+output "ziti_management_enrollment_token" {
+  value       = ziti_identity.ziti_management.enrollment_token
+  description = "Enrollment JWT for the ziti-management identity"
+  sensitive   = true
+}

@@ -18,3 +18,11 @@ locals {
   base_domain  = data.terraform_remote_state.k8s.outputs.domain
   ingress_port = data.terraform_remote_state.k8s.outputs.ingress_port
 }
+
+data "terraform_remote_state" "ziti" {
+  backend = "local"
+
+  config = {
+    path = "../ziti/state/terraform.tfstate"
+  }
+}
