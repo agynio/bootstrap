@@ -6,6 +6,7 @@ locals {
   resolved_agents_orchestrator_image_tag = trimspace(var.agents_orchestrator_image_tag) != "" ? var.agents_orchestrator_image_tag : var.agents_orchestrator_chart_version
   resolved_k8s_runner_image_tag          = trimspace(var.k8s_runner_image_tag) != "" ? var.k8s_runner_image_tag : var.k8s_runner_chart_version
   resolved_threads_image_tag             = trimspace(var.threads_image_tag) != "" ? var.threads_image_tag : format("v%s", var.threads_chart_version)
+  resolved_tracing_image_tag             = trimspace(var.tracing_image_tag) != "" ? var.tracing_image_tag : format("v%s", var.tracing_chart_version)
   resolved_chat_image_tag                = trimspace(var.chat_image_tag) != "" ? var.chat_image_tag : format("v%s", var.chat_chart_version)
   resolved_chat_app_image_tag            = trimspace(var.chat_app_image_tag) != "" ? var.chat_app_image_tag : var.chat_app_chart_version
   resolved_tracing_app_image_tag         = trimspace(var.tracing_app_image_tag) != "" ? var.tracing_app_image_tag : var.tracing_app_chart_version
@@ -41,6 +42,7 @@ locals {
   agents_orchestrator_chart_name = "agynio/charts/agents-orchestrator"
   k8s_runner_chart_name          = "agynio/charts/k8s-runner"
   threads_chart_name             = "agynio/charts/threads"
+  tracing_chart_name             = "agynio/charts/tracing"
   chat_chart_name                = "agynio/charts/chat"
   chat_app_chart_name            = "agynio/charts/chat-app"
   tracing_app_chart_name         = "agynio/charts/tracing-app"
@@ -554,6 +556,29 @@ locals {
     }
   })
 
+  tracing_db_values = yamlencode({
+    fullnameOverride = "tracing-db"
+    postgres = {
+      database = "tracing"
+      username = "tracing"
+      password = var.tracing_db_password
+      pgdata   = "/var/lib/postgresql/data/pgdata"
+    }
+    persistence = {
+      size                    = var.tracing_db_pvc_size
+      mountPath               = "/var/lib/postgresql/data"
+      volumeClaimTemplateName = "data"
+    }
+    probes = {
+      readiness = {
+        execCommand = ["pg_isready", "-U", "tracing", "-d", "tracing"]
+      }
+      liveness = {
+        execCommand = ["pg_isready", "-U", "tracing", "-d", "tracing"]
+      }
+    }
+  })
+
   secrets_db_values = yamlencode({
     fullnameOverride = "secrets-db"
     postgres = {
@@ -772,6 +797,25 @@ locals {
     image = {
       repository = "ghcr.io/agynio/threads"
       tag        = local.resolved_threads_image_tag
+      pullPolicy = "IfNotPresent"
+    }
+  })
+
+  tracing_values = yamlencode({
+    replicaCount     = 1
+    fullnameOverride = "tracing"
+    service = {
+      port = 50051
+    }
+    extraEnvVars = [
+      {
+        name  = "DATABASE_URL"
+        value = format("postgresql://tracing:%s@tracing-db:5432/tracing?sslmode=disable", var.tracing_db_password)
+      },
+    ]
+    image = {
+      repository = "ghcr.io/agynio/tracing"
+      tag        = local.resolved_tracing_image_tag
       pullPolicy = "IfNotPresent"
     }
   })
@@ -2530,6 +2574,56 @@ resource "argocd_application" "threads_db" {
   }
 }
 
+resource "argocd_application" "tracing_db" {
+  depends_on = [argocd_repository.litellm_repo]
+  wait       = true
+
+  metadata {
+    name      = "tracing-db"
+    namespace = "argocd"
+    annotations = {
+      "argocd.argoproj.io/sync-wave" = "7"
+    }
+  }
+
+  spec {
+    project = "default"
+
+    source {
+      repo_url        = local.postgres_chart_repo_host
+      chart           = local.postgres_chart_name
+      target_revision = var.postgres_chart_version
+
+      helm {
+        values = local.tracing_db_values
+      }
+    }
+
+    destination {
+      server    = var.destination_server
+      namespace = var.platform_namespace
+    }
+
+    sync_policy {
+      # DB apps always use automated sync with prune disabled for stateful safety,
+      # independent of var.argocd_automated_sync_enabled.
+      automated {
+        prune       = false
+        self_heal   = true
+        allow_empty = false
+      }
+
+      sync_options = local.postgres_sync_options
+    }
+  }
+
+  timeouts {
+    create = "5m"
+    update = "5m"
+    delete = "5m"
+  }
+}
+
 resource "argocd_application" "secrets_db" {
   depends_on = [argocd_repository.litellm_repo]
   wait       = true
@@ -3084,6 +3178,52 @@ resource "argocd_application" "threads" {
 
       helm {
         values = local.threads_values
+      }
+    }
+
+    destination {
+      server    = var.destination_server
+      namespace = var.platform_namespace
+    }
+
+    sync_policy {
+      dynamic "automated" {
+        for_each = var.argocd_automated_sync_enabled ? [1] : []
+        content {
+          prune       = var.argocd_prune_enabled
+          self_heal   = var.argocd_self_heal_enabled
+          allow_empty = false
+        }
+      }
+
+      sync_options = local.default_sync_options
+    }
+  }
+}
+
+resource "argocd_application" "tracing" {
+  depends_on = [
+    argocd_repository.litellm_repo,
+    argocd_application.tracing_db,
+  ]
+  metadata {
+    name      = "tracing"
+    namespace = "argocd"
+    annotations = {
+      "argocd.argoproj.io/sync-wave" = "16"
+    }
+  }
+
+  spec {
+    project = "default"
+
+    source {
+      repo_url        = local.platform_chart_repo_host
+      chart           = local.tracing_chart_name
+      target_revision = var.tracing_chart_version
+
+      helm {
+        values = local.tracing_values
       }
     }
 
