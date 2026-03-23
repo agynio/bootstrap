@@ -16,6 +16,7 @@ locals {
   resolved_token_counting_image_tag      = trimspace(var.token_counting_image_tag) != "" ? var.token_counting_image_tag : format("v%s", var.token_counting_chart_version)
   resolved_notifications_image_tag       = trimspace(var.notifications_image_tag) != "" ? var.notifications_image_tag : var.notifications_chart_version
   resolved_agents_image_tag              = trimspace(var.agents_image_tag) != "" ? var.agents_image_tag : var.agents_chart_version
+  resolved_ziti_management_image_tag     = trimspace(var.ziti_management_image_tag) != "" ? var.ziti_management_image_tag : var.ziti_management_chart_version
   resolved_users_image_tag               = trimspace(var.users_image_tag) != "" ? var.users_image_tag : var.users_chart_version
   resolved_tenants_image_tag             = trimspace(var.tenants_image_tag) != "" ? var.tenants_image_tag : var.tenants_chart_version
   resolved_authorization_image_tag       = trimspace(var.authorization_image_tag) != "" ? var.authorization_image_tag : format("v%s", var.authorization_chart_version)
@@ -53,6 +54,7 @@ locals {
   notifications_chart_name       = "agynio/charts/notifications"
   redis_chart_name               = "redis"
   agents_chart_name              = "agynio/charts/agents"
+  ziti_management_chart_name     = "agynio/charts/ziti-management"
   users_chart_name               = "agynio/charts/users"
   tenants_chart_name             = "agynio/charts/tenants"
   authorization_chart_name       = "agynio/charts/authorization"
@@ -648,6 +650,29 @@ locals {
     }
   })
 
+  ziti_management_db_values = yamlencode({
+    fullnameOverride = "ziti-management-db"
+    postgres = {
+      database = "ziti_management"
+      username = "ziti_management"
+      password = var.ziti_management_db_password
+      pgdata   = "/var/lib/postgresql/data/pgdata"
+    }
+    persistence = {
+      size                    = var.ziti_management_db_pvc_size
+      mountPath               = "/var/lib/postgresql/data"
+      volumeClaimTemplateName = "data"
+    }
+    probes = {
+      readiness = {
+        execCommand = ["pg_isready", "-U", "ziti_management", "-d", "ziti_management"]
+      }
+      liveness = {
+        execCommand = ["pg_isready", "-U", "ziti_management", "-d", "ziti_management"]
+      }
+    }
+  })
+
   users_db_values = yamlencode({
     fullnameOverride = "users-db"
     postgres = {
@@ -861,6 +886,72 @@ locals {
       {
         name  = "DATABASE_URL"
         value = format("postgresql://agents:%s@agents-db:5432/agents?sslmode=disable", var.agents_db_password)
+      },
+    ]
+  })
+
+  ziti_management_values = yamlencode({
+    fullnameOverride = "ziti-management"
+    image = {
+      repository = "ghcr.io/agynio/ziti-management"
+      tag        = local.resolved_ziti_management_image_tag
+      pullPolicy = "IfNotPresent"
+    }
+    updateStrategy = {
+      type = "Recreate"
+    }
+    securityContext = {
+      enabled                  = true
+      runAsNonRoot             = true
+      runAsUser                = 100
+      runAsGroup               = 101
+      readOnlyRootFilesystem   = true
+      allowPrivilegeEscalation = false
+      capabilities = {
+        drop = ["ALL"]
+      }
+      seccompProfile = {
+        type = "RuntimeDefault"
+      }
+    }
+    persistence = {
+      enabled     = true
+      accessMode  = "ReadWriteOnce"
+      size        = "10Mi"
+    }
+    configMounts = [
+      {
+        name       = "ziti-enrollment"
+        sourceName = "ziti-management-enrollment"
+        type       = "secret"
+        mountPath  = "/etc/ziti-enrollment"
+        readOnly   = true
+      },
+    ]
+    env = [
+      {
+        name  = "DATABASE_URL"
+        value = format("postgresql://ziti_management:%s@ziti-management-db:5432/ziti_management?sslmode=disable", var.ziti_management_db_password)
+      },
+      {
+        name  = "ZITI_CONTROLLER_URL"
+        value = format("https://ziti-mgmt.%s:%d/edge/management/v1", local.base_domain, local.ingress_port)
+      },
+      {
+        name  = "ZITI_CERT_FILE"
+        value = "/var/lib/ziti/tls.crt"
+      },
+      {
+        name  = "ZITI_KEY_FILE"
+        value = "/var/lib/ziti/tls.key"
+      },
+      {
+        name  = "ZITI_CA_FILE"
+        value = "/var/lib/ziti/ca.crt"
+      },
+      {
+        name  = "ZITI_ENROLLMENT_JWT_FILE"
+        value = "/etc/ziti-enrollment/enrollmentJwt"
       },
     ]
   })
@@ -1742,6 +1833,21 @@ resource "kubernetes_namespace" "platform" {
 resource "kubernetes_namespace_v1" "agyn_workloads" {
   metadata {
     name = "agyn-workloads"
+  }
+}
+
+# Enrollment JWT for ziti-management self-enrollment at startup.
+# The token is created by the ziti stack and passed via remote state.
+resource "kubernetes_secret_v1" "ziti_management_enrollment" {
+  metadata {
+    name      = "ziti-management-enrollment"
+    namespace = kubernetes_namespace.platform.metadata[0].name
+  }
+
+  type = "Opaque"
+
+  data = {
+    enrollmentJwt = data.terraform_remote_state.ziti.outputs.ziti_management_enrollment_token
   }
 }
 
@@ -2774,6 +2880,56 @@ resource "argocd_application" "agents_db" {
   }
 }
 
+resource "argocd_application" "ziti_management_db" {
+  depends_on = [argocd_repository.litellm_repo]
+  wait       = true
+
+  metadata {
+    name      = "ziti-management-db"
+    namespace = "argocd"
+    annotations = {
+      "argocd.argoproj.io/sync-wave" = "8"
+    }
+  }
+
+  spec {
+    project = "default"
+
+    source {
+      repo_url        = local.postgres_chart_repo_host
+      chart           = local.postgres_chart_name
+      target_revision = var.postgres_chart_version
+
+      helm {
+        values = local.ziti_management_db_values
+      }
+    }
+
+    destination {
+      server    = var.destination_server
+      namespace = var.platform_namespace
+    }
+
+    sync_policy {
+      # DB apps always use automated sync with prune disabled for stateful safety,
+      # independent of var.argocd_automated_sync_enabled.
+      automated {
+        prune       = false
+        self_heal   = true
+        allow_empty = false
+      }
+
+      sync_options = local.postgres_sync_options
+    }
+  }
+
+  timeouts {
+    create = "5m"
+    update = "5m"
+    delete = "5m"
+  }
+}
+
 resource "argocd_application" "users_db" {
   depends_on = [argocd_repository.litellm_repo]
   wait       = true
@@ -3517,6 +3673,53 @@ resource "argocd_application" "agents" {
   }
 }
 
+resource "argocd_application" "ziti_management" {
+  depends_on = [
+    argocd_repository.litellm_repo,
+    argocd_application.ziti_management_db,
+  ]
+
+  metadata {
+    name      = "ziti-management"
+    namespace = "argocd"
+    annotations = {
+      "argocd.argoproj.io/sync-wave" = "17"
+    }
+  }
+
+  spec {
+    project = "default"
+
+    source {
+      repo_url        = local.platform_chart_repo_host
+      chart           = local.ziti_management_chart_name
+      target_revision = var.ziti_management_chart_version
+
+      helm {
+        values = local.ziti_management_values
+      }
+    }
+
+    destination {
+      server    = var.destination_server
+      namespace = var.platform_namespace
+    }
+
+    sync_policy {
+      dynamic "automated" {
+        for_each = var.argocd_automated_sync_enabled ? [1] : []
+        content {
+          prune       = var.argocd_prune_enabled
+          self_heal   = var.argocd_self_heal_enabled
+          allow_empty = false
+        }
+      }
+
+      sync_options = local.default_sync_options
+    }
+  }
+}
+
 resource "argocd_application" "users" {
   depends_on = [
     argocd_repository.litellm_repo,
@@ -4027,7 +4230,7 @@ resource "argocd_application" "tracing_app" {
 }
 
 resource "argocd_application" "gateway" {
-  depends_on = [argocd_application.llm]
+  depends_on = [argocd_application.llm, argocd_application.ziti_management]
   metadata {
     name      = "gateway"
     namespace = "argocd"
@@ -4055,6 +4258,12 @@ resource "argocd_application" "gateway" {
             oidcClientId    = var.oidc_client_id
             usersGrpcTarget = "users:50051"
           }
+          env = [
+            {
+              name  = "ZITI_ENABLED"
+              value = "true"
+            },
+          ]
         })
       }
     }

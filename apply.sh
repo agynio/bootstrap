@@ -465,6 +465,7 @@ step_start "stack:platform"
 run_stack "platform"
 step_end "stack:platform"
 
+
 echo "All stacks applied successfully."
 
 if should_merge_kubeconfig; then
