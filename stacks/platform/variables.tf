@@ -83,6 +83,12 @@ variable "agents_chart_version" {
   default     = "0.3.0"
 }
 
+variable "ziti_management_chart_version" {
+  type        = string
+  description = "Version of the ziti-management Helm chart published to GHCR"
+  default     = "0.1.0"
+}
+
 variable "users_chart_version" {
   type        = string
   description = "Version of the users Helm chart published to GHCR"
@@ -207,6 +213,12 @@ variable "notifications_image_tag" {
 variable "agents_image_tag" {
   type        = string
   description = "Optional override for the agents image tag"
+  default     = ""
+}
+
+variable "ziti_management_image_tag" {
+  type        = string
+  description = "Optional override for the ziti-management container image tag"
   default     = ""
 }
 
@@ -374,6 +386,13 @@ variable "agents_db_password" {
   sensitive   = true
 }
 
+variable "ziti_management_db_password" {
+  type        = string
+  description = "Password for the ziti-management PostgreSQL database user"
+  default     = "ziti_management"
+  sensitive   = true
+}
+
 variable "tenants_db_password" {
   type        = string
   description = "Password for the tenants PostgreSQL database user"
@@ -385,6 +404,12 @@ variable "agents_db_pvc_size" {
   type        = string
   description = "Persistent volume claim size for the agents PostgreSQL primary"
   default     = "5Gi"
+}
+
+variable "ziti_management_db_pvc_size" {
+  type        = string
+  description = "PVC size for the ziti-management database"
+  default     = "1Gi"
 }
 
 variable "users_db_password" {
