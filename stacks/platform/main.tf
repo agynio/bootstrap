@@ -876,6 +876,18 @@ locals {
         name  = "ZITI_CONTROLLER_URL"
         value = format("https://ziti-mgmt.%s:%d/edge/management/v1", local.base_domain, local.ingress_port)
       },
+      {
+        name  = "ZITI_CERT_FILE"
+        value = "/etc/ziti/tls.crt"
+      },
+      {
+        name  = "ZITI_KEY_FILE"
+        value = "/etc/ziti/tls.key"
+      },
+      {
+        name  = "ZITI_CA_FILE"
+        value = "/etc/ziti/ca.crt"
+      },
     ]
   })
 
