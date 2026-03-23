@@ -408,8 +408,8 @@ variable "agents_db_pvc_size" {
 
 variable "ziti_management_db_pvc_size" {
   type        = string
-  description = "PVC size for the ziti-management database"
-  default     = "1Gi"
+  description = "Persistent volume claim size for the ziti-management PostgreSQL primary"
+  default     = "5Gi"
 }
 
 variable "users_db_password" {
