@@ -457,6 +457,60 @@ if [ "${ZITI_EXIT}" -ne 0 ]; then
 fi
 step_end "stack:ziti"
 
+step_start "enroll-ziti-management"
+if kubectl --kubeconfig "${KUBECONFIG_PATH}" -n platform get secret ziti-certs >/dev/null 2>&1; then
+  echo "ziti-certs secret already exists; skipping ziti-management enrollment."
+  step_end "enroll-ziti-management"
+else
+  if ! command -v ziti >/dev/null 2>&1; then
+    echo "ERROR: ziti CLI not found; install the OpenZiti CLI before running apply.sh." >&2
+    exit 1
+  fi
+
+  kubectl --kubeconfig "${KUBECONFIG_PATH}" create namespace platform --dry-run=client -o yaml | \
+    kubectl --kubeconfig "${KUBECONFIG_PATH}" apply -f -
+
+  tmp_dir="$(mktemp -d)"
+  cleanup_enroll_dir() {
+    rm -rf "${tmp_dir}"
+  }
+  trap cleanup_enroll_dir EXIT
+
+  jwt_file="${tmp_dir}/ziti-management.jwt"
+  identity_file="${tmp_dir}/ziti-management.json"
+
+  jwt_b64=$(kubectl --kubeconfig "${KUBECONFIG_PATH}" \
+    -n ziti get secret ziti-management-enrollment \
+    -o jsonpath='{.data.enrollmentJwt}' 2>/dev/null || true)
+  if [[ -z "${jwt_b64}" ]]; then
+    echo "ERROR: ziti-management enrollment token not found." >&2
+    exit 1
+  fi
+
+  printf '%s' "${jwt_b64}" | base64 --decode >"${jwt_file}"
+
+  ziti edge enroll --jwt "${jwt_file}" --out "${identity_file}"
+
+  tls_key=$(jq -r '.id.key' "${identity_file}" | sed 's/^pem://')
+  tls_cert=$(jq -r '.id.cert' "${identity_file}" | sed 's/^pem://')
+  ca_cert=$(jq -r '.id.ca' "${identity_file}" | sed 's/^pem://')
+
+  if [[ -z "${tls_key}" || -z "${tls_cert}" || -z "${ca_cert}" ]]; then
+    echo "ERROR: failed to extract ziti-management certificates from identity." >&2
+    exit 1
+  fi
+
+  kubectl --kubeconfig "${KUBECONFIG_PATH}" -n platform create secret generic ziti-certs \
+    --from-literal=tls.crt="${tls_cert}" \
+    --from-literal=tls.key="${tls_key}" \
+    --from-literal=ca.crt="${ca_cert}" \
+    --dry-run=client -o yaml | kubectl --kubeconfig "${KUBECONFIG_PATH}" apply -f -
+
+  cleanup_enroll_dir
+  trap - EXIT
+  step_end "enroll-ziti-management"
+fi
+
 step_start "stack:data"
 run_stack "data"
 step_end "stack:data"
