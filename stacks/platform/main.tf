@@ -4087,10 +4087,6 @@ resource "argocd_application" "gateway" {
               name  = "ZITI_ENABLED"
               value = "true"
             },
-            {
-              name  = "ZITI_MANAGEMENT_GRPC_TARGET"
-              value = "ziti-management:50051"
-            },
           ]
         })
       }
