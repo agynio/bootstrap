@@ -551,6 +551,12 @@ variable "authorization_image_tag" {
   default     = ""
 }
 
+variable "cluster_admin_name" {
+  type        = string
+  description = "Display name for the bootstrap cluster admin user"
+  default     = "Cluster Admin"
+}
+
 variable "openfga_namespace" {
   type        = string
   description = "Namespace where OpenFGA is deployed"
