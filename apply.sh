@@ -50,6 +50,14 @@ if [[ $# -gt 0 ]]; then
   exit 1
 fi
 
+required_commands=(terraform kubectl psql pg_isready)
+for cmd in "${required_commands[@]}"; do
+  if ! command -v "${cmd}" >/dev/null 2>&1; then
+    echo "Error: required command not found: ${cmd}" >&2
+    exit 1
+  fi
+done
+
 prompt_with_default() {
   local prompt_text="$1"
   local default_value="$2"
@@ -462,7 +470,26 @@ run_stack "data"
 step_end "stack:data"
 
 step_start "stack:platform"
+USERS_DB_LOCAL_PORT=25432
+USERS_DB_PF_PID=""
+
+(
+  for attempt in $(seq 1 90); do
+    if kubectl --kubeconfig "${KUBECONFIG_PATH}" \
+      -n platform port-forward svc/users-db "${USERS_DB_LOCAL_PORT}:5432" 2>/dev/null; then
+      break
+    fi
+    sleep 2
+  done
+) &
+USERS_DB_PF_PID=$!
+
+export TF_VAR_users_db_host="127.0.0.1"
+export TF_VAR_users_db_port="${USERS_DB_LOCAL_PORT}"
+
 run_stack "platform"
+kill "${USERS_DB_PF_PID}" 2>/dev/null || true
+wait "${USERS_DB_PF_PID}" 2>/dev/null || true
 step_end "stack:platform"
 
 

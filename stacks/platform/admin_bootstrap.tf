@@ -37,82 +37,54 @@ resource "random_string" "cluster_admin_api_token" {
   special = false
 }
 
-resource "kubernetes_job_v1" "cluster_admin_bootstrap" {
-  metadata {
-    name      = "cluster-admin-bootstrap"
-    namespace = kubernetes_namespace.platform.metadata[0].name
-    labels = {
-      "app.kubernetes.io/name" = "cluster-admin-bootstrap"
-    }
+resource "terraform_data" "cluster_admin_bootstrap" {
+  triggers_replace = {
+    sql_hash = sha256(local.cluster_admin_bootstrap_sql)
   }
 
-  spec {
-    backoff_limit = 3
+  provisioner "local-exec" {
+    command     = <<-EOT
+      set -euo pipefail
 
-    template {
-      metadata {
-        labels = {
-          "app.kubernetes.io/name" = "cluster-admin-bootstrap"
-        }
-      }
+      attempts=0
+      until pg_isready -h "$PGHOST" -p "$PGPORT" -U users -d users >/dev/null 2>&1; do
+        attempts=$((attempts + 1))
+        if [ "$attempts" -ge 30 ]; then
+          echo "ERROR: users-db is not reachable at $PGHOST:$PGPORT" >&2
+          exit 1
+        fi
+        sleep 2
+      done
 
-      spec {
-        restart_policy = "OnFailure"
+      table_attempts=0
+      while true; do
+        table_ready="$(psql "$DATABASE_URL" -X -tAc "${local.cluster_admin_api_tokens_table_check_sql}" 2>/dev/null || true)"
+        if [ "$table_ready" = "1" ]; then
+          break
+        fi
+        table_attempts=$((table_attempts + 1))
+        if [ "$table_attempts" -ge 60 ]; then
+          echo "ERROR: user_api_tokens table not ready after 120s" >&2
+          exit 1
+        fi
+        sleep 2
+      done
 
-        container {
-          name              = "cluster-admin-bootstrap"
-          image             = local.postgres_image
-          image_pull_policy = "IfNotPresent"
-
-          env {
-            name  = "DATABASE_URL"
-            value = format("postgresql://users:%s@users-db:5432/users?sslmode=disable", var.users_db_password)
-          }
-
-          command = [
-            "bash",
-            "-c",
-            <<-EOT
-            set -euo pipefail
-
-            attempts=0
-            until pg_isready -d "$DATABASE_URL" >/dev/null 2>&1; do
-              attempts=$((attempts + 1))
-              if [ "$attempts" -ge 30 ]; then
-                echo "users-db is not ready" >&2
-                exit 1
-              fi
-              sleep 2
-            done
-
-            table_attempts=0
-            while true; do
-              table_ready="$(psql "$DATABASE_URL" -X -tAc "${local.cluster_admin_api_tokens_table_check_sql}" 2>/dev/null || true)"
-              if [ "$table_ready" = "1" ]; then
-                break
-              fi
-              table_attempts=$((table_attempts + 1))
-              if [ "$table_attempts" -ge 60 ]; then
-                echo "user_api_tokens table is not ready" >&2
-                exit 1
-              fi
-              sleep 2
-            done
-
-            psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -X <<'SQL'
-            ${local.cluster_admin_bootstrap_sql}
-            SQL
-            EOT
-          ]
-        }
-      }
+      psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -X <<'SQL'
+      ${local.cluster_admin_bootstrap_sql}
+      SQL
+    EOT
+    interpreter = ["bash", "-c"]
+    environment = {
+      PGHOST = var.users_db_host
+      PGPORT = tostring(var.users_db_port)
+      DATABASE_URL = format(
+        "postgresql://users:%s@%s:%d/users?sslmode=disable",
+        var.users_db_password,
+        var.users_db_host,
+        var.users_db_port,
+      )
     }
-  }
-
-  wait_for_completion = true
-
-  timeouts {
-    create = "5m"
   }
 
   depends_on = [
@@ -130,6 +102,6 @@ resource "openfga_relationship_tuple" "cluster_admin" {
   object                 = "cluster:global"
 
   depends_on = [
-    kubernetes_job_v1.cluster_admin_bootstrap,
+    terraform_data.cluster_admin_bootstrap,
   ]
 }
