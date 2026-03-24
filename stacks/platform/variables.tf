@@ -444,18 +444,6 @@ variable "users_db_password" {
   sensitive   = true
 }
 
-variable "users_db_host" {
-  type        = string
-  description = "Host address for the users PostgreSQL database (used by local-exec bootstrap)"
-  default     = "127.0.0.1"
-}
-
-variable "users_db_port" {
-  type        = number
-  description = "Port for the users PostgreSQL database (used by local-exec bootstrap)"
-  default     = 25432
-}
-
 variable "users_db_pvc_size" {
   type        = string
   description = "Persistent volume claim size for the users PostgreSQL primary"

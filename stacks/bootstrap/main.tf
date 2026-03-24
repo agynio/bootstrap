@@ -73,17 +73,11 @@ resource "sql_migrate" "cluster_admin_bootstrap" {
         AND name = '${local.cluster_admin_api_token_name_sql}';
     SQL
   }
-
-  depends_on = [
-    argocd_application.users_db,
-    argocd_application.users,
-    module.openfga_authorization,
-  ]
 }
 
 resource "openfga_relationship_tuple" "cluster_admin" {
-  store_id               = module.openfga_authorization.store_id
-  authorization_model_id = module.openfga_authorization.model_id
+  store_id               = local.openfga_store_id
+  authorization_model_id = local.openfga_model_id
   user                   = "identity:${local.cluster_admin_identity_id}"
   relation               = "admin"
   object                 = "cluster:global"
