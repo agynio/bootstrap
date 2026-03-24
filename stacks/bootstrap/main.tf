@@ -11,21 +11,6 @@ locals {
   )
   cluster_admin_api_token_hash   = sha256(local.cluster_admin_api_token_plaintext)
   cluster_admin_api_token_prefix = substr(local.cluster_admin_api_token_plaintext, 0, 8)
-  cluster_admin_bootstrap_sql    = <<-SQL
-    INSERT INTO users (identity_id, oidc_subject, name, photo_url)
-    VALUES ('${local.cluster_admin_identity_id}', '${local.cluster_admin_oidc_subject}', '${local.cluster_admin_name_sql}', '')
-    ON CONFLICT (identity_id) DO NOTHING;
-
-    INSERT INTO user_api_tokens (identity_id, name, token_hash, token_prefix, expires_at)
-    VALUES (
-      '${local.cluster_admin_identity_id}',
-      '${local.cluster_admin_api_token_name_sql}',
-      '${local.cluster_admin_api_token_hash}',
-      '${local.cluster_admin_api_token_prefix}',
-      NULL
-    )
-    ON CONFLICT (token_hash) DO NOTHING;
-  SQL
 }
 
 resource "random_string" "cluster_admin_api_token" {

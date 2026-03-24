@@ -18,10 +18,6 @@ terraform {
       source  = "openfga/openfga"
       version = "~> 0.5"
     }
-    random = {
-      source  = "hashicorp/random"
-      version = "~> 3.6"
-    }
   }
 
   backend "local" {
