@@ -1,4 +1,5 @@
 locals {
+  # Deterministic v5 UUID for the cluster admin identity.
   cluster_admin_identity_id        = "a3c1e9d2-7f4b-5e1a-9c3d-2b8f6a4e7d10"
   cluster_admin_oidc_subject       = "cluster-admin"
   cluster_admin_api_token_name     = "Cluster Admin bootstrap"
@@ -14,7 +15,7 @@ locals {
   cluster_admin_bootstrap_sql              = <<-SQL
     INSERT INTO users (identity_id, oidc_subject, name, photo_url)
     VALUES ('${local.cluster_admin_identity_id}', '${local.cluster_admin_oidc_subject}', '${local.cluster_admin_name_sql}', '')
-    ON CONFLICT DO NOTHING;
+    ON CONFLICT (identity_id) DO NOTHING;
 
     INSERT INTO user_api_tokens (identity_id, name, token_hash, token_prefix, expires_at)
     VALUES (
