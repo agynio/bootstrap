@@ -62,6 +62,10 @@ locals {
   istio_gateway_tls_secret_name  = data.terraform_remote_state.system.outputs.wildcard_tls_gateway_secret_name
   openfga_api_url_external       = format("https://openfga.%s:%d", local.base_domain, local.ingress_port)
   openfga_api_url_internal       = format("http://openfga.%s.svc.cluster.local:8080", var.openfga_namespace)
+  # Deterministic v5 UUID for the cluster admin identity.
+  # This is a synthetic identity used only during bootstrap;
+  # it does not correspond to a user record in the Users DB.
+  cluster_admin_identity_id = "a3c1e9d2-7f4b-5e1a-9c3d-2b8f6a4e7d10"
 
   default_sync_options = [
     "CreateNamespace=true",
@@ -1822,6 +1826,21 @@ locals {
 module "openfga_authorization" {
   source          = "github.com/agynio/authorization//terraform?ref=v0.2.0"
   openfga_api_url = local.openfga_api_url_external
+}
+
+resource "random_password" "cluster_admin_token" {
+  length  = 32
+  special = false
+}
+
+resource "openfga_relationship_tuple" "cluster_admin" {
+  store_id               = module.openfga_authorization.store_id
+  authorization_model_id = module.openfga_authorization.model_id
+  user                   = "identity:${local.cluster_admin_identity_id}"
+  relation               = "admin"
+  object                 = "cluster:global"
+
+  depends_on = [module.openfga_authorization]
 }
 
 resource "kubernetes_namespace" "platform" {
@@ -4255,9 +4274,11 @@ resource "argocd_application" "gateway" {
             tag = local.resolved_gateway_image_tag
           }
           gateway = {
-            oidcIssuerUrl   = var.oidc_issuer_url
-            oidcClientId    = var.oidc_client_id
-            usersGrpcTarget = "users:50051"
+            oidcIssuerUrl          = var.oidc_issuer_url
+            oidcClientId           = var.oidc_client_id
+            clusterAdminToken      = random_password.cluster_admin_token.result
+            clusterAdminIdentityId = local.cluster_admin_identity_id
+            usersGrpcTarget        = "users:50051"
           }
           env = [
             {

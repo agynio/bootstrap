@@ -50,7 +50,7 @@ if [[ $# -gt 0 ]]; then
   exit 1
 fi
 
-required_commands=(terraform kubectl nc)
+required_commands=(terraform kubectl)
 for cmd in "${required_commands[@]}"; do
   if ! command -v "${cmd}" >/dev/null 2>&1; then
     echo "Error: required command not found: ${cmd}" >&2
@@ -472,47 +472,6 @@ step_end "stack:data"
 step_start "stack:platform"
 run_stack "platform"
 step_end "stack:platform"
-
-step_start "stack:bootstrap"
-# After platform stack completes, ArgoCD apps are synced and healthy.
-# Now start port-forward and run bootstrap stack.
-
-USERS_DB_PF_PID=""
-cleanup_port_forward() {
-  if [[ -n "${USERS_DB_PF_PID:-}" ]]; then
-    kill "${USERS_DB_PF_PID}" 2>/dev/null || true
-    wait "${USERS_DB_PF_PID}" 2>/dev/null || true
-    USERS_DB_PF_PID=""
-  fi
-}
-trap cleanup_port_forward EXIT
-
-USERS_DB_LOCAL_PORT=25432
-kubectl --kubeconfig "${KUBECONFIG_PATH}" \
-  -n platform port-forward svc/users-db "${USERS_DB_LOCAL_PORT}:5432" &
-USERS_DB_PF_PID=$!
-
-pf_ready=0
-for i in $(seq 1 15); do
-  if nc -z 127.0.0.1 "${USERS_DB_LOCAL_PORT}" 2>/dev/null; then
-    pf_ready=1
-    break
-  fi
-  sleep 2
-done
-
-if [[ "${pf_ready}" -ne 1 ]]; then
-  echo "ERROR: port-forward to users-db did not establish" >&2
-  exit 1
-fi
-
-export TF_VAR_users_db_host="127.0.0.1"
-export TF_VAR_users_db_port="${USERS_DB_LOCAL_PORT}"
-
-run_stack "bootstrap"
-cleanup_port_forward
-trap - EXIT
-step_end "stack:bootstrap"
 
 
 echo "All stacks applied successfully."
