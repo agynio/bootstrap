@@ -69,7 +69,7 @@ resource "kubernetes_job_v1" "cluster_admin_bootstrap" {
           }
 
           command = [
-            "sh",
+            "bash",
             "-c",
             <<-EOT
             set -euo pipefail
