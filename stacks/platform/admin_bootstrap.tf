@@ -9,10 +9,9 @@ locals {
     "agyn_%s",
     random_string.cluster_admin_api_token.result,
   )
-  cluster_admin_api_token_hash             = sha256(local.cluster_admin_api_token_plaintext)
-  cluster_admin_api_token_prefix           = substr(local.cluster_admin_api_token_plaintext, 0, 8)
-  cluster_admin_api_tokens_table_check_sql = "SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'user_api_tokens';"
-  cluster_admin_bootstrap_sql              = <<-SQL
+  cluster_admin_api_token_hash   = sha256(local.cluster_admin_api_token_plaintext)
+  cluster_admin_api_token_prefix = substr(local.cluster_admin_api_token_plaintext, 0, 8)
+  cluster_admin_bootstrap_sql    = <<-SQL
     INSERT INTO users (identity_id, oidc_subject, name, photo_url)
     VALUES ('${local.cluster_admin_identity_id}', '${local.cluster_admin_oidc_subject}', '${local.cluster_admin_name_sql}', '')
     ON CONFLICT (identity_id) DO NOTHING;
@@ -37,54 +36,42 @@ resource "random_string" "cluster_admin_api_token" {
   special = false
 }
 
-resource "terraform_data" "cluster_admin_bootstrap" {
-  triggers_replace = {
-    sql_hash = sha256(local.cluster_admin_bootstrap_sql)
+resource "sql_migrate" "cluster_admin_bootstrap" {
+  migration {
+    id   = "insert_cluster_admin_user"
+    up   = <<-SQL
+      INSERT INTO users (identity_id, oidc_subject, name, photo_url)
+      VALUES (
+        '${local.cluster_admin_identity_id}',
+        '${local.cluster_admin_oidc_subject}',
+        '${local.cluster_admin_name_sql}',
+        ''
+      )
+      ON CONFLICT (identity_id) DO NOTHING;
+    SQL
+    down = <<-SQL
+      DELETE FROM users WHERE identity_id = '${local.cluster_admin_identity_id}';
+    SQL
   }
 
-  provisioner "local-exec" {
-    command     = <<-EOT
-      set -euo pipefail
-
-      attempts=0
-      until pg_isready -h "$PGHOST" -p "$PGPORT" -U users -d users >/dev/null 2>&1; do
-        attempts=$((attempts + 1))
-        if [ "$attempts" -ge 30 ]; then
-          echo "ERROR: users-db is not reachable at $PGHOST:$PGPORT" >&2
-          exit 1
-        fi
-        sleep 2
-      done
-
-      table_attempts=0
-      while true; do
-        table_ready="$(psql "$DATABASE_URL" -X -tAc "${local.cluster_admin_api_tokens_table_check_sql}" 2>/dev/null || true)"
-        if [ "$table_ready" = "1" ]; then
-          break
-        fi
-        table_attempts=$((table_attempts + 1))
-        if [ "$table_attempts" -ge 60 ]; then
-          echo "ERROR: user_api_tokens table not ready after 120s" >&2
-          exit 1
-        fi
-        sleep 2
-      done
-
-      psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -X <<'SQL'
-      ${local.cluster_admin_bootstrap_sql}
-      SQL
-    EOT
-    interpreter = ["bash", "-c"]
-    environment = {
-      PGHOST = var.users_db_host
-      PGPORT = tostring(var.users_db_port)
-      DATABASE_URL = format(
-        "postgresql://users:%s@%s:%d/users?sslmode=disable",
-        var.users_db_password,
-        var.users_db_host,
-        var.users_db_port,
+  migration {
+    id   = "insert_cluster_admin_api_token"
+    up   = <<-SQL
+      INSERT INTO user_api_tokens (identity_id, name, token_hash, token_prefix, expires_at)
+      VALUES (
+        '${local.cluster_admin_identity_id}',
+        '${local.cluster_admin_api_token_name_sql}',
+        '${local.cluster_admin_api_token_hash}',
+        '${local.cluster_admin_api_token_prefix}',
+        NULL
       )
-    }
+      ON CONFLICT (token_hash) DO NOTHING;
+    SQL
+    down = <<-SQL
+      DELETE FROM user_api_tokens
+      WHERE identity_id = '${local.cluster_admin_identity_id}'
+        AND name = '${local.cluster_admin_api_token_name_sql}';
+    SQL
   }
 
   depends_on = [
@@ -102,6 +89,6 @@ resource "openfga_relationship_tuple" "cluster_admin" {
   object                 = "cluster:global"
 
   depends_on = [
-    terraform_data.cluster_admin_bootstrap,
+    sql_migrate.cluster_admin_bootstrap,
   ]
 }

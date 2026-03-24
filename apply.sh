@@ -50,7 +50,7 @@ if [[ $# -gt 0 ]]; then
   exit 1
 fi
 
-required_commands=(terraform kubectl psql pg_isready)
+required_commands=(terraform kubectl)
 for cmd in "${required_commands[@]}"; do
   if ! command -v "${cmd}" >/dev/null 2>&1; then
     echo "Error: required command not found: ${cmd}" >&2
