@@ -12,8 +12,8 @@ locals {
   cluster_admin_api_token_prefix           = substr(local.cluster_admin_api_token_plaintext, 0, 8)
   cluster_admin_api_tokens_table_check_sql = "SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'user_api_tokens';"
   cluster_admin_bootstrap_sql              = <<-SQL
-    INSERT INTO users (identity_id, oidc_subject, name, nickname, photo_url)
-    VALUES ('${local.cluster_admin_identity_id}', '${local.cluster_admin_oidc_subject}', '${local.cluster_admin_name_sql}', '${local.cluster_admin_name_sql}', '')
+    INSERT INTO users (identity_id, oidc_subject, name, photo_url)
+    VALUES ('${local.cluster_admin_identity_id}', '${local.cluster_admin_oidc_subject}', '${local.cluster_admin_name_sql}', '')
     ON CONFLICT DO NOTHING;
 
     INSERT INTO user_api_tokens (identity_id, name, token_hash, token_prefix, expires_at)
