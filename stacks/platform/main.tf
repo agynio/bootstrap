@@ -847,12 +847,6 @@ locals {
 
   chat_values = yamlencode({
     fullnameOverride = "chat"
-    service = {
-      port = 50051
-    }
-    threads = {
-      address = "threads:50051"
-    }
     image = {
       repository = "ghcr.io/agynio/chat"
       tag        = local.resolved_chat_image_tag
