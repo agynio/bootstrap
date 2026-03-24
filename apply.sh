@@ -487,39 +487,22 @@ cleanup_port_forward() {
 }
 trap cleanup_port_forward EXIT
 
-echo "=== Waiting for users-db pod ==="
-db_ready=0
-for i in $(seq 1 90); do
-  if kubectl --kubeconfig "${KUBECONFIG_PATH}" \
-    -n platform get pod -l app.kubernetes.io/name=users-db \
-    -o jsonpath='{.items[0].status.phase}' 2>/dev/null | grep -q Running; then
-    db_ready=1
-    break
-  fi
-  sleep 2
-done
-
-if [[ "${db_ready}" -ne 1 ]]; then
-  echo "ERROR: users-db pod did not become Running within timeout" >&2
-  exit 1
-fi
-
 USERS_DB_LOCAL_PORT=25432
 kubectl --kubeconfig "${KUBECONFIG_PATH}" \
   -n platform port-forward svc/users-db "${USERS_DB_LOCAL_PORT}:5432" &
 USERS_DB_PF_PID=$!
 
-port_forward_ready=0
-for i in $(seq 1 30); do
+pf_ready=0
+for i in $(seq 1 15); do
   if nc -z 127.0.0.1 "${USERS_DB_LOCAL_PORT}" 2>/dev/null; then
-    port_forward_ready=1
+    pf_ready=1
     break
   fi
   sleep 2
 done
 
-if [[ "${port_forward_ready}" -ne 1 ]]; then
-  echo "ERROR: users-db port-forward did not become ready within timeout" >&2
+if [[ "${pf_ready}" -ne 1 ]]; then
+  echo "ERROR: port-forward to users-db did not establish" >&2
   exit 1
 fi
 
