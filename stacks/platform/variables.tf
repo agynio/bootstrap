@@ -26,7 +26,7 @@ variable "platform_chart_version" {
 variable "gateway_chart_version" {
   type        = string
   description = "Version of the gateway Helm chart published to GHCR"
-  default     = "0.7.1"
+  default     = "0.7.0"
 }
 
 variable "agent_state_chart_version" {
@@ -98,7 +98,7 @@ variable "ziti_management_chart_version" {
 variable "users_chart_version" {
   type        = string
   description = "Version of the users Helm chart published to GHCR"
-  default     = "0.1.0"
+  default     = "0.2.0"
 }
 
 variable "tenants_chart_version" {

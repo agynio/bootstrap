@@ -64,3 +64,14 @@ output "openfga_model_id" {
   description = "OpenFGA model identifier for authorization"
   value       = module.openfga_authorization.model_id
 }
+
+output "cluster_admin_identity_id" {
+  description = "Identity ID of the bootstrap cluster admin"
+  value       = local.cluster_admin_identity_id
+}
+
+output "cluster_admin_api_token" {
+  description = "Static bootstrap token for the cluster admin (sensitive)"
+  value       = random_password.cluster_admin_token.result
+  sensitive   = true
+}
