@@ -110,6 +110,10 @@ resource "kubernetes_job_v1" "cluster_admin_bootstrap" {
 
   wait_for_completion = true
 
+  timeouts {
+    create = "5m"
+  }
+
   depends_on = [
     argocd_application.users_db,
     argocd_application.users,
