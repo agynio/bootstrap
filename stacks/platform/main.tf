@@ -3725,6 +3725,7 @@ resource "argocd_application" "users" {
     argocd_repository.litellm_repo,
     argocd_application.users_db,
   ]
+  wait = true
   metadata {
     name      = "users"
     namespace = "argocd"
