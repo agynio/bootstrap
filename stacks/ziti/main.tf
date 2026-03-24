@@ -162,6 +162,27 @@ resource "ziti_service_policy" "runners_bind" {
   serviceroles  = [format("@%s", ziti_service.runner.id)]
 }
 
+resource "ziti_service_policy" "apps_dial_gateway" {
+  name          = "apps-dial-gateway"
+  type          = "Dial"
+  identityroles = ["#apps"]
+  serviceroles  = [format("@%s", ziti_service.gateway.id)]
+}
+
+resource "ziti_service_policy" "apps_bind" {
+  name          = "apps-bind"
+  type          = "Bind"
+  identityroles = ["#apps"]
+  serviceroles  = ["#app-services"]
+}
+
+resource "ziti_service_policy" "gateway_dial_apps" {
+  name          = "gateway-dial-apps"
+  type          = "Dial"
+  identityroles = ["#gateway-hosts"]
+  serviceroles  = ["#app-services"]
+}
+
 resource "ziti_edge_router_policy" "all_identities_all_routers" {
   name            = "all-identities-all-routers"
   identityroles   = ["#all"]
