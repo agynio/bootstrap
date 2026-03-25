@@ -1143,7 +1143,11 @@ locals {
       },
       {
         name  = "DEFAULT_INIT_IMAGE"
-        value = "alpine:3.21"
+        value = "ghcr.io/agynio/agent-init-codex:0.1.0"
+      },
+      {
+        name  = "AGENT_LLM_BASE_URL"
+        value = "https://testllm.dev/v1/org/agynio/suite/agn"
       },
       {
         name  = "POLL_INTERVAL"
