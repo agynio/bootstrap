@@ -12,6 +12,7 @@ locals {
   resolved_tracing_app_image_tag         = trimspace(var.tracing_app_image_tag) != "" ? var.tracing_app_image_tag : var.tracing_app_chart_version
   resolved_files_image_tag               = trimspace(var.files_image_tag) != "" ? var.files_image_tag : var.files_chart_version
   resolved_llm_image_tag                 = trimspace(var.llm_image_tag) != "" ? var.llm_image_tag : format("v%s", var.llm_chart_version)
+  resolved_llm_proxy_image_tag           = trimspace(var.llm_proxy_image_tag) != "" ? var.llm_proxy_image_tag : var.llm_proxy_chart_version
   resolved_secrets_image_tag             = trimspace(var.secrets_image_tag) != "" ? var.secrets_image_tag : format("v%s", var.secrets_chart_version)
   resolved_token_counting_image_tag      = trimspace(var.token_counting_image_tag) != "" ? var.token_counting_image_tag : format("v%s", var.token_counting_chart_version)
   resolved_notifications_image_tag       = trimspace(var.notifications_image_tag) != "" ? var.notifications_image_tag : var.notifications_chart_version
@@ -49,6 +50,7 @@ locals {
   tracing_app_chart_name         = "agynio/charts/tracing-app"
   files_chart_name               = "agynio/charts/files"
   llm_chart_name                 = "agynio/charts/llm"
+  llm_proxy_chart_name           = "agynio/charts/llm-proxy"
   secrets_chart_name             = "agynio/charts/secrets"
   token_counting_chart_name      = "agynio/charts/token-counting"
   notifications_chart_name       = "agynio/charts/notifications"
@@ -2269,6 +2271,51 @@ resource "kubernetes_manifest" "virtualservice_gateway" {
   ]
 }
 
+resource "kubernetes_manifest" "virtualservice_llm_proxy" {
+  manifest = {
+    "apiVersion" = "networking.istio.io/v1beta1"
+    "kind"       = "VirtualService"
+    "metadata" = {
+      "name"      = "llm-proxy"
+      "namespace" = local.istio_gateway_namespace
+    }
+    "spec" = {
+      "hosts"    = ["llm.${local.base_domain}"]
+      "gateways" = ["platform-gateway"]
+      "http" = [
+        {
+          "match" = [
+            {
+              "uri" = {
+                "prefix" = "/"
+              }
+            }
+          ]
+          "route" = [
+            {
+              "destination" = {
+                "host" = "llm-proxy-llm-proxy.platform.svc.cluster.local"
+                "port" = {
+                  "number" = 8080
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+
+  computed_fields = [
+    "metadata.annotations",
+    "metadata.labels",
+  ]
+
+  depends_on = [
+    data.terraform_remote_state.system,
+  ]
+}
+
 resource "kubernetes_manifest" "virtualservice_litellm" {
   manifest = {
     "apiVersion" = "networking.istio.io/v1beta1"
@@ -4274,6 +4321,65 @@ resource "argocd_application" "gateway" {
             clusterAdminIdentityId  = local.cluster_admin_identity_id
             usersGrpcTarget         = "users:50051"
             organizationsGrpcTarget = "tenants:50051"
+          }
+          env = [
+            {
+              name  = "ZITI_ENABLED"
+              value = "true"
+            },
+          ]
+        })
+      }
+    }
+
+    destination {
+      server    = var.destination_server
+      namespace = var.platform_namespace
+    }
+
+    sync_policy {
+      dynamic "automated" {
+        for_each = var.argocd_automated_sync_enabled ? [1] : []
+        content {
+          prune       = var.argocd_prune_enabled
+          self_heal   = var.argocd_self_heal_enabled
+          allow_empty = false
+        }
+      }
+
+      sync_options = local.default_sync_options
+    }
+  }
+}
+
+resource "argocd_application" "llm_proxy" {
+  depends_on = [
+    argocd_application.llm,
+    argocd_application.users,
+    argocd_application.authorization,
+    argocd_application.ziti_management,
+  ]
+  metadata {
+    name      = "llm-proxy"
+    namespace = "argocd"
+    annotations = {
+      "argocd.argoproj.io/sync-wave" = "30"
+    }
+  }
+
+  spec {
+    project = "default"
+
+    source {
+      repo_url        = local.platform_chart_repo_host
+      chart           = local.llm_proxy_chart_name
+      target_revision = var.llm_proxy_chart_version
+
+      helm {
+        values = yamlencode({
+          replicaCount = 1
+          image = {
+            tag = local.resolved_llm_proxy_image_tag
           }
           env = [
             {

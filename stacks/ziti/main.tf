@@ -69,6 +69,11 @@ resource "ziti_service" "runner" {
   role_attributes = ["runner"]
 }
 
+resource "ziti_service" "llm_proxy" {
+  name            = "llm-proxy"
+  role_attributes = ["llm-proxy"]
+}
+
 resource "ziti_identity" "gateway" {
   name            = "gateway"
   type            = "Device"
@@ -153,6 +158,20 @@ resource "ziti_service_policy" "gateway_bind" {
   type          = "Bind"
   identityroles = ["#gateway-hosts"]
   serviceroles  = [format("@%s", ziti_service.gateway.id)]
+}
+
+resource "ziti_service_policy" "llm_proxy_bind" {
+  name          = "llm-proxy-bind"
+  type          = "Bind"
+  identityroles = ["#llm-proxy-hosts"]
+  serviceroles  = [format("@%s", ziti_service.llm_proxy.id)]
+}
+
+resource "ziti_service_policy" "agents_dial_llm_proxy" {
+  name          = "agents-dial-llm-proxy"
+  type          = "Dial"
+  identityroles = ["#agents"]
+  serviceroles  = [format("@%s", ziti_service.llm_proxy.id)]
 }
 
 resource "ziti_service_policy" "runners_bind" {

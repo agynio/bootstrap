@@ -9,6 +9,7 @@ locals {
     "chat.${local.base_domain}",
     "gateway.${local.base_domain}",
     "litellm.${local.base_domain}",
+    "llm.${local.base_domain}",
     "minio.${local.base_domain}",
     "minio-api.${local.base_domain}",
     "openfga.${local.base_domain}",
