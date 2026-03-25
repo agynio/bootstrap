@@ -53,6 +53,12 @@ variable "threads_chart_version" {
   default     = "0.1.1"
 }
 
+variable "reminders_chart_version" {
+  type        = string
+  description = "Version of the reminders Helm chart published to GHCR"
+  default     = "0.1.0"
+}
+
 variable "tracing_chart_version" {
   type        = string
   description = "Version of the tracing Helm chart published to GHCR"
@@ -202,6 +208,12 @@ variable "threads_image_tag" {
   type        = string
   description = "Optional override for the threads image tag"
   default     = "v0.1.2"
+}
+
+variable "reminders_image_tag" {
+  type        = string
+  description = "Optional override for the reminders image tag"
+  default     = ""
 }
 
 variable "tracing_image_tag" {
@@ -361,6 +373,13 @@ variable "threads_db_password" {
   sensitive   = true
 }
 
+variable "reminders_db_password" {
+  type        = string
+  description = "Password for the reminders PostgreSQL database user"
+  default     = "reminders"
+  sensitive   = true
+}
+
 variable "tracing_db_password" {
   type        = string
   description = "Password for the tracing PostgreSQL database user"
@@ -395,6 +414,12 @@ variable "runners_db_pvc_size" {
 variable "threads_db_pvc_size" {
   type        = string
   description = "Persistent volume claim size for the threads PostgreSQL primary"
+  default     = "5Gi"
+}
+
+variable "reminders_db_pvc_size" {
+  type        = string
+  description = "Persistent volume claim size for the reminders PostgreSQL primary"
   default     = "5Gi"
 }
 

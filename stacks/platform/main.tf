@@ -6,6 +6,7 @@ locals {
   resolved_agents_orchestrator_image_tag = trimspace(var.agents_orchestrator_image_tag) != "" ? var.agents_orchestrator_image_tag : var.agents_orchestrator_chart_version
   resolved_k8s_runner_image_tag          = trimspace(var.k8s_runner_image_tag) != "" ? var.k8s_runner_image_tag : var.k8s_runner_chart_version
   resolved_threads_image_tag             = trimspace(var.threads_image_tag) != "" ? var.threads_image_tag : format("v%s", var.threads_chart_version)
+  resolved_reminders_image_tag           = trimspace(var.reminders_image_tag) != "" ? var.reminders_image_tag : format("v%s", var.reminders_chart_version)
   resolved_tracing_image_tag             = trimspace(var.tracing_image_tag) != "" ? var.tracing_image_tag : format("v%s", var.tracing_chart_version)
   resolved_chat_image_tag                = trimspace(var.chat_image_tag) != "" ? var.chat_image_tag : var.chat_chart_version
   resolved_chat_app_image_tag            = trimspace(var.chat_app_image_tag) != "" ? var.chat_app_image_tag : var.chat_app_chart_version
@@ -46,6 +47,7 @@ locals {
   agents_orchestrator_chart_name = "agynio/charts/agents-orchestrator"
   k8s_runner_chart_name          = "agynio/charts/k8s-runner"
   threads_chart_name             = "agynio/charts/threads"
+  reminders_chart_name           = "agynio/charts/reminders"
   tracing_chart_name             = "agynio/charts/tracing"
   chat_chart_name                = "agynio/charts/chat"
   chat_app_chart_name            = "agynio/charts/chat-app"
@@ -568,6 +570,29 @@ locals {
     }
   })
 
+  reminders_db_values = yamlencode({
+    fullnameOverride = "reminders-db"
+    postgres = {
+      database = "reminders"
+      username = "reminders"
+      password = var.reminders_db_password
+      pgdata   = "/var/lib/postgresql/data/pgdata"
+    }
+    persistence = {
+      size                    = var.reminders_db_pvc_size
+      mountPath               = "/var/lib/postgresql/data"
+      volumeClaimTemplateName = "data"
+    }
+    probes = {
+      readiness = {
+        execCommand = ["pg_isready", "-U", "reminders", "-d", "reminders"]
+      }
+      liveness = {
+        execCommand = ["pg_isready", "-U", "reminders", "-d", "reminders"]
+      }
+    }
+  })
+
   tracing_db_values = yamlencode({
     fullnameOverride = "tracing-db"
     postgres = {
@@ -880,6 +905,66 @@ locals {
       tag        = local.resolved_threads_image_tag
       pullPolicy = "IfNotPresent"
     }
+  })
+
+  reminders_values = yamlencode({
+    replicaCount     = 1
+    fullnameOverride = "reminders"
+    service = {
+      port = 8080
+    }
+    image = {
+      repository = "ghcr.io/agynio/reminders"
+      tag        = local.resolved_reminders_image_tag
+      pullPolicy = "IfNotPresent"
+    }
+    extraVolumes = [
+      {
+        name     = "ziti"
+        emptyDir = {}
+      }
+    ]
+    extraVolumeMounts = [
+      {
+        name      = "ziti"
+        mountPath = "/ziti"
+      }
+    ]
+    env = [
+      {
+        name  = "HTTP_ADDRESS"
+        value = ":8080"
+      },
+      {
+        name  = "DATABASE_URL"
+        value = format("postgresql://reminders:%s@reminders-db:5432/reminders?sslmode=disable", var.reminders_db_password)
+      },
+      {
+        name  = "ZITI_IDENTITY_FILE"
+        value = "/ziti/identity.json"
+      },
+      {
+        name  = "ZITI_SERVICE_NAME"
+        value = "app-reminders"
+      },
+      {
+        name  = "GATEWAY_SERVICE_NAME"
+        value = "gateway"
+      },
+      {
+        name  = "GATEWAY_URL"
+        value = "http://gateway-gateway.platform.svc.cluster.local:8080"
+      },
+      {
+        name = "SERVICE_TOKEN"
+        valueFrom = {
+          secretKeyRef = {
+            name = "reminders-service-token"
+            key  = "token"
+          }
+        }
+      },
+    ]
   })
 
   tracing_values = yamlencode({
@@ -1910,11 +1995,11 @@ locals {
   })
 }
 
-# NOTE: The module ref (v0.2.0) must be updated in lockstep with
+# NOTE: The module ref (v0.3.0) must be updated in lockstep with
 # var.authorization_chart_version to ensure the provisioned FGA model
 # matches the model expected by the deployed Helm chart.
 module "openfga_authorization" {
-  source          = "github.com/agynio/authorization//terraform?ref=v0.2.0"
+  source          = "github.com/agynio/authorization//terraform?ref=v0.3.0"
   openfga_api_url = local.openfga_api_url_external
 }
 
@@ -2806,6 +2891,56 @@ resource "argocd_application" "threads_db" {
 
       helm {
         values = local.threads_db_values
+      }
+    }
+
+    destination {
+      server    = var.destination_server
+      namespace = var.platform_namespace
+    }
+
+    sync_policy {
+      # DB apps always use automated sync with prune disabled for stateful safety,
+      # independent of var.argocd_automated_sync_enabled.
+      automated {
+        prune       = false
+        self_heal   = true
+        allow_empty = false
+      }
+
+      sync_options = local.postgres_sync_options
+    }
+  }
+
+  timeouts {
+    create = "5m"
+    update = "5m"
+    delete = "5m"
+  }
+}
+
+resource "argocd_application" "reminders_db" {
+  depends_on = [argocd_repository.litellm_repo]
+  wait       = true
+
+  metadata {
+    name      = "reminders-db"
+    namespace = "argocd"
+    annotations = {
+      "argocd.argoproj.io/sync-wave" = "7"
+    }
+  }
+
+  spec {
+    project = "default"
+
+    source {
+      repo_url        = local.postgres_chart_repo_host
+      chart           = local.postgres_chart_name
+      target_revision = var.postgres_chart_version
+
+      helm {
+        values = local.reminders_db_values
       }
     }
 
@@ -4617,6 +4752,53 @@ resource "argocd_application" "gateway" {
             },
           ]
         })
+      }
+    }
+
+    destination {
+      server    = var.destination_server
+      namespace = var.platform_namespace
+    }
+
+    sync_policy {
+      dynamic "automated" {
+        for_each = var.argocd_automated_sync_enabled ? [1] : []
+        content {
+          prune       = var.argocd_prune_enabled
+          self_heal   = var.argocd_self_heal_enabled
+          allow_empty = false
+        }
+      }
+
+      sync_options = local.default_sync_options
+    }
+  }
+}
+
+resource "argocd_application" "reminders" {
+  depends_on = [
+    argocd_repository.litellm_repo,
+    argocd_application.reminders_db,
+    argocd_application.gateway,
+  ]
+  metadata {
+    name      = "reminders"
+    namespace = "argocd"
+    annotations = {
+      "argocd.argoproj.io/sync-wave" = "30"
+    }
+  }
+
+  spec {
+    project = "default"
+
+    source {
+      repo_url        = local.platform_chart_repo_host
+      chart           = local.reminders_chart_name
+      target_revision = var.reminders_chart_version
+
+      helm {
+        values = local.reminders_values
       }
     }
 
