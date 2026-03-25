@@ -56,7 +56,7 @@ locals {
   agents_chart_name              = "agynio/charts/agents"
   ziti_management_chart_name     = "agynio/charts/ziti-management"
   users_chart_name               = "agynio/charts/users"
-  organizations_chart_name       = "agynio/charts/organizations"
+  organizations_chart_name       = "agynio/charts/tenants"
   authorization_chart_name       = "agynio/charts/authorization"
   istio_gateway_namespace        = data.terraform_remote_state.system.outputs.istio_gateway_namespace
   istio_gateway_tls_secret_name  = data.terraform_remote_state.system.outputs.wildcard_tls_gateway_secret_name
@@ -972,7 +972,7 @@ locals {
   organizations_values = yamlencode({
     fullnameOverride = "tenants"
     image = {
-      repository = "ghcr.io/agynio/organizations"
+      repository = "ghcr.io/agynio/tenants"
       tag        = local.resolved_organizations_image_tag
       pullPolicy = "IfNotPresent"
     }
