@@ -1052,6 +1052,10 @@ locals {
         value = "alpine:3.21"
       },
       {
+        name  = "DEFAULT_INIT_IMAGE"
+        value = "alpine:3.21"
+      },
+      {
         name  = "POLL_INTERVAL"
         value = "5s"
       },
