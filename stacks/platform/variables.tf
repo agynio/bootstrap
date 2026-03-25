@@ -32,7 +32,7 @@ variable "gateway_chart_version" {
 variable "agent_state_chart_version" {
   type        = string
   description = "Version of the agent-state Helm chart published to GHCR"
-  default     = "0.1.1"
+  default     = "0.1.0"
 }
 
 variable "agents_orchestrator_chart_version" {
@@ -44,7 +44,7 @@ variable "agents_orchestrator_chart_version" {
 variable "k8s_runner_chart_version" {
   type        = string
   description = "Version of the k8s-runner Helm chart published to GHCR"
-  default     = "0.1.1"
+  default     = "0.1.0"
 }
 
 variable "threads_chart_version" {
@@ -56,7 +56,7 @@ variable "threads_chart_version" {
 variable "tracing_chart_version" {
   type        = string
   description = "Version of the tracing Helm chart published to GHCR"
-  default     = "0.1.1"
+  default     = "0.1.0"
 }
 
 variable "token_counting_chart_version" {
@@ -104,7 +104,7 @@ variable "users_chart_version" {
 variable "tenants_chart_version" {
   type        = string
   description = "Version of the tenants Helm chart published to GHCR"
-  default     = "0.1.1"
+  default     = "0.1.0"
 }
 
 variable "chat_app_chart_version" {
@@ -382,7 +382,7 @@ variable "files_db_pvc_size" {
 variable "llm_chart_version" {
   type        = string
   description = "Version of the llm Helm chart published to GHCR"
-  default     = "0.1.1"
+  default     = "0.1.0"
 }
 
 variable "llm_image_tag" {
@@ -517,7 +517,7 @@ variable "registry_mirror_pvc_size" {
 variable "secrets_chart_version" {
   type        = string
   description = "Version of the secrets Helm chart published to GHCR"
-  default     = "0.1.1"
+  default     = "0.1.0"
 }
 
 variable "secrets_image_tag" {
