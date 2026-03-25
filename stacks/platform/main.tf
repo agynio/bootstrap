@@ -4385,22 +4385,6 @@ resource "argocd_application" "llm_proxy" {
               name  = "ZITI_ENABLED"
               value = "true"
             },
-            {
-              name  = "LLM_SERVICE_ADDRESS"
-              value = "llm:50051"
-            },
-            {
-              name  = "USERS_SERVICE_ADDRESS"
-              value = "users:50051"
-            },
-            {
-              name  = "AUTHORIZATION_SERVICE_ADDRESS"
-              value = "authorization:50051"
-            },
-            {
-              name  = "ZITI_MANAGEMENT_ADDRESS"
-              value = "ziti-management:50051"
-            },
           ]
         })
       }
