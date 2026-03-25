@@ -26,7 +26,7 @@ variable "platform_chart_version" {
 variable "gateway_chart_version" {
   type        = string
   description = "Version of the gateway Helm chart published to GHCR"
-  default     = "0.7.0"
+  default     = "0.9.0"
 }
 
 variable "agent_state_chart_version" {
@@ -101,10 +101,10 @@ variable "users_chart_version" {
   default     = "0.2.0"
 }
 
-variable "tenants_chart_version" {
+variable "organizations_chart_version" {
   type        = string
-  description = "Version of the tenants Helm chart published to GHCR"
-  default     = "0.1.0"
+  description = "Version of the organizations Helm chart published to GHCR"
+  default     = "0.2.0"
 }
 
 variable "chat_app_chart_version" {
@@ -240,9 +240,9 @@ variable "users_image_tag" {
   default     = ""
 }
 
-variable "tenants_image_tag" {
+variable "organizations_image_tag" {
   type        = string
-  description = "Optional override for the tenants image tag"
+  description = "Optional override for the organizations image tag"
   default     = ""
 }
 
