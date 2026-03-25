@@ -556,3 +556,15 @@ variable "openfga_namespace" {
   description = "Namespace where OpenFGA is deployed"
   default     = "openfga"
 }
+
+variable "llm_proxy_chart_version" {
+  type        = string
+  description = "Version of the llm-proxy Helm chart published to GHCR"
+  default     = "0.1.4"
+}
+
+variable "llm_proxy_image_tag" {
+  type        = string
+  description = "Optional override for the llm-proxy image tag"
+  default     = ""
+}
