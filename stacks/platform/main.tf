@@ -56,12 +56,13 @@ locals {
   agents_chart_name              = "agynio/charts/agents"
   ziti_management_chart_name     = "agynio/charts/ziti-management"
   users_chart_name               = "agynio/charts/users"
-  organizations_chart_name       = "agynio/charts/tenants"
-  authorization_chart_name       = "agynio/charts/authorization"
-  istio_gateway_namespace        = data.terraform_remote_state.system.outputs.istio_gateway_namespace
-  istio_gateway_tls_secret_name  = data.terraform_remote_state.system.outputs.wildcard_tls_gateway_secret_name
-  openfga_api_url_external       = format("https://openfga.%s:%d", local.base_domain, local.ingress_port)
-  openfga_api_url_internal       = format("http://openfga.%s.svc.cluster.local:8080", var.openfga_namespace)
+  # TODO: update to "agynio/charts/organizations" once the organizations repo publishes its first release
+  organizations_chart_name      = "agynio/charts/tenants"
+  authorization_chart_name      = "agynio/charts/authorization"
+  istio_gateway_namespace       = data.terraform_remote_state.system.outputs.istio_gateway_namespace
+  istio_gateway_tls_secret_name = data.terraform_remote_state.system.outputs.wildcard_tls_gateway_secret_name
+  openfga_api_url_external      = format("https://openfga.%s:%d", local.base_domain, local.ingress_port)
+  openfga_api_url_internal      = format("http://openfga.%s.svc.cluster.local:8080", var.openfga_namespace)
   # Deterministic v5 UUID for the cluster admin identity.
   # This is a synthetic identity used only during bootstrap;
   # it does not correspond to a user record in the Users DB.
@@ -972,6 +973,7 @@ locals {
   organizations_values = yamlencode({
     fullnameOverride = "tenants"
     image = {
+      # TODO: update to "ghcr.io/agynio/organizations" once the first release is published
       repository = "ghcr.io/agynio/tenants"
       tag        = local.resolved_organizations_image_tag
       pullPolicy = "IfNotPresent"
