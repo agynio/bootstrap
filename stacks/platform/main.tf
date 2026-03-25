@@ -18,7 +18,7 @@ locals {
   resolved_agents_image_tag              = trimspace(var.agents_image_tag) != "" ? var.agents_image_tag : var.agents_chart_version
   resolved_ziti_management_image_tag     = trimspace(var.ziti_management_image_tag) != "" ? var.ziti_management_image_tag : var.ziti_management_chart_version
   resolved_users_image_tag               = trimspace(var.users_image_tag) != "" ? var.users_image_tag : var.users_chart_version
-  resolved_tenants_image_tag             = trimspace(var.tenants_image_tag) != "" ? var.tenants_image_tag : var.tenants_chart_version
+  resolved_organizations_image_tag       = trimspace(var.organizations_image_tag) != "" ? var.organizations_image_tag : var.organizations_chart_version
   resolved_authorization_image_tag       = trimspace(var.authorization_image_tag) != "" ? var.authorization_image_tag : format("v%s", var.authorization_chart_version)
 
   postgres_image                 = "postgres:16.6-alpine"
@@ -56,7 +56,7 @@ locals {
   agents_chart_name              = "agynio/charts/agents"
   ziti_management_chart_name     = "agynio/charts/ziti-management"
   users_chart_name               = "agynio/charts/users"
-  tenants_chart_name             = "agynio/charts/tenants"
+  organizations_chart_name       = "agynio/charts/organizations"
   authorization_chart_name       = "agynio/charts/authorization"
   istio_gateway_namespace        = data.terraform_remote_state.system.outputs.istio_gateway_namespace
   istio_gateway_tls_secret_name  = data.terraform_remote_state.system.outputs.wildcard_tls_gateway_secret_name
@@ -969,11 +969,11 @@ locals {
     ]
   })
 
-  tenants_values = yamlencode({
+  organizations_values = yamlencode({
     fullnameOverride = "tenants"
     image = {
-      repository = "ghcr.io/agynio/tenants"
-      tag        = local.resolved_tenants_image_tag
+      repository = "ghcr.io/agynio/organizations"
+      tag        = local.resolved_organizations_image_tag
       pullPolicy = "IfNotPresent"
     }
     env = [
@@ -3799,11 +3799,11 @@ resource "argocd_application" "tenants" {
 
     source {
       repo_url        = local.platform_chart_repo_host
-      chart           = local.tenants_chart_name
-      target_revision = var.tenants_chart_version
+      chart           = local.organizations_chart_name
+      target_revision = var.organizations_chart_version
 
       helm {
-        values = local.tenants_values
+        values = local.organizations_values
       }
     }
 
@@ -4268,11 +4268,12 @@ resource "argocd_application" "gateway" {
             tag = local.resolved_gateway_image_tag
           }
           gateway = {
-            oidcIssuerUrl          = var.oidc_issuer_url
-            oidcClientId           = var.oidc_client_id
-            clusterAdminToken      = random_password.cluster_admin_token.result
-            clusterAdminIdentityId = local.cluster_admin_identity_id
-            usersGrpcTarget        = "users:50051"
+            oidcIssuerUrl           = var.oidc_issuer_url
+            oidcClientId            = var.oidc_client_id
+            clusterAdminToken       = random_password.cluster_admin_token.result
+            clusterAdminIdentityId  = local.cluster_admin_identity_id
+            usersGrpcTarget         = "users:50051"
+            organizationsGrpcTarget = "tenants:50051"
           }
           env = [
             {
