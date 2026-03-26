@@ -107,6 +107,18 @@ variable "organizations_chart_version" {
   default     = "0.2.0"
 }
 
+variable "identity_chart_version" {
+  type        = string
+  description = "Version of the identity Helm chart published to GHCR"
+  default     = "0.1.0"
+}
+
+variable "runners_chart_version" {
+  type        = string
+  description = "Version of the runners Helm chart published to GHCR"
+  default     = "0.1.0"
+}
+
 variable "chat_app_chart_version" {
   type        = string
   description = "Version of the chat-app Helm chart published to GHCR"
@@ -246,6 +258,18 @@ variable "organizations_image_tag" {
   default     = ""
 }
 
+variable "identity_image_tag" {
+  type        = string
+  description = "Optional override for the identity image tag"
+  default     = ""
+}
+
+variable "runners_image_tag" {
+  type        = string
+  description = "Optional override for the runners image tag"
+  default     = ""
+}
+
 variable "gateway_image_tag" {
   type        = string
   description = "Optional override for the gateway image tag"
@@ -316,6 +340,20 @@ variable "agents_orchestrator_db_password" {
   sensitive   = true
 }
 
+variable "identity_db_password" {
+  type        = string
+  description = "Password for the identity PostgreSQL database user"
+  default     = "identity"
+  sensitive   = true
+}
+
+variable "runners_db_password" {
+  type        = string
+  description = "Password for the runners PostgreSQL database user"
+  default     = "runners"
+  sensitive   = true
+}
+
 variable "threads_db_password" {
   type        = string
   description = "Password for the threads PostgreSQL database user"
@@ -339,6 +377,18 @@ variable "agent_state_db_pvc_size" {
 variable "agents_orchestrator_db_pvc_size" {
   type        = string
   description = "Persistent volume claim size for the agents-orchestrator PostgreSQL primary"
+  default     = "5Gi"
+}
+
+variable "identity_db_pvc_size" {
+  type        = string
+  description = "Persistent volume claim size for the identity PostgreSQL primary"
+  default     = "5Gi"
+}
+
+variable "runners_db_pvc_size" {
+  type        = string
+  description = "Persistent volume claim size for the runners PostgreSQL primary"
   default     = "5Gi"
 }
 
