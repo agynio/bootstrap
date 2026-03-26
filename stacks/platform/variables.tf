@@ -432,7 +432,7 @@ variable "files_db_pvc_size" {
 variable "llm_chart_version" {
   type        = string
   description = "Version of the llm Helm chart published to GHCR"
-  default     = "0.2.0"
+  default     = "0.2.1"
 }
 
 variable "llm_image_tag" {
