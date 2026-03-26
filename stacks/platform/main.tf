@@ -1143,7 +1143,7 @@ locals {
       },
       {
         name  = "DEFAULT_INIT_IMAGE"
-        value = "alpine:3.21"
+        value = "ghcr.io/agynio/agent-init-codex:0.5.0"
       },
       {
         name  = "POLL_INTERVAL"
