@@ -102,10 +102,8 @@ locals {
   })
 }
 
-resource "argocd_repository" "ghcr" {
-  repo       = local.platform_chart_repo_host
-  type       = "helm"
-  enable_oci = true
+data "argocd_repository" "ghcr" {
+  repo = local.platform_chart_repo_host
 }
 
 resource "agyn_app" "reminders" {
@@ -128,7 +126,7 @@ resource "kubernetes_secret_v1" "reminders_service_token" {
 }
 
 resource "argocd_application" "reminders_db" {
-  depends_on = [argocd_repository.ghcr]
+  depends_on = [data.argocd_repository.ghcr]
   wait       = true
 
   metadata {
@@ -178,7 +176,7 @@ resource "argocd_application" "reminders_db" {
 
 resource "argocd_application" "reminders" {
   depends_on = [
-    argocd_repository.ghcr,
+    data.argocd_repository.ghcr,
     argocd_application.reminders_db,
     kubernetes_secret_v1.reminders_service_token,
   ]
