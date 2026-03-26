@@ -21,8 +21,6 @@ output "platform_app_names" {
     argocd_application.platform_ui.metadata[0].name,
     argocd_application.chat_app.metadata[0].name,
     argocd_application.tracing_app.metadata[0].name,
-    argocd_application.reminders_db.metadata[0].name,
-    argocd_application.reminders.metadata[0].name,
   ]
 }
 
@@ -49,8 +47,6 @@ output "platform_app_ids" {
     argocd_application.platform_ui.id,
     argocd_application.chat_app.id,
     argocd_application.tracing_app.id,
-    argocd_application.reminders_db.id,
-    argocd_application.reminders.id,
   ]
 }
 
