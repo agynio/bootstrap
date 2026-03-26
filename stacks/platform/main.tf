@@ -21,6 +21,8 @@ locals {
   resolved_users_image_tag               = trimspace(var.users_image_tag) != "" ? var.users_image_tag : var.users_chart_version
   resolved_organizations_image_tag       = trimspace(var.organizations_image_tag) != "" ? var.organizations_image_tag : var.organizations_chart_version
   resolved_authorization_image_tag       = trimspace(var.authorization_image_tag) != "" ? var.authorization_image_tag : format("v%s", var.authorization_chart_version)
+  resolved_identity_image_tag            = trimspace(var.identity_image_tag) != "" ? var.identity_image_tag : var.identity_chart_version
+  resolved_runners_image_tag             = trimspace(var.runners_image_tag) != "" ? var.runners_image_tag : var.runners_chart_version
 
   postgres_image                 = "postgres:16.6-alpine"
   vault_chart_version            = "0.28.1"
@@ -60,6 +62,8 @@ locals {
   users_chart_name               = "agynio/charts/users"
   organizations_chart_name       = "agynio/charts/organizations"
   authorization_chart_name       = "agynio/charts/authorization"
+  identity_chart_name            = "agynio/charts/identity"
+  runners_chart_name             = "agynio/charts/runners"
   istio_gateway_namespace        = data.terraform_remote_state.system.outputs.istio_gateway_namespace
   istio_gateway_tls_secret_name  = data.terraform_remote_state.system.outputs.wildcard_tls_gateway_secret_name
   openfga_api_url_external       = format("https://openfga.%s:%d", local.base_domain, local.ingress_port)
@@ -748,6 +752,52 @@ locals {
     }
   })
 
+  identity_db_values = yamlencode({
+    fullnameOverride = "identity-db"
+    postgres = {
+      database = "identity"
+      username = "identity"
+      password = var.identity_db_password
+      pgdata   = "/var/lib/postgresql/data/pgdata"
+    }
+    persistence = {
+      size                    = var.identity_db_pvc_size
+      mountPath               = "/var/lib/postgresql/data"
+      volumeClaimTemplateName = "data"
+    }
+    probes = {
+      readiness = {
+        execCommand = ["pg_isready", "-U", "identity", "-d", "identity"]
+      }
+      liveness = {
+        execCommand = ["pg_isready", "-U", "identity", "-d", "identity"]
+      }
+    }
+  })
+
+  runners_db_values = yamlencode({
+    fullnameOverride = "runners-db"
+    postgres = {
+      database = "runners"
+      username = "runners"
+      password = var.runners_db_password
+      pgdata   = "/var/lib/postgresql/data/pgdata"
+    }
+    persistence = {
+      size                    = var.runners_db_pvc_size
+      mountPath               = "/var/lib/postgresql/data"
+      volumeClaimTemplateName = "data"
+    }
+    probes = {
+      readiness = {
+        execCommand = ["pg_isready", "-U", "runners", "-d", "runners"]
+      }
+      liveness = {
+        execCommand = ["pg_isready", "-U", "runners", "-d", "runners"]
+      }
+    }
+  })
+
   litellm_values = yamlencode({
     fullnameOverride = "litellm"
     replicaCount     = 1
@@ -982,6 +1032,46 @@ locals {
       {
         name  = "DATABASE_URL"
         value = format("postgresql://tenants:%s@tenants-db:5432/tenants?sslmode=disable", var.tenants_db_password)
+      },
+    ]
+  })
+
+  identity_values = yamlencode({
+    replicaCount     = 1
+    fullnameOverride = "identity"
+    image = {
+      repository = "ghcr.io/agynio/identity"
+      tag        = local.resolved_identity_image_tag
+      pullPolicy = "IfNotPresent"
+    }
+    env = [
+      {
+        name  = "DATABASE_URL"
+        value = format("postgresql://identity:%s@identity-db:5432/identity?sslmode=disable", var.identity_db_password)
+      },
+    ]
+  })
+
+  runners_values = yamlencode({
+    replicaCount     = 1
+    fullnameOverride = "runners"
+    image = {
+      repository = "ghcr.io/agynio/runners"
+      tag        = local.resolved_runners_image_tag
+      pullPolicy = "IfNotPresent"
+    }
+    env = [
+      {
+        name  = "DATABASE_URL"
+        value = format("postgresql://runners:%s@runners-db:5432/runners?sslmode=disable", var.runners_db_password)
+      },
+      {
+        name  = "IDENTITY_ADDRESS"
+        value = "identity:50051"
+      },
+      {
+        name  = "AUTHORIZATION_ADDRESS"
+        value = "authorization:50051"
       },
     ]
   })
@@ -3144,6 +3234,106 @@ resource "argocd_application" "agents_orchestrator_db" {
   }
 }
 
+resource "argocd_application" "identity_db" {
+  depends_on = [argocd_repository.litellm_repo]
+  wait       = true
+
+  metadata {
+    name      = "identity-db"
+    namespace = "argocd"
+    annotations = {
+      "argocd.argoproj.io/sync-wave" = "8"
+    }
+  }
+
+  spec {
+    project = "default"
+
+    source {
+      repo_url        = local.postgres_chart_repo_host
+      chart           = local.postgres_chart_name
+      target_revision = var.postgres_chart_version
+
+      helm {
+        values = local.identity_db_values
+      }
+    }
+
+    destination {
+      server    = var.destination_server
+      namespace = var.platform_namespace
+    }
+
+    sync_policy {
+      # DB apps always use automated sync with prune disabled for stateful safety,
+      # independent of var.argocd_automated_sync_enabled.
+      automated {
+        prune       = false
+        self_heal   = true
+        allow_empty = false
+      }
+
+      sync_options = local.postgres_sync_options
+    }
+  }
+
+  timeouts {
+    create = "5m"
+    update = "5m"
+    delete = "5m"
+  }
+}
+
+resource "argocd_application" "runners_db" {
+  depends_on = [argocd_repository.litellm_repo]
+  wait       = true
+
+  metadata {
+    name      = "runners-db"
+    namespace = "argocd"
+    annotations = {
+      "argocd.argoproj.io/sync-wave" = "8"
+    }
+  }
+
+  spec {
+    project = "default"
+
+    source {
+      repo_url        = local.postgres_chart_repo_host
+      chart           = local.postgres_chart_name
+      target_revision = var.postgres_chart_version
+
+      helm {
+        values = local.runners_db_values
+      }
+    }
+
+    destination {
+      server    = var.destination_server
+      namespace = var.platform_namespace
+    }
+
+    sync_policy {
+      # DB apps always use automated sync with prune disabled for stateful safety,
+      # independent of var.argocd_automated_sync_enabled.
+      automated {
+        prune       = false
+        self_heal   = true
+        allow_empty = false
+      }
+
+      sync_options = local.postgres_sync_options
+    }
+  }
+
+  timeouts {
+    create = "5m"
+    update = "5m"
+    delete = "5m"
+  }
+}
+
 resource "argocd_application" "vault" {
   depends_on = [kubernetes_config_map_v1.vault_auto_init]
 
@@ -3605,6 +3795,52 @@ resource "argocd_application" "authorization" {
   }
 }
 
+resource "argocd_application" "identity" {
+  depends_on = [
+    argocd_repository.litellm_repo,
+    argocd_application.identity_db,
+  ]
+  metadata {
+    name      = "identity"
+    namespace = "argocd"
+    annotations = {
+      "argocd.argoproj.io/sync-wave" = "16"
+    }
+  }
+
+  spec {
+    project = "default"
+
+    source {
+      repo_url        = local.platform_chart_repo_host
+      chart           = local.identity_chart_name
+      target_revision = var.identity_chart_version
+
+      helm {
+        values = local.identity_values
+      }
+    }
+
+    destination {
+      server    = var.destination_server
+      namespace = var.platform_namespace
+    }
+
+    sync_policy {
+      dynamic "automated" {
+        for_each = var.argocd_automated_sync_enabled ? [1] : []
+        content {
+          prune       = var.argocd_prune_enabled
+          self_heal   = var.argocd_self_heal_enabled
+          allow_empty = false
+        }
+      }
+
+      sync_options = local.default_sync_options
+    }
+  }
+}
+
 resource "argocd_application" "token_counting" {
   depends_on = [argocd_repository.litellm_repo]
   metadata {
@@ -3668,6 +3904,54 @@ resource "argocd_application" "notifications_redis" {
 
       helm {
         values = local.redis_values
+      }
+    }
+
+    destination {
+      server    = var.destination_server
+      namespace = var.platform_namespace
+    }
+
+    sync_policy {
+      dynamic "automated" {
+        for_each = var.argocd_automated_sync_enabled ? [1] : []
+        content {
+          prune       = var.argocd_prune_enabled
+          self_heal   = var.argocd_self_heal_enabled
+          allow_empty = false
+        }
+      }
+
+      sync_options = local.default_sync_options
+    }
+  }
+}
+
+resource "argocd_application" "runners" {
+  depends_on = [
+    argocd_repository.litellm_repo,
+    argocd_application.runners_db,
+    argocd_application.identity,
+    argocd_application.authorization,
+  ]
+  metadata {
+    name      = "runners"
+    namespace = "argocd"
+    annotations = {
+      "argocd.argoproj.io/sync-wave" = "17"
+    }
+  }
+
+  spec {
+    project = "default"
+
+    source {
+      repo_url        = local.platform_chart_repo_host
+      chart           = local.runners_chart_name
+      target_revision = var.runners_chart_version
+
+      helm {
+        values = local.runners_values
       }
     }
 
