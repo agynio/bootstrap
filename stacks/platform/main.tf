@@ -1215,11 +1215,6 @@ locals {
         name          = "grpc"
         containerPort = 50051
         protocol      = "TCP"
-      },
-      {
-        name          = "http"
-        containerPort = 8080
-        protocol      = "TCP"
       }
     ]
     service = {
@@ -1230,12 +1225,6 @@ locals {
           name       = "grpc"
           port       = 50051
           targetPort = "grpc"
-          protocol   = "TCP"
-        },
-        {
-          name       = "http"
-          port       = 8080
-          targetPort = "http"
           protocol   = "TCP"
         }
       ]
