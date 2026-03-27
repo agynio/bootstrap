@@ -59,8 +59,33 @@ resource "helm_release" "ziti_router" {
   values = [local.router_values]
 }
 
+resource "ziti_intercept_v1_config" "gateway_intercept" {
+  name      = "gateway-intercept-v1"
+  addresses = ["gateway.ziti"]
+  protocols = ["tcp"]
+  port_ranges = [
+    {
+      low  = 443
+      high = 443
+    }
+  ]
+}
+
+resource "ziti_intercept_v1_config" "llm_proxy_intercept" {
+  name      = "llm-proxy-intercept-v1"
+  addresses = ["llm-proxy.ziti"]
+  protocols = ["tcp"]
+  port_ranges = [
+    {
+      low  = 443
+      high = 443
+    }
+  ]
+}
+
 resource "ziti_service" "gateway" {
   name            = "gateway"
+  configs         = [ziti_intercept_v1_config.gateway_intercept.id]
   role_attributes = ["gateway"]
 }
 
@@ -71,6 +96,7 @@ resource "ziti_service" "runner" {
 
 resource "ziti_service" "llm_proxy" {
   name            = "llm-proxy"
+  configs         = [ziti_intercept_v1_config.llm_proxy_intercept.id]
   role_attributes = ["llm-proxy"]
 }
 
