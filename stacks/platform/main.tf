@@ -1146,6 +1146,10 @@ locals {
         value = "ghcr.io/agynio/agent-init-codex:0.5.0"
       },
       {
+        name  = "AGENT_LLM_BASE_URL"
+        value = "http://llm-proxy:8080/v1"
+      },
+      {
         name  = "POLL_INTERVAL"
         value = "5s"
       },
