@@ -1147,7 +1147,15 @@ locals {
       },
       {
         name  = "AGENT_LLM_BASE_URL"
-        value = "http://llm-proxy:8080/v1"
+        value = "http://llm-proxy-llm-proxy.platform.svc.cluster.local:8080/v1"
+      },
+      {
+        name  = "AGENT_GATEWAY_ADDRESS"
+        value = "gateway-gateway.platform.svc.cluster.local:8080"
+      },
+      {
+        name  = "AGENT_AUTH_TOKEN"
+        value = random_password.cluster_admin_token.result
       },
       {
         name  = "POLL_INTERVAL"
