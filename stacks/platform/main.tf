@@ -1098,6 +1098,14 @@ locals {
       {
         name  = "KUBE_NAMESPACE"
         value = "agyn-workloads"
+      },
+      {
+        name  = "ZITI_ENABLED"
+        value = "true"
+      },
+      {
+        name  = "ZITI_MANAGEMENT_ADDRESS"
+        value = "ziti-management:50051"
       }
     ]
     containerPorts = [
