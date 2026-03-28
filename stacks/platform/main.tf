@@ -1143,11 +1143,7 @@ locals {
       },
       {
         name  = "DEFAULT_INIT_IMAGE"
-        value = "ghcr.io/agynio/agent-init-codex:0.5.0"
-      },
-      {
-        name  = "AGENT_LLM_BASE_URL"
-        value = "http://llm-proxy:8080/v1"
+        value = "ghcr.io/agynio/agent-init-codex:0.6.0"
       },
       {
         name  = "POLL_INTERVAL"
@@ -1158,8 +1154,8 @@ locals {
         value = "30s"
       },
       {
-        name  = "DOCKER_RUNNER_SHARED_SECRET"
-        value = "unused-docker-runner-removed"
+        name  = "ZITI_ENABLED"
+        value = "true"
       },
       {
         name  = "RUNNER_ADDRESS"
@@ -1665,10 +1661,6 @@ locals {
       {
         name  = "OPENAI_API_KEY"
         value = var.litellm_master_key
-      },
-      {
-        name  = "DOCKER_RUNNER_SHARED_SECRET"
-        value = "unused-docker-runner-removed"
       },
       {
         name  = "VAULT_ENABLED"
