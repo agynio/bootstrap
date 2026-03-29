@@ -257,10 +257,9 @@ resource "argocd_application" "ziti_controller" {
 
 # CoreDNS rewrite rules for OpenZiti in-cluster resolution.
 # The controller bakes ziti.<domain> into enrollment JWTs as the issuer URL.
-# Router pods must resolve this hostname during enrollment; without the rewrite
-# it resolves to loopback and enrollment fails. The ziti-router
-# hostname is only used by external clients or host-side tooling, so it does
-# not need in-cluster rewrites.
+# Router pods and SDK clients (orchestrator, k8s-runner) must resolve these
+# hostnames to reach the controller and edge router; without the rewrites
+# they resolve to 127.0.0.1 (public wildcard DNS) and connections fail.
 resource "kubernetes_config_map_v1_data" "coredns_ziti_rewrites" {
   metadata {
     name      = "coredns"
@@ -282,6 +281,7 @@ resource "kubernetes_config_map_v1_data" "coredns_ziti_rewrites" {
           # ziti-management runs in the platform namespace and must reach the
           # controller management API during startup for cert-based auth.
           rewrite name ziti-mgmt.${local.base_domain} ziti-controller-mgmt.${local.ziti_namespace}.svc.cluster.local
+          rewrite name ziti-router.${local.base_domain} ziti-router-edge.${local.ziti_namespace}.svc.cluster.local
           rewrite name chat.${local.base_domain} istio-ingressgateway.${local.istio_gateway_namespace}.svc.cluster.local
           rewrite name tracing.${local.base_domain} istio-ingressgateway.${local.istio_gateway_namespace}.svc.cluster.local
           kubernetes cluster.local in-addr.arpa ip6.arpa {
