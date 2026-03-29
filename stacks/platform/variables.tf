@@ -38,7 +38,7 @@ variable "agent_state_chart_version" {
 variable "agents_orchestrator_chart_version" {
   type        = string
   description = "Version of the agents-orchestrator Helm chart published to GHCR"
-  default     = "0.3.0"
+  default     = "0.4.0"
 }
 
 variable "k8s_runner_chart_version" {
@@ -92,7 +92,7 @@ variable "agents_chart_version" {
 variable "ziti_management_chart_version" {
   type        = string
   description = "Version of the ziti-management Helm chart published to GHCR"
-  default     = "0.4.0"
+  default     = "0.5.0"
 }
 
 variable "users_chart_version" {
