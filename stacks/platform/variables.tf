@@ -44,7 +44,7 @@ variable "agents_orchestrator_chart_version" {
 variable "k8s_runner_chart_version" {
   type        = string
   description = "Version of the k8s-runner Helm chart published to GHCR"
-  default     = "0.3.0"
+  default     = "0.3.1"
 }
 
 variable "threads_chart_version" {
