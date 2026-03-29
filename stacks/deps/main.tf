@@ -282,6 +282,11 @@ resource "kubernetes_config_map_v1_data" "coredns_ziti_rewrites" {
           # ziti-management runs in the platform namespace and must reach the
           # controller management API during startup for cert-based auth.
           rewrite name ziti-mgmt.${local.base_domain} ziti-controller-mgmt.${local.ziti_namespace}.svc.cluster.local
+          # The edge router advertises ziti-router.<domain>:<port> in session info.
+          # SDK clients inside the cluster (orchestrator, k8s-runner) must reach
+          # the router directly; without this rewrite the public wildcard DNS
+          # resolves to 127.0.0.1 and connections fail.
+          rewrite name ziti-router.${local.base_domain} ziti-router-edge.${local.ziti_namespace}.svc.cluster.local
           rewrite name chat.${local.base_domain} istio-ingressgateway.${local.istio_gateway_namespace}.svc.cluster.local
           rewrite name tracing.${local.base_domain} istio-ingressgateway.${local.istio_gateway_namespace}.svc.cluster.local
           kubernetes cluster.local in-addr.arpa ip6.arpa {
