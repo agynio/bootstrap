@@ -1090,6 +1090,24 @@ locals {
       readOnlyRootFilesystem   = true
       allowPrivilegeEscalation = false
     }
+    initContainers = [
+      {
+        name  = "wait-for-ziti-management"
+        image = "busybox:1.37"
+        command = [
+          "sh",
+          "-c",
+          "until nc -z ziti-management 50051; do echo 'Waiting for ziti-management:50051...'; sleep 2; done; echo 'ziti-management is reachable'"
+        ]
+        securityContext = {
+          runAsNonRoot             = true
+          runAsUser                = 100
+          runAsGroup               = 101
+          readOnlyRootFilesystem   = true
+          allowPrivilegeEscalation = false
+        }
+      }
+    ]
     env = [
       {
         name  = "KUBE_NAMESPACE"
@@ -3940,6 +3958,7 @@ resource "argocd_application" "k8s_runner" {
   depends_on = [
     argocd_repository.litellm_repo,
     kubernetes_namespace_v1.agyn_workloads,
+    argocd_application.ziti_management,
   ]
   metadata {
     name      = "k8s-runner"
