@@ -17,12 +17,6 @@ variable "argocd_admin_password" {
   sensitive   = true
 }
 
-variable "platform_chart_version" {
-  type        = string
-  description = "Version of the platform Helm charts published to GHCR"
-  default     = "0.15.2"
-}
-
 variable "gateway_chart_version" {
   type        = string
   description = "Version of the gateway Helm chart published to GHCR"
@@ -38,7 +32,7 @@ variable "agent_state_chart_version" {
 variable "agents_orchestrator_chart_version" {
   type        = string
   description = "Version of the agents-orchestrator Helm chart published to GHCR"
-  default     = "0.7.0"
+  default     = "0.8.0"
 }
 
 variable "k8s_runner_chart_version" {
@@ -172,12 +166,6 @@ variable "destination_server" {
   type        = string
   description = "Kubernetes API server address for Argo CD application destinations"
   default     = "https://kubernetes.default.svc"
-}
-
-variable "platform_server_image_tag" {
-  type        = string
-  description = "Optional override for the platform-server image tag"
-  default     = ""
 }
 
 variable "agent_state_image_tag" {
@@ -616,5 +604,5 @@ variable "llm_proxy_chart_version" {
 variable "llm_proxy_image_tag" {
   type        = string
   description = "Optional override for the llm-proxy image tag"
-  default     = ""
+  default     = "0.4.0"
 }
