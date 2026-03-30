@@ -1166,6 +1166,10 @@ locals {
         value = "true"
       },
       {
+        name  = "ZITI_SIDECAR_IMAGE"
+        value = "openziti/ziti-tunnel:2.0.0-pre8"
+      },
+      {
         name  = "RUNNER_ADDRESS"
         value = "k8s-runner:50051"
       }
