@@ -17,12 +17,6 @@ variable "argocd_admin_password" {
   sensitive   = true
 }
 
-variable "platform_chart_version" {
-  type        = string
-  description = "Version of the platform Helm charts published to GHCR"
-  default     = "0.15.2"
-}
-
 variable "gateway_chart_version" {
   type        = string
   description = "Version of the gateway Helm chart published to GHCR"
