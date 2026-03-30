@@ -77,8 +77,8 @@ resource "ziti_intercept_v1_config" "llm_proxy_intercept" {
   protocols = ["tcp"]
   port_ranges = [
     {
-      low  = 443
-      high = 443
+      low  = 80
+      high = 80
     }
   ]
 }
