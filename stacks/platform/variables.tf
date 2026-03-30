@@ -38,7 +38,7 @@ variable "agent_state_chart_version" {
 variable "agents_orchestrator_chart_version" {
   type        = string
   description = "Version of the agents-orchestrator Helm chart published to GHCR"
-  default     = "0.7.0"
+  default     = "0.8.0"
 }
 
 variable "k8s_runner_chart_version" {
@@ -616,5 +616,5 @@ variable "llm_proxy_chart_version" {
 variable "llm_proxy_image_tag" {
   type        = string
   description = "Optional override for the llm-proxy image tag"
-  default     = ""
+  default     = "0.4.0"
 }
