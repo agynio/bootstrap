@@ -4210,6 +4210,20 @@ resource "argocd_application" "llm_proxy" {
           image = {
             tag = local.resolved_llm_proxy_image_tag
           }
+          securityContext = {
+            enabled                  = true
+            runAsNonRoot             = true
+            runAsUser                = 65532
+            runAsGroup               = 65532
+            readOnlyRootFilesystem   = true
+            allowPrivilegeEscalation = false
+            capabilities = {
+              drop = ["ALL"]
+            }
+            seccompProfile = {
+              type = "RuntimeDefault"
+            }
+          }
           env = [
             {
               name  = "ZITI_ENABLED"
