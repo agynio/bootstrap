@@ -20,7 +20,7 @@ variable "argocd_admin_password" {
 variable "gateway_chart_version" {
   type        = string
   description = "Version of the gateway Helm chart published to GHCR"
-  default     = "0.10.0"
+  default     = "0.11.1"
 }
 
 variable "agent_state_chart_version" {
@@ -50,7 +50,7 @@ variable "threads_chart_version" {
 variable "tracing_chart_version" {
   type        = string
   description = "Version of the tracing Helm chart published to GHCR"
-  default     = "0.1.0"
+  default     = "0.2.0"
 }
 
 variable "token_counting_chart_version" {
@@ -147,7 +147,7 @@ variable "oidc_client_secret" {
 variable "tracing_app_chart_version" {
   type        = string
   description = "Version of the tracing-app Helm chart published to GHCR"
-  default     = "0.1.2"
+  default     = "0.2.0"
 }
 
 variable "tracing_app_image_tag" {
