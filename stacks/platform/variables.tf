@@ -174,12 +174,6 @@ variable "destination_server" {
   default     = "https://kubernetes.default.svc"
 }
 
-variable "platform_server_image_tag" {
-  type        = string
-  description = "Optional override for the platform-server image tag"
-  default     = ""
-}
-
 variable "agent_state_image_tag" {
   type        = string
   description = "Optional override for the agent-state image tag"
