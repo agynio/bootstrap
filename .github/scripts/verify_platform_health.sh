@@ -17,7 +17,7 @@ if [[ ! -f "$KUBECONFIG_PATH" ]]; then
   exit 1
 fi
 
-REQUIRED_APPS_JSON='["cert-manager","trust-manager","ziti-controller","vault","registry-mirror","minio","platform-db","litellm-db","agent-state-db","threads-db","identity-db","runners-db","litellm","agent-state","identity","authorization","runners","notifications-redis","notifications","threads","chat","k8s-runner"]'
+REQUIRED_APPS_JSON='["cert-manager","trust-manager","ziti-controller","vault","registry-mirror","minio","platform-db","litellm-db","agent-state-db","threads-db","identity-db","runners-db","agent-state","identity","authorization","runners","notifications-redis","notifications","threads","chat","k8s-runner"]'
 
 deadline=$((SECONDS + TOTAL_TIMEOUT))
 
