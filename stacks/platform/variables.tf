@@ -20,7 +20,7 @@ variable "argocd_admin_password" {
 variable "gateway_chart_version" {
   type        = string
   description = "Version of the gateway Helm chart published to GHCR"
-  default     = "0.12.0"
+  default     = "0.13.0"
 }
 
 variable "agent_state_chart_version" {
@@ -32,13 +32,13 @@ variable "agent_state_chart_version" {
 variable "agents_orchestrator_chart_version" {
   type        = string
   description = "Version of the agents-orchestrator Helm chart published to GHCR"
-  default     = "0.8.0"
+  default     = "0.9.0"
 }
 
 variable "k8s_runner_chart_version" {
   type        = string
   description = "Version of the k8s-runner Helm chart published to GHCR"
-  default     = "0.4.3"
+  default     = "0.5.0"
 }
 
 variable "threads_chart_version" {
@@ -598,7 +598,7 @@ variable "openfga_namespace" {
 variable "llm_proxy_chart_version" {
   type        = string
   description = "Version of the llm-proxy Helm chart published to GHCR"
-  default     = "0.6.0"
+  default     = "0.7.0"
 }
 
 variable "llm_proxy_image_tag" {
