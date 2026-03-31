@@ -20,7 +20,7 @@ variable "argocd_admin_password" {
 variable "gateway_chart_version" {
   type        = string
   description = "Version of the gateway Helm chart published to GHCR"
-  default     = "0.11.1"
+  default     = "0.12.0"
 }
 
 variable "agent_state_chart_version" {
@@ -80,7 +80,7 @@ variable "postgres_chart_version" {
 variable "agents_chart_version" {
   type        = string
   description = "Version of the agents Helm chart published to GHCR"
-  default     = "0.4.1"
+  default     = "0.5.0"
 }
 
 variable "ziti_management_chart_version" {
@@ -598,7 +598,7 @@ variable "openfga_namespace" {
 variable "llm_proxy_chart_version" {
   type        = string
   description = "Version of the llm-proxy Helm chart published to GHCR"
-  default     = "0.1.4"
+  default     = "0.5.0"
 }
 
 variable "llm_proxy_image_tag" {
