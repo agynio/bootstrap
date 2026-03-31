@@ -598,7 +598,7 @@ variable "openfga_namespace" {
 variable "llm_proxy_chart_version" {
   type        = string
   description = "Version of the llm-proxy Helm chart published to GHCR"
-  default     = "0.5.0"
+  default     = "0.6.0"
 }
 
 variable "llm_proxy_image_tag" {
