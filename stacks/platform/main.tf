@@ -1096,10 +1096,6 @@ locals {
         value = "agyn-workloads"
       },
       {
-        name  = "RUNNER_ID"
-        value = "6cf635bb-825f-4885-b94b-a0e6ab1fdb64"
-      },
-      {
         name  = "ZITI_ENABLED"
         value = "true"
       },
