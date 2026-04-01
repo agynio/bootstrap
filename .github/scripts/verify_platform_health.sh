@@ -7,11 +7,12 @@ POLL_INTERVAL=${POLL_INTERVAL:-10}
 PLATFORM_NAMESPACE=${PLATFORM_NAMESPACE:-platform}
 ARGO_NAMESPACE=${ARGO_NAMESPACE:-argocd}
 ZITI_NAMESPACE=${ZITI_NAMESPACE:-ziti}
+DEFAULT_DOMAIN="agyn.dev"
+DEFAULT_PORT="2496"
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/../.." && pwd)
 readonly KUBECONFIG_PATH="$REPO_ROOT/stacks/k8s/.kube/agyn-local-kubeconfig.yaml"
-readonly K8S_TFSTATE_PATH="$REPO_ROOT/stacks/k8s/terraform.tfstate"
 ZITI_MGMT_ENDPOINT=${ZITI_MGMT_ENDPOINT:-}
 ZITI_OVERLAY_SERVICES=(gateway runner)
 
@@ -61,30 +62,17 @@ join_lines() {
 
 resolve_ziti_management_endpoint() {
   local domain
-  local ingress_port
+  local port
 
   if [[ -n "$ZITI_MGMT_ENDPOINT" ]]; then
     printf '%s' "$ZITI_MGMT_ENDPOINT"
     return 0
   fi
 
-  if [[ ! -f "$K8S_TFSTATE_PATH" ]]; then
-    return 1
-  fi
+  domain="${DOMAIN:-$DEFAULT_DOMAIN}"
+  port="${PORT:-$DEFAULT_PORT}"
 
-  if ! domain=$(jq -r '.outputs.domain.value // empty' "$K8S_TFSTATE_PATH"); then
-    return 1
-  fi
-
-  if ! ingress_port=$(jq -r '.outputs.ingress_port.value // empty' "$K8S_TFSTATE_PATH"); then
-    return 1
-  fi
-
-  if [[ -z "$domain" || -z "$ingress_port" ]]; then
-    return 1
-  fi
-
-  printf 'https://ziti-mgmt.%s:%s/edge/management/v1' "$domain" "$ingress_port"
+  printf 'https://ziti-mgmt.%s:%s/edge/management/v1' "$domain" "$port"
 }
 
 ziti_authenticate() {
@@ -129,10 +117,7 @@ jq_crash_backoffs() {
     ] | .[]?'
 }
 
-if ! ZITI_MGMT_ENDPOINT=$(resolve_ziti_management_endpoint); then
-  printf 'Unable to determine Ziti management API endpoint. Set ZITI_MGMT_ENDPOINT or ensure %s exists.\n' "$K8S_TFSTATE_PATH" >&2
-  exit 1
-fi
+ZITI_MGMT_ENDPOINT=$(resolve_ziti_management_endpoint)
 
 while (( SECONDS < deadline )); do
   time_left=$((deadline - SECONDS))
