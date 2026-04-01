@@ -300,7 +300,7 @@ while (( SECONDS < deadline )); do
     ziti_overlay_pending=()
     ziti_admin_username=$(kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$ZITI_NAMESPACE" \
       get secret ziti-controller-admin-secret \
-      -o go-template='{{index .data "admin-username" | base64decode}}' 2>/dev/null || true)
+      -o go-template='{{index .data "admin-user" | base64decode}}' 2>/dev/null || true)
     ziti_admin_password=$(kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$ZITI_NAMESPACE" \
       get secret ziti-controller-admin-secret \
       -o go-template='{{index .data "admin-password" | base64decode}}' 2>/dev/null || true)
