@@ -9,6 +9,8 @@ ARGO_NAMESPACE=${ARGO_NAMESPACE:-argocd}
 ZITI_NAMESPACE=${ZITI_NAMESPACE:-ziti}
 DEFAULT_DOMAIN="agyn.dev"
 DEFAULT_PORT="2496"
+POD_TERMINAL_FAILURE_GRACE_CYCLES=${POD_TERMINAL_FAILURE_GRACE_CYCLES:-5}
+POD_CRASH_BACKOFF_GRACE_CYCLES=${POD_CRASH_BACKOFF_GRACE_CYCLES:-5}
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/../.." && pwd)
@@ -24,6 +26,8 @@ fi
 REQUIRED_APPS_JSON='["cert-manager","trust-manager","ziti-controller","ziti-management","vault","registry-mirror","minio","platform-db","litellm-db","agent-state-db","threads-db","identity-db","runners-db","litellm","agent-state","identity","authorization","gateway","runners","notifications-redis","notifications","threads","chat","k8s-runner"]'
 
 deadline=$((SECONDS + TOTAL_TIMEOUT))
+pod_terminal_failures_streak=0
+pod_crash_backoffs_streak=0
 
 log() {
   printf '[%(%Y-%m-%dT%H:%M:%SZ)T] %s\n' -1 "$1"
@@ -156,21 +160,21 @@ while (( SECONDS < deadline )); do
   pod_terminal_failures=$(jq -r '
     [.items[] as $pod |
       ($pod.status.phase // "") as $phase |
-      ($pod.metadata.ownerReferences // []) as $owners |
-      select(
-        $phase == "Failed" or
-        $phase == "Unknown" or
-        ($phase == "Succeeded" and (any($owners[]?; .kind == "Job") | not))
-      )
+      select($phase == "Failed" or $phase == "Unknown")
       | "\($pod.metadata.name) (phase=\($phase))"
     ] | .[]?' <<<"$pods_json")
   if [[ -n "$pod_terminal_failures" ]]; then
-    log "Detected unhealthy pods"
-    echo "$pod_terminal_failures"
-    fail_with_diagnostics
+    pod_terminal_failures_streak=$((pod_terminal_failures_streak + 1))
+  else
+    pod_terminal_failures_streak=0
   fi
 
   pod_crash_backoffs=$(jq_crash_backoffs <<<"$pods_json")
+  if [[ -n "$pod_crash_backoffs" ]]; then
+    pod_crash_backoffs_streak=$((pod_crash_backoffs_streak + 1))
+  else
+    pod_crash_backoffs_streak=0
+  fi
 
   deploy_failures=$(jq -r '
     [.items[] as $dep |
@@ -286,14 +290,29 @@ while (( SECONDS < deadline )); do
   if [[ -n "$pod_pending" ]]; then
     outstanding+=("waiting for Pods: $(join_lines "$pod_pending")")
   fi
+  if [[ -n "$pod_terminal_failures" ]]; then
+    outstanding+=("pods in terminal state (${pod_terminal_failures_streak}/${POD_TERMINAL_FAILURE_GRACE_CYCLES}): $(join_lines "$pod_terminal_failures")")
+  fi
   if [[ -n "$pod_crash_backoffs" ]]; then
-    outstanding+=("pods restarting: $(join_lines "$pod_crash_backoffs")")
+    outstanding+=("pods restarting (${pod_crash_backoffs_streak}/${POD_CRASH_BACKOFF_GRACE_CYCLES}): $(join_lines "$pod_crash_backoffs")")
   fi
   if (( ${#ziti_missing[@]} > 0 )); then
     outstanding+=("waiting for Ziti pods: $(join_lines "$(printf '%s\n' "${ziti_missing[@]}")")")
   fi
   if [[ -n "$ziti_unhealthy" ]]; then
     outstanding+=("waiting for Ziti pods ready: $(join_lines "$ziti_unhealthy")")
+  fi
+
+  if [[ -n "$pod_terminal_failures" ]] && (( pod_terminal_failures_streak >= POD_TERMINAL_FAILURE_GRACE_CYCLES )); then
+    log "Pods stuck in terminal state for ${pod_terminal_failures_streak} checks"
+    echo "$pod_terminal_failures"
+    fail_with_diagnostics
+  fi
+
+  if [[ -n "$pod_crash_backoffs" ]] && (( pod_crash_backoffs_streak >= POD_CRASH_BACKOFF_GRACE_CYCLES )); then
+    log "Pods stuck in CrashLoopBackOff/ImagePull errors for ${pod_crash_backoffs_streak} checks"
+    echo "$pod_crash_backoffs"
+    fail_with_diagnostics
   fi
 
   if (( ${#outstanding[@]} == 0 )); then
@@ -350,11 +369,6 @@ while (( SECONDS < deadline )); do
   fi
 
   if (( ${#outstanding[@]} == 0 )); then
-    if [[ -n "$pod_crash_backoffs" ]]; then
-      log "Detected pods stuck in CrashLoopBackOff/ImagePull errors"
-      echo "$pod_crash_backoffs"
-      fail_with_diagnostics
-    fi
     log "Platform namespace ${PLATFORM_NAMESPACE} and Argo CD applications are healthy"
     exit 0
   fi
