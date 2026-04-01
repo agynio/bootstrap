@@ -11,13 +11,16 @@ ZITI_NAMESPACE=${ZITI_NAMESPACE:-ziti}
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/../.." && pwd)
 readonly KUBECONFIG_PATH="$REPO_ROOT/stacks/k8s/.kube/agyn-local-kubeconfig.yaml"
+readonly K8S_TFSTATE_PATH="$REPO_ROOT/stacks/k8s/terraform.tfstate"
+ZITI_MGMT_ENDPOINT=${ZITI_MGMT_ENDPOINT:-}
+ZITI_OVERLAY_SERVICES=(gateway runner)
 
 if [[ ! -f "$KUBECONFIG_PATH" ]]; then
   printf 'Unable to locate kubeconfig at %s\n' "$KUBECONFIG_PATH" >&2
   exit 1
 fi
 
-REQUIRED_APPS_JSON='["cert-manager","trust-manager","ziti-controller","vault","registry-mirror","minio","platform-db","litellm-db","agent-state-db","threads-db","identity-db","runners-db","litellm","agent-state","identity","authorization","runners","notifications-redis","notifications","threads","chat","k8s-runner"]'
+REQUIRED_APPS_JSON='["cert-manager","trust-manager","ziti-controller","ziti-management","vault","registry-mirror","minio","platform-db","litellm-db","agent-state-db","threads-db","identity-db","runners-db","litellm","agent-state","identity","authorization","gateway","runners","notifications-redis","notifications","threads","chat","k8s-runner"]'
 
 deadline=$((SECONDS + TOTAL_TIMEOUT))
 
@@ -56,6 +59,56 @@ join_lines() {
   echo "$input" | paste -sd ', ' -
 }
 
+resolve_ziti_management_endpoint() {
+  local domain
+  local ingress_port
+
+  if [[ -n "$ZITI_MGMT_ENDPOINT" ]]; then
+    printf '%s' "$ZITI_MGMT_ENDPOINT"
+    return 0
+  fi
+
+  if [[ ! -f "$K8S_TFSTATE_PATH" ]]; then
+    return 1
+  fi
+
+  if ! domain=$(jq -r '.outputs.domain.value // empty' "$K8S_TFSTATE_PATH"); then
+    return 1
+  fi
+
+  if ! ingress_port=$(jq -r '.outputs.ingress_port.value // empty' "$K8S_TFSTATE_PATH"); then
+    return 1
+  fi
+
+  if [[ -z "$domain" || -z "$ingress_port" ]]; then
+    return 1
+  fi
+
+  printf 'https://ziti-mgmt.%s:%s/edge/management/v1' "$domain" "$ingress_port"
+}
+
+ziti_authenticate() {
+  local username=$1
+  local password=$2
+  local payload
+  local response
+
+  payload=$(jq -n --arg username "$username" --arg password "$password" '{username:$username,password:$password}')
+  if ! response=$(curl -sk --fail -X POST "${ZITI_MGMT_ENDPOINT}/authenticate?method=password" \
+    -H 'Content-Type: application/json' -d "$payload"); then
+    return 1
+  fi
+
+  jq -r '.data.token // empty' <<<"$response" 2>/dev/null
+}
+
+ziti_api_get() {
+  local token=$1
+  local path=$2
+
+  curl -sk --fail -H "zt-session: ${token}" "${ZITI_MGMT_ENDPOINT}${path}"
+}
+
 jq_unhealthy_pods() {
   jq -r '
     [.items[] | select(
@@ -75,6 +128,11 @@ jq_crash_backoffs() {
       | "\($pod.metadata.name) (reason=\($crash[0].state.waiting.reason))"
     ] | .[]?'
 }
+
+if ! ZITI_MGMT_ENDPOINT=$(resolve_ziti_management_endpoint); then
+  printf 'Unable to determine Ziti management API endpoint. Set ZITI_MGMT_ENDPOINT or ensure %s exists.\n' "$K8S_TFSTATE_PATH" >&2
+  exit 1
+fi
 
 while (( SECONDS < deadline )); do
   time_left=$((deadline - SECONDS))
@@ -251,6 +309,59 @@ while (( SECONDS < deadline )); do
   fi
   if [[ -n "$ziti_unhealthy" ]]; then
     outstanding+=("waiting for Ziti pods ready: $(join_lines "$ziti_unhealthy")")
+  fi
+
+  if (( ${#outstanding[@]} == 0 )); then
+    ziti_overlay_pending=()
+    ziti_admin_username=$(kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$ZITI_NAMESPACE" \
+      get secret ziti-controller-admin-secret \
+      -o go-template='{{index .data "admin-username" | base64decode}}' 2>/dev/null || true)
+    ziti_admin_password=$(kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$ZITI_NAMESPACE" \
+      get secret ziti-controller-admin-secret \
+      -o go-template='{{index .data "admin-password" | base64decode}}' 2>/dev/null || true)
+
+    if [[ -z "$ziti_admin_username" || -z "$ziti_admin_password" ]]; then
+      ziti_overlay_pending+=("admin secret")
+    else
+      if ! ziti_token=$(ziti_authenticate "$ziti_admin_username" "$ziti_admin_password"); then
+        ziti_overlay_pending+=("management API authentication")
+      elif [[ -z "$ziti_token" ]]; then
+        ziti_overlay_pending+=("management API authentication")
+      else
+        if ! ziti_edge_routers_json=$(ziti_api_get "$ziti_token" "/edge-routers"); then
+          ziti_overlay_pending+=("edge router status")
+        else
+          ziti_online_routers=$(jq -r '[.data[]? | select(.isOnline == true)] | length' \
+            <<<"$ziti_edge_routers_json" 2>/dev/null || true)
+          if ! [[ "$ziti_online_routers" =~ ^[0-9]+$ ]]; then
+            ziti_overlay_pending+=("online edge routers")
+          elif (( ziti_online_routers < 1 )); then
+            ziti_overlay_pending+=("online edge routers")
+          fi
+        fi
+
+        for service_name in "${ZITI_OVERLAY_SERVICES[@]}"; do
+          if ! ziti_terminators_json=$(ziti_api_get "$ziti_token" \
+            "/terminators?filter=service.name%3D%22${service_name}%22"); then
+            ziti_overlay_pending+=("${service_name} terminators")
+            continue
+          fi
+
+          ziti_terminator_count=$(jq -r '[.data[]?] | length' \
+            <<<"$ziti_terminators_json" 2>/dev/null || true)
+          if ! [[ "$ziti_terminator_count" =~ ^[0-9]+$ ]]; then
+            ziti_overlay_pending+=("${service_name} terminators")
+          elif (( ziti_terminator_count < 1 )); then
+            ziti_overlay_pending+=("${service_name} terminators")
+          fi
+        done
+      fi
+    fi
+
+    if (( ${#ziti_overlay_pending[@]} > 0 )); then
+      ziti_overlay_message=$(join_lines "$(printf '%s\n' "${ziti_overlay_pending[@]}")")
+      outstanding+=("waiting for Ziti overlay: ${ziti_overlay_message}")
+    fi
   fi
 
   if (( ${#outstanding[@]} == 0 )); then
