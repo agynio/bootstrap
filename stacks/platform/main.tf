@@ -1076,6 +1076,10 @@ locals {
         name  = "AUTHORIZATION_ADDRESS"
         value = "authorization:50051"
       },
+      {
+        name  = "ZITI_MANAGEMENT_ADDRESS"
+        value = "ziti-management:50051"
+      },
     ]
   })
 
