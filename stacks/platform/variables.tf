@@ -80,7 +80,7 @@ variable "postgres_chart_version" {
 variable "agents_chart_version" {
   type        = string
   description = "Version of the agents Helm chart published to GHCR"
-  default     = "0.5.0"
+  default     = "0.6.0"
 }
 
 variable "ziti_management_chart_version" {
