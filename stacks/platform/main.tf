@@ -1113,6 +1113,10 @@ locals {
       {
         name  = "ZITI_MANAGEMENT_ADDRESS"
         value = "ziti-management:50051"
+      },
+      {
+        name  = "RUNNER_ID"
+        value = var.k8s_runner_identity_id
       }
     ]
     containerPorts = [
