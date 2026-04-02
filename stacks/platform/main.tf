@@ -872,7 +872,7 @@ locals {
         }
       ]
     }
-    env = [
+    extraEnvVars = [
       {
         name  = "DATABASE_URL"
         value = format("postgresql://threads:%s@threads-db:5432/threads?sslmode=disable", var.threads_db_password)
