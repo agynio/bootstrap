@@ -863,14 +863,37 @@ locals {
     replicaCount     = 1
     fullnameOverride = "threads"
     service = {
-      port = 50051
+      ports = [
+        {
+          name       = "grpc"
+          port       = 50051
+          targetPort = "grpc"
+          protocol   = "TCP"
+        }
+      ]
     }
-    database = {
-      url = format("postgresql://threads:%s@threads-db:5432/threads?sslmode=disable", var.threads_db_password)
-    }
-    notifications = {
-      address = "notifications:50051"
-    }
+    env = [
+      {
+        name  = "GRPC_ADDRESS"
+        value = ":50051"
+      },
+      {
+        name  = "DATABASE_URL"
+        value = format("postgresql://threads:%s@threads-db:5432/threads?sslmode=disable", var.threads_db_password)
+      },
+      {
+        name  = "NOTIFICATIONS_ADDRESS"
+        value = "notifications:50051"
+      },
+      {
+        name  = "IDENTITY_ADDRESS"
+        value = "identity:50051"
+      },
+      {
+        name  = "AUTHORIZATION_ADDRESS"
+        value = "authorization:50051"
+      },
+    ]
     image = {
       repository = "ghcr.io/agynio/threads"
       tag        = local.resolved_threads_image_tag
