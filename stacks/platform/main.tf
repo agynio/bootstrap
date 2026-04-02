@@ -1068,18 +1068,6 @@ locals {
         name  = "DATABASE_URL"
         value = format("postgresql://runners:%s@runners-db:5432/runners?sslmode=disable", var.runners_db_password)
       },
-      {
-        name  = "IDENTITY_ADDRESS"
-        value = "identity:50051"
-      },
-      {
-        name  = "AUTHORIZATION_ADDRESS"
-        value = "authorization:50051"
-      },
-      {
-        name  = "ZITI_MANAGEMENT_ADDRESS"
-        value = "ziti-management:50051"
-      },
     ]
   })
 
@@ -1109,10 +1097,6 @@ locals {
       {
         name  = "ZITI_ENABLED"
         value = "true"
-      },
-      {
-        name  = "ZITI_MANAGEMENT_ADDRESS"
-        value = "ziti-management:50051"
       },
       {
         name  = "RUNNER_ID"
