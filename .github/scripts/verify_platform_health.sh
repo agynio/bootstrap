@@ -16,7 +16,8 @@ SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/../.." && pwd)
 readonly KUBECONFIG_PATH="$REPO_ROOT/stacks/k8s/.kube/agyn-local-kubeconfig.yaml"
 ZITI_MGMT_ENDPOINT=${ZITI_MGMT_ENDPOINT:-}
-ZITI_OVERLAY_SERVICES=(gateway runner)
+ZITI_OVERLAY_SERVICES=(gateway)
+ZITI_OVERLAY_ROLE_CHECKS=("runner-services")
 
 if [[ ! -f "$KUBECONFIG_PATH" ]]; then
   printf 'Unable to locate kubeconfig at %s\n' "$KUBECONFIG_PATH" >&2
@@ -357,6 +358,37 @@ while (( SECONDS < deadline )); do
             ziti_overlay_pending+=("${service_name} terminators")
           elif (( ziti_terminator_count < 1 )); then
             ziti_overlay_pending+=("${service_name} terminators")
+          fi
+        done
+
+        for role_attr in "${ZITI_OVERLAY_ROLE_CHECKS[@]}"; do
+          if ! ziti_services_json=$(ziti_api_get "$ziti_token" \
+            "/services?filter=anyOf(roleAttributes)%3D%22${role_attr}%22"); then
+            ziti_overlay_pending+=("${role_attr} services")
+            continue
+          fi
+
+          ziti_service_count=$(jq -r '[.data[]?] | length' \
+            <<<"$ziti_services_json" 2>/dev/null || true)
+          if ! [[ "$ziti_service_count" =~ ^[0-9]+$ ]] || (( ziti_service_count < 1 )); then
+            ziti_overlay_pending+=("${role_attr} services")
+            continue
+          fi
+
+          role_has_terminator=false
+          while IFS= read -r svc_name; do
+            if ziti_term_json=$(ziti_api_get "$ziti_token" \
+              "/terminators?filter=service.name%3D%22${svc_name}%22"); then
+              term_count=$(jq -r '[.data[]?] | length' <<<"$ziti_term_json" 2>/dev/null || true)
+              if [[ "$term_count" =~ ^[0-9]+$ ]] && (( term_count >= 1 )); then
+                role_has_terminator=true
+                break
+              fi
+            fi
+          done < <(jq -r '.data[]?.name // empty' <<<"$ziti_services_json")
+
+          if [[ "$role_has_terminator" != "true" ]]; then
+            ziti_overlay_pending+=("${role_attr} terminators")
           fi
         done
       fi
