@@ -89,11 +89,6 @@ resource "ziti_service" "gateway" {
   role_attributes = ["gateway"]
 }
 
-resource "ziti_service" "runner" {
-  name            = "runner"
-  role_attributes = ["runner"]
-}
-
 resource "ziti_service" "llm_proxy" {
   name            = "llm-proxy"
   configs         = [ziti_intercept_v1_config.llm_proxy_intercept.id]
@@ -165,18 +160,18 @@ resource "ziti_service_policy" "agents_dial_gateway" {
   serviceroles  = [format("@%s", ziti_service.gateway.id)]
 }
 
-resource "ziti_service_policy" "channels_dial_gateway" {
-  name          = "channels-dial-gateway"
-  type          = "Dial"
-  identityroles = ["#channels"]
-  serviceroles  = [format("@%s", ziti_service.gateway.id)]
-}
-
 resource "ziti_service_policy" "orchestrators_dial_runners" {
   name          = "orchestrators-dial-runners"
   type          = "Dial"
   identityroles = ["#orchestrators"]
-  serviceroles  = [format("@%s", ziti_service.runner.id)]
+  serviceroles  = ["#runner-services"]
+}
+
+resource "ziti_service_policy" "terminal_proxy_dial_runners" {
+  name          = "terminal-proxy-dial-runners"
+  type          = "Dial"
+  identityroles = ["#terminal-proxy-hosts"]
+  serviceroles  = ["#runner-services"]
 }
 
 resource "ziti_service_policy" "gateway_bind" {
@@ -204,7 +199,7 @@ resource "ziti_service_policy" "runners_bind" {
   name          = "runners-bind"
   type          = "Bind"
   identityroles = ["#runners"]
-  serviceroles  = [format("@%s", ziti_service.runner.id)]
+  serviceroles  = ["#runner-services"]
 }
 
 resource "ziti_service_policy" "apps_dial_gateway" {

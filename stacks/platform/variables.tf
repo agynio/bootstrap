@@ -38,7 +38,12 @@ variable "agents_orchestrator_chart_version" {
 variable "k8s_runner_chart_version" {
   type        = string
   description = "Version of the k8s-runner Helm chart published to GHCR"
-  default     = "0.5.1"
+  default     = "0.6.0"
+}
+
+variable "k8s_runner_identity_id" {
+  type        = string
+  description = "Stable UUID identifying the singleton k8s-runner instance for Ziti identity management"
 }
 
 variable "threads_chart_version" {
@@ -86,7 +91,7 @@ variable "agents_chart_version" {
 variable "ziti_management_chart_version" {
   type        = string
   description = "Version of the ziti-management Helm chart published to GHCR"
-  default     = "0.5.2"
+  default     = "0.7.0"
 }
 
 variable "users_chart_version" {

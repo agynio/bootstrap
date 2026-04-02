@@ -15,7 +15,6 @@ output "identity_ids" {
 output "service_ids" {
   value = {
     gateway = ziti_service.gateway.id
-    runner  = ziti_service.runner.id
   }
   description = "Ziti service IDs"
 }

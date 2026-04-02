@@ -33,6 +33,8 @@ jobs:
           terraform_version: 1.6.6
 
       - name: Apply all stacks (k8s -> system -> routing -> minio -> platform)
+        env:
+          TF_VAR_k8s_runner_identity_id: 439e0da2-88cd-46d7-bb9c-56c723c15606
         run: ./apply.sh -y
 
       - name: Verify platform workloads and Argo CD health
