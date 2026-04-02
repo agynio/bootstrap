@@ -3,7 +3,7 @@ locals {
   resolved_agent_state_image_tag         = trimspace(var.agent_state_image_tag) != "" ? var.agent_state_image_tag : format("v%s", var.agent_state_chart_version)
   resolved_agents_orchestrator_image_tag = trimspace(var.agents_orchestrator_image_tag) != "" ? var.agents_orchestrator_image_tag : var.agents_orchestrator_chart_version
   resolved_k8s_runner_image_tag          = trimspace(var.k8s_runner_image_tag) != "" ? var.k8s_runner_image_tag : var.k8s_runner_chart_version
-  resolved_threads_image_tag             = trimspace(var.threads_image_tag) != "" ? var.threads_image_tag : format("v%s", var.threads_chart_version)
+  resolved_threads_image_tag             = trimspace(var.threads_image_tag) != "" ? var.threads_image_tag : var.threads_chart_version
   resolved_tracing_image_tag             = trimspace(var.tracing_image_tag) != "" ? var.tracing_image_tag : format("v%s", var.tracing_chart_version)
   resolved_chat_image_tag                = trimspace(var.chat_image_tag) != "" ? var.chat_image_tag : var.chat_chart_version
   resolved_chat_app_image_tag            = trimspace(var.chat_app_image_tag) != "" ? var.chat_app_image_tag : var.chat_app_chart_version
@@ -863,14 +863,21 @@ locals {
     replicaCount     = 1
     fullnameOverride = "threads"
     service = {
-      port = 50051
+      ports = [
+        {
+          name       = "grpc"
+          port       = 50051
+          targetPort = "grpc"
+          protocol   = "TCP"
+        }
+      ]
     }
-    database = {
-      url = format("postgresql://threads:%s@threads-db:5432/threads?sslmode=disable", var.threads_db_password)
-    }
-    notifications = {
-      address = "notifications:50051"
-    }
+    extraEnvVars = [
+      {
+        name  = "DATABASE_URL"
+        value = format("postgresql://threads:%s@threads-db:5432/threads?sslmode=disable", var.threads_db_password)
+      },
+    ]
     image = {
       repository = "ghcr.io/agynio/threads"
       tag        = local.resolved_threads_image_tag
