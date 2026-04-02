@@ -44,7 +44,7 @@ variable "k8s_runner_chart_version" {
 variable "threads_chart_version" {
   type        = string
   description = "Version of the threads Helm chart published to GHCR"
-  default     = "0.1.1"
+  default     = "0.2.0"
 }
 
 variable "tracing_chart_version" {
@@ -189,7 +189,7 @@ variable "k8s_runner_image_tag" {
 variable "threads_image_tag" {
   type        = string
   description = "Optional override for the threads image tag"
-  default     = "v0.1.2"
+  default     = ""
 }
 
 variable "tracing_image_tag" {
