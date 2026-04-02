@@ -874,10 +874,6 @@ locals {
     }
     env = [
       {
-        name  = "GRPC_ADDRESS"
-        value = ":50051"
-      },
-      {
         name  = "DATABASE_URL"
         value = format("postgresql://threads:%s@threads-db:5432/threads?sslmode=disable", var.threads_db_password)
       },
