@@ -361,6 +361,13 @@ variable "runners_db_password" {
   sensitive   = true
 }
 
+variable "k8s_runner_service_token" {
+  type        = string
+  description = "Static service token for k8s-runner enrollment"
+  default     = "d4f5a6b7-8c9e-0f1a-2b3c-4d5e6f7a8b9c"
+  sensitive   = true
+}
+
 variable "threads_db_password" {
   type        = string
   description = "Password for the threads PostgreSQL database user"

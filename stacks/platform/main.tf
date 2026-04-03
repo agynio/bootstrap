@@ -1774,31 +1774,14 @@ resource "kubernetes_namespace_v1" "agyn_workloads" {
   }
 }
 
-resource "null_resource" "k8s_runner_service_token" {
-  depends_on = [argocd_application.runners]
-
-  triggers = {
-    kubeconfig_path = var.kubeconfig_path
-    runner_chart    = var.k8s_runner_chart_version
-    runners_chart   = var.runners_chart_version
+resource "kubernetes_secret_v1" "k8s_runner_service_token" {
+  metadata {
+    name      = "k8s-runner-service-token"
+    namespace = var.platform_namespace
   }
 
-  provisioner "local-exec" {
-    interpreter = ["bash", "-c"]
-    command     = <<-EOT
-      set -euo pipefail
-      export KUBECONFIG="${var.kubeconfig_path}"
-      namespace="${var.platform_namespace}"
-      secret_name="k8s-runner-service-token"
-      token="d4f5a6b7-8c9e-0f1a-2b3c-4d5e6f7a8b9c"
-
-      if kubectl -n "$namespace" get secret "$secret_name" >/dev/null 2>&1; then
-        echo "Secret $secret_name already exists, skipping creation"
-      else
-        kubectl -n "$namespace" create secret generic "$secret_name" --from-literal=token="$token"
-        echo "Created secret $secret_name"
-      fi
-    EOT
+  data = {
+    token = var.k8s_runner_service_token
   }
 }
 
@@ -4149,7 +4132,7 @@ resource "argocd_application" "k8s_runner" {
   depends_on = [
     argocd_repository.litellm_repo,
     kubernetes_namespace_v1.agyn_workloads,
-    null_resource.k8s_runner_service_token,
+    kubernetes_secret_v1.k8s_runner_service_token,
   ]
   metadata {
     name      = "k8s-runner"
