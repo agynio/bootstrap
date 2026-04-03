@@ -1774,14 +1774,59 @@ resource "kubernetes_namespace_v1" "agyn_workloads" {
   }
 }
 
-resource "kubernetes_secret_v1" "k8s_runner_service_token" {
-  metadata {
-    name      = "k8s-runner-service-token"
-    namespace = var.platform_namespace
+resource "null_resource" "k8s_runner_registration" {
+  depends_on = [
+    argocd_application.runners,
+    argocd_application.gateway,
+  ]
+
+  triggers = {
+    kubeconfig_path       = var.kubeconfig_path
+    runners_chart_version = var.runners_chart_version
+    k8s_runner_chart      = var.k8s_runner_chart_version
   }
 
-  data = {
-    token = var.k8s_runner_service_token
+  provisioner "local-exec" {
+    interpreter = ["bash", "-c"]
+    command     = <<-SCRIPT
+      set -euo pipefail
+      export KUBECONFIG="${var.kubeconfig_path}"
+      namespace="${var.platform_namespace}"
+      gateway_url="http://gateway-gateway:8080"
+      endpoint="/agynio.api.gateway.v1.RunnersGateway/RegisterRunner"
+
+      echo "Waiting for gateway to be ready..."
+      kubectl -n "$namespace" wait --for=condition=Available deployment/gateway-gateway --timeout=120s
+
+      echo "Waiting for runners to be ready..."
+      kubectl -n "$namespace" wait --for=condition=Available deployment/runners --timeout=120s
+
+      echo "Registering k8s-runner..."
+      response=$(kubectl -n "$namespace" run register-k8s-runner \
+        --quiet --rm -i --restart=Never --image=curlimages/curl:8.5.0 -- \
+        -sf -X POST "$gateway_url$endpoint" \
+        -H 'Content-Type: application/json' \
+        -d '{"name":"k8s-runner"}')
+
+      service_token=$(echo "$response" | jq -r '.serviceToken')
+      if [ -z "$service_token" ] || [ "$service_token" = "null" ]; then
+        echo "ERROR: Failed to extract serviceToken from response: $response"
+        exit 1
+      fi
+
+      echo "Creating k8s-runner-service-token secret..."
+      kubectl -n "$namespace" create secret generic k8s-runner-service-token \
+        --from-literal=token="$service_token" \
+        --dry-run=client -o yaml | kubectl -n "$namespace" apply -f -
+
+      if kubectl -n "$namespace" get deployment k8s-runner >/dev/null 2>&1; then
+        echo "Restarting k8s-runner deployment..."
+        kubectl -n "$namespace" rollout restart deployment/k8s-runner
+        kubectl -n "$namespace" rollout status deployment/k8s-runner --timeout=120s
+      fi
+
+      echo "k8s-runner registration complete"
+    SCRIPT
   }
 }
 
@@ -4132,7 +4177,7 @@ resource "argocd_application" "k8s_runner" {
   depends_on = [
     argocd_repository.litellm_repo,
     kubernetes_namespace_v1.agyn_workloads,
-    kubernetes_secret_v1.k8s_runner_service_token,
+    null_resource.k8s_runner_registration,
   ]
   metadata {
     name      = "k8s-runner"

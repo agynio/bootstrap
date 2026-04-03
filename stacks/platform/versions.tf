@@ -14,6 +14,10 @@ terraform {
       source  = "aminueza/minio"
       version = "~> 3.28"
     }
+    null = {
+      source  = "hashicorp/null"
+      version = "~> 3.2"
+    }
     openfga = {
       source  = "openfga/openfga"
       version = "~> 0.5"
