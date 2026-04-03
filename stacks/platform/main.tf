@@ -1795,10 +1795,12 @@ resource "null_resource" "k8s_runner_registration" {
       endpoint="/agynio.api.gateway.v1.RunnersGateway/RegisterRunner"
 
       echo "Waiting for gateway to be ready..."
-      kubectl -n "$namespace" wait --for=condition=Available deployment/gateway-gateway --timeout=120s
+      kubectl -n "$namespace" rollout status deployment/gateway-gateway --timeout=120s
+      kubectl -n "$namespace" wait --for=condition=Ready pod -l app.kubernetes.io/name=gateway --timeout=120s
 
       echo "Waiting for runners to be ready..."
-      kubectl -n "$namespace" wait --for=condition=Available deployment/runners --timeout=120s
+      kubectl -n "$namespace" rollout status deployment/runners --timeout=120s
+      kubectl -n "$namespace" wait --for=condition=Ready pod -l app.kubernetes.io/name=runners --timeout=120s
 
       # Give pods time to be fully ready after Available condition
       sleep 5
@@ -1811,9 +1813,24 @@ resource "null_resource" "k8s_runner_registration" {
       sleep 3
 
       echo "Registering k8s-runner..."
-      response=$(curl -sf -X POST "http://localhost:18080$endpoint" \
-        -H 'Content-Type: application/json' \
-        -d '{"name":"k8s-runner"}')
+      max_attempts=10
+      attempt=0
+      response=""
+      while [ "$attempt" -lt "$max_attempts" ]; do
+        attempt=$((attempt + 1))
+        if response=$(curl -sf -X POST "http://localhost:18080$endpoint" \
+          -H 'Content-Type: application/json' \
+          -d '{"name":"k8s-runner"}' 2>/dev/null); then
+          break
+        fi
+        echo "Registration attempt $attempt/$max_attempts failed, retrying in 5s..."
+        sleep 5
+      done
+
+      if [ -z "$response" ]; then
+        echo "ERROR: Failed to register k8s-runner after $max_attempts attempts"
+        exit 1
+      fi
 
       service_token=$(echo "$response" | jq -r '.serviceToken')
       if [ -z "$service_token" ] || [ "$service_token" = "null" ]; then
