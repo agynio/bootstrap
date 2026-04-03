@@ -130,6 +130,18 @@ variable "chat_app_image_tag" {
   default     = ""
 }
 
+variable "console_app_chart_version" {
+  type        = string
+  description = "Version of the console-app Helm chart published to GHCR"
+  default     = "0.1.0"
+}
+
+variable "console_app_image_tag" {
+  type        = string
+  description = "Optional override for the console-app container image tag"
+  default     = ""
+}
+
 variable "oidc_issuer_url" {
   type        = string
   description = "OIDC issuer URL (authority) for frontend apps"

@@ -7,6 +7,7 @@ locals {
     local.base_domain,
     "argocd.${local.base_domain}",
     "chat.${local.base_domain}",
+    "console.${local.base_domain}",
     "gateway.${local.base_domain}",
     "litellm.${local.base_domain}",
     "llm.${local.base_domain}",
