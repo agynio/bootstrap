@@ -1,24 +1,6 @@
 # This file is maintained automatically by "terraform init".
 # Manual edits may be lost in future updates.
 
-provider "registry.terraform.io/agynio/agyn" {
-  version     = "0.3.0"
-  constraints = "~> 0.3"
-  hashes = [
-    "h1:db8oJ7e/Si+ILhuA84VYRr0DWQe7zXkzONC+Kikop0I=",
-    "zh:3bab6098926a727a36d3ce123553cf181a00a825b5c4a3cb8c5fd50f954cbcf2",
-    "zh:56c90f6f70365078d42aa7d39c7e459881e87e24d382547006292b34810e1ad7",
-    "zh:806b908f5cbeaff1540578ec924b19559c3279a3ec511be2e5497b64132446bd",
-    "zh:9145c0a7d2fde31987d173952db223f018cac492d54cb86d6c2c2087c26417e7",
-    "zh:aaf5c647d8bbbbacdbe30534c053cbe4e4cc4d8681ce533928212f584404a867",
-    "zh:b9c350b04d4ca375b2479d69e0b6d4032d2e2658a4bb5345de4911fab57b1ec2",
-    "zh:caae2643284569ca38ad19e66ea411c6a7d4d40f7b2d275c82a1d1abecb1d764",
-    "zh:d5ed4cb631d877baf0cf63629ae5e270f1b49ed9e83907568392ec2cc792251b",
-    "zh:e8fc153748f3dd170cb1c06b407ec55f0214406eae50688767a91fb5e94e18c9",
-    "zh:e936588c539406c76a396d71cd4a9bceb9d641ffa5e5427f100230fcff56dff0",
-  ]
-}
-
 provider "registry.terraform.io/aminueza/minio" {
   version     = "3.28.1"
   constraints = "~> 3.28"

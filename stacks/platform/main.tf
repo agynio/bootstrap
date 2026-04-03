@@ -21,20 +21,7 @@ locals {
   resolved_organizations_image_tag       = trimspace(var.organizations_image_tag) != "" ? var.organizations_image_tag : var.organizations_chart_version
   resolved_authorization_image_tag       = trimspace(var.authorization_image_tag) != "" ? var.authorization_image_tag : format("v%s", var.authorization_chart_version)
   resolved_identity_image_tag            = trimspace(var.identity_image_tag) != "" ? var.identity_image_tag : var.identity_chart_version
-  resolved_apps_image_tag                = trimspace(var.apps_image_tag) != "" ? var.apps_image_tag : var.apps_chart_version
   resolved_runners_image_tag             = trimspace(var.runners_image_tag) != "" ? var.runners_image_tag : var.runners_chart_version
-
-  ghcr_credentials_enabled = trimspace(var.ghcr_username) != "" && trimspace(var.ghcr_token) != ""
-  ghcr_pull_secrets        = local.ghcr_credentials_enabled ? ["ghcr-credentials"] : []
-  ghcr_docker_config = jsonencode({
-    auths = {
-      "ghcr.io" = {
-        username = var.ghcr_username
-        password = var.ghcr_token
-        auth     = base64encode(format("%s:%s", var.ghcr_username, var.ghcr_token))
-      }
-    }
-  })
 
   postgres_image                 = "postgres:16.6-alpine"
   vault_chart_version            = "0.28.1"
@@ -74,7 +61,6 @@ locals {
   organizations_chart_name       = "agynio/charts/organizations"
   authorization_chart_name       = "agynio/charts/authorization"
   identity_chart_name            = "agynio/charts/identity"
-  apps_chart_name                = "agynio/charts/apps"
   runners_chart_name             = "agynio/charts/runners"
   istio_gateway_namespace        = data.terraform_remote_state.system.outputs.istio_gateway_namespace
   istio_gateway_tls_secret_name  = data.terraform_remote_state.system.outputs.wildcard_tls_gateway_secret_name
@@ -787,29 +773,6 @@ locals {
     }
   })
 
-  apps_db_values = yamlencode({
-    fullnameOverride = "apps-db"
-    postgres = {
-      database = "apps"
-      username = "apps"
-      password = var.apps_db_password
-      pgdata   = "/var/lib/postgresql/data/pgdata"
-    }
-    persistence = {
-      size                    = var.apps_db_pvc_size
-      mountPath               = "/var/lib/postgresql/data"
-      volumeClaimTemplateName = "data"
-    }
-    probes = {
-      readiness = {
-        execCommand = ["pg_isready", "-U", "apps", "-d", "apps"]
-      }
-      liveness = {
-        execCommand = ["pg_isready", "-U", "apps", "-d", "apps"]
-      }
-    }
-  })
-
   runners_db_values = yamlencode({
     fullnameOverride = "runners-db"
     postgres = {
@@ -1090,35 +1053,6 @@ locals {
       {
         name  = "DATABASE_URL"
         value = format("postgresql://identity:%s@identity-db:5432/identity?sslmode=disable", var.identity_db_password)
-      },
-    ]
-  })
-
-  apps_values = yamlencode({
-    replicaCount     = 1
-    fullnameOverride = "apps"
-    image = {
-      repository  = "ghcr.io/agynio/apps"
-      tag         = local.resolved_apps_image_tag
-      pullPolicy  = "IfNotPresent"
-      pullSecrets = local.ghcr_pull_secrets
-    }
-    env = [
-      {
-        name  = "DATABASE_URL"
-        value = format("postgresql://apps:%s@apps-db:5432/apps?sslmode=disable", var.apps_db_password)
-      },
-      {
-        name  = "IDENTITY_GRPC_TARGET"
-        value = "identity:50051"
-      },
-      {
-        name  = "AUTHORIZATION_GRPC_TARGET"
-        value = "authorization:50051"
-      },
-      {
-        name  = "ZITI_MANAGEMENT_GRPC_TARGET"
-        value = "ziti-management:50051"
       },
     ]
   })
@@ -1840,36 +1774,8 @@ resource "kubernetes_namespace_v1" "agyn_workloads" {
   }
 }
 
-resource "kubernetes_secret_v1" "ghcr_credentials" {
-  count      = local.ghcr_credentials_enabled ? 1 : 0
-  depends_on = [kubernetes_namespace.platform]
-
-  metadata {
-    name      = "ghcr-credentials"
-    namespace = var.platform_namespace
-  }
-
-  type = "kubernetes.io/dockerconfigjson"
-
-  data = {
-    ".dockerconfigjson" = local.ghcr_docker_config
-  }
-}
-
-resource "agyn_app" "k8s_runner" {
-  depends_on = [
-    argocd_application.apps,
-    argocd_application.gateway,
-  ]
-  slug        = "k8s-runner"
-  name        = "K8s Runner"
-  description = "Kubernetes workload runner"
-}
-
 resource "null_resource" "k8s_runner_service_token" {
-  depends_on = [
-    argocd_application.runners,
-  ]
+  depends_on = [argocd_application.runners]
 
   triggers = {
     kubeconfig_path = var.kubeconfig_path
@@ -1881,74 +1787,16 @@ resource "null_resource" "k8s_runner_service_token" {
     interpreter = ["bash", "-c"]
     command     = <<-EOT
       set -euo pipefail
-
       export KUBECONFIG="${var.kubeconfig_path}"
       namespace="${var.platform_namespace}"
       secret_name="k8s-runner-service-token"
+      token="d4f5a6b7-8c9e-0f1a-2b3c-4d5e6f7a8b9c"
 
-      runner_ready=false
-      for i in $(seq 1 60); do
-        if kubectl -n "$namespace" get deployment runners >/dev/null 2>&1; then
-          if kubectl -n "$namespace" rollout status deployment/runners --timeout=5s >/dev/null 2>&1; then
-            runner_ready=true
-            break
-          fi
-        fi
-        sleep 5
-      done
-
-      if [ "$runner_ready" != "true" ]; then
-        echo "Timed out waiting for runners deployment." >&2
-        exit 1
-      fi
-
-      existing_token=$(kubectl -n "$namespace" get secret "$secret_name" -o jsonpath='{.data.token}' 2>/dev/null | base64 -d || true)
-      if [ -n "$existing_token" ]; then
-        kubectl -n "$namespace" delete pod validate-k8s-runner-token --ignore-not-found >/dev/null 2>&1 || true
-        if kubectl -n "$namespace" run validate-k8s-runner-token \
-          --rm -i --restart=Never \
-          --image=ghcr.io/agynio/devcontainer-go:1 \
-          --override-type=strategic \
-          --overrides='{"spec":{"securityContext":{"runAsUser":1000,"fsGroup":1000}}}' \
-          --quiet -- \
-          buf curl \
-            --schema buf.build/agynio/api \
-            --protocol grpc \
-            --http2-prior-knowledge \
-            -d "$(jq -nc --arg t "$existing_token" '{"tokenHash":$t}')" \
-            http://runners:50051/agynio.api.runners.v1.RunnersService/ValidateServiceToken \
-          >/dev/null 2>&1; then
-          exit 0
-        fi
-        kubectl -n "$namespace" delete secret "$secret_name" >/dev/null 2>&1 || true
-      fi
-
-      kubectl -n "$namespace" delete pod register-k8s-runner --ignore-not-found >/dev/null 2>&1 || true
-
-      response=$(kubectl -n "$namespace" run register-k8s-runner \
-        --rm -i --restart=Never \
-        --image=ghcr.io/agynio/devcontainer-go:1 \
-        --override-type=strategic \
-        --overrides='{"spec":{"securityContext":{"runAsUser":1000,"fsGroup":1000}}}' \
-        --quiet -- \
-        buf curl \
-          --schema buf.build/agynio/api \
-          --protocol grpc \
-          --http2-prior-knowledge \
-          -d '{"name":"k8s-runner"}' \
-          http://runners:50051/agynio.api.runners.v1.RunnersService/RegisterRunner)
-
-      service_token=$(printf '%s' "$response" | sed -n 's/.*"serviceToken":[[:space:]]*"\([^"]*\)".*/\1/p')
-      if [ -z "$service_token" ]; then
-        echo "Failed to parse k8s-runner service token." >&2
-        exit 1
-      fi
-
-      kubectl -n "$namespace" create secret generic "$secret_name" --from-literal=token="$service_token" >/dev/null
-
-      if kubectl -n "$namespace" get deployment k8s-runner >/dev/null 2>&1; then
-        kubectl -n "$namespace" rollout restart deployment/k8s-runner >/dev/null
-        kubectl -n "$namespace" rollout status deployment/k8s-runner --timeout=5m >/dev/null
+      if kubectl -n "$namespace" get secret "$secret_name" >/dev/null 2>&1; then
+        echo "Secret $secret_name already exists, skipping creation"
+      else
+        kubectl -n "$namespace" create secret generic "$secret_name" --from-literal=token="$token"
+        echo "Created secret $secret_name"
       fi
     EOT
   }
@@ -2622,8 +2470,6 @@ resource "argocd_repository" "litellm_repo" {
   repo       = local.litellm_chart_repo_host
   type       = "helm"
   enable_oci = true
-  username   = trimspace(var.ghcr_username) != "" ? var.ghcr_username : null
-  password   = trimspace(var.ghcr_token) != "" ? var.ghcr_token : null
 }
 
 resource "argocd_application" "platform_db" {
@@ -3276,56 +3122,6 @@ resource "argocd_application" "identity_db" {
   }
 }
 
-resource "argocd_application" "apps_db" {
-  depends_on = [argocd_repository.litellm_repo]
-  wait       = true
-
-  metadata {
-    name      = "apps-db"
-    namespace = "argocd"
-    annotations = {
-      "argocd.argoproj.io/sync-wave" = "8"
-    }
-  }
-
-  spec {
-    project = "default"
-
-    source {
-      repo_url        = local.postgres_chart_repo_host
-      chart           = local.postgres_chart_name
-      target_revision = var.postgres_chart_version
-
-      helm {
-        values = local.apps_db_values
-      }
-    }
-
-    destination {
-      server    = var.destination_server
-      namespace = var.platform_namespace
-    }
-
-    sync_policy {
-      # DB apps always use automated sync with prune disabled for stateful safety,
-      # independent of var.argocd_automated_sync_enabled.
-      automated {
-        prune       = false
-        self_heal   = true
-        allow_empty = false
-      }
-
-      sync_options = local.postgres_sync_options
-    }
-  }
-
-  timeouts {
-    create = "5m"
-    update = "5m"
-    delete = "5m"
-  }
-}
-
 resource "argocd_application" "runners_db" {
   depends_on = [argocd_repository.litellm_repo]
   wait       = true
@@ -3946,58 +3742,6 @@ resource "argocd_application" "notifications_redis" {
 
       helm {
         values = local.redis_values
-      }
-    }
-
-    destination {
-      server    = var.destination_server
-      namespace = var.platform_namespace
-    }
-
-    sync_policy {
-      dynamic "automated" {
-        for_each = var.argocd_automated_sync_enabled ? [1] : []
-        content {
-          prune       = var.argocd_prune_enabled
-          self_heal   = var.argocd_self_heal_enabled
-          allow_empty = false
-        }
-      }
-
-      sync_options = local.default_sync_options
-    }
-  }
-}
-
-resource "argocd_application" "apps" {
-  depends_on = [
-    argocd_repository.litellm_repo,
-    argocd_application.apps_db,
-    argocd_application.identity,
-    argocd_application.authorization,
-    argocd_application.ziti_management,
-    kubernetes_secret_v1.ghcr_credentials,
-  ]
-  wait = true
-
-  metadata {
-    name      = "apps"
-    namespace = "argocd"
-    annotations = {
-      "argocd.argoproj.io/sync-wave" = "17"
-    }
-  }
-
-  spec {
-    project = "default"
-
-    source {
-      repo_url        = local.platform_chart_repo_host
-      chart           = local.apps_chart_name
-      target_revision = var.apps_chart_version
-
-      helm {
-        values = local.apps_values
       }
     }
 

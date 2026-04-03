@@ -17,19 +17,6 @@ variable "argocd_admin_password" {
   sensitive   = true
 }
 
-variable "ghcr_username" {
-  type        = string
-  description = "Optional GitHub Container Registry username for private charts"
-  default     = ""
-}
-
-variable "ghcr_token" {
-  type        = string
-  description = "Optional GitHub Container Registry token for private charts"
-  default     = ""
-  sensitive   = true
-}
-
 variable "gateway_chart_version" {
   type        = string
   description = "Version of the gateway Helm chart published to GHCR"
@@ -117,12 +104,6 @@ variable "organizations_chart_version" {
 variable "identity_chart_version" {
   type        = string
   description = "Version of the identity Helm chart published to GHCR"
-  default     = "0.1.0"
-}
-
-variable "apps_chart_version" {
-  type        = string
-  description = "Version of the apps Helm chart published to GHCR"
   default     = "0.1.0"
 }
 
@@ -289,12 +270,6 @@ variable "identity_image_tag" {
   default     = ""
 }
 
-variable "apps_image_tag" {
-  type        = string
-  description = "Optional override for the apps image tag"
-  default     = ""
-}
-
 variable "runners_image_tag" {
   type        = string
   description = "Optional override for the runners image tag"
@@ -379,13 +354,6 @@ variable "identity_db_password" {
   sensitive   = true
 }
 
-variable "apps_db_password" {
-  type        = string
-  description = "Password for the apps PostgreSQL database user"
-  default     = "apps"
-  sensitive   = true
-}
-
 variable "runners_db_password" {
   type        = string
   description = "Password for the runners PostgreSQL database user"
@@ -422,12 +390,6 @@ variable "agents_orchestrator_db_pvc_size" {
 variable "identity_db_pvc_size" {
   type        = string
   description = "Persistent volume claim size for the identity PostgreSQL primary"
-  default     = "5Gi"
-}
-
-variable "apps_db_pvc_size" {
-  type        = string
-  description = "Persistent volume claim size for the apps PostgreSQL primary"
   default     = "5Gi"
 }
 
