@@ -1655,7 +1655,7 @@ locals {
       },
       {
         name  = "OIDC_CLIENT_ID"
-        value = var.oidc_client_id
+        value = var.console_app_oidc_client_id
       },
       {
         name  = "OIDC_SCOPE"

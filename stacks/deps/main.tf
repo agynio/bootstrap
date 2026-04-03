@@ -284,6 +284,7 @@ resource "kubernetes_config_map_v1_data" "coredns_ziti_rewrites" {
           rewrite name ziti-router.${local.base_domain} ziti-router-edge.${local.ziti_namespace}.svc.cluster.local
           rewrite name chat.${local.base_domain} istio-ingressgateway.${local.istio_gateway_namespace}.svc.cluster.local
           rewrite name tracing.${local.base_domain} istio-ingressgateway.${local.istio_gateway_namespace}.svc.cluster.local
+          rewrite name console.${local.base_domain} istio-ingressgateway.${local.istio_gateway_namespace}.svc.cluster.local
           kubernetes cluster.local in-addr.arpa ip6.arpa {
             pods insecure
             fallthrough in-addr.arpa ip6.arpa

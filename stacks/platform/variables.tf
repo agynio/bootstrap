@@ -154,6 +154,12 @@ variable "oidc_client_id" {
   default     = "client_MU95KU3gHQf5Ir7p"
 }
 
+variable "console_app_oidc_client_id" {
+  type        = string
+  description = "OIDC client ID for the console-app (public client)"
+  default     = "client_4XUh4_1VfUzpfYkN"
+}
+
 variable "oidc_client_secret" {
   type        = string
   description = "OIDC client secret (dev/QA only - production should use a K8s Secret)"
