@@ -304,7 +304,8 @@ variable "runners_image_tag" {
 variable "gateway_image_tag" {
   type        = string
   description = "Override for the gateway image tag"
-  default     = "sha-5fb9bf3"
+  # TODO: Revert to "" once a gateway chart release includes EnrollRunner support (PR #133)
+  default = "sha-5fb9bf3"
 }
 
 variable "notifications_redis_addr" {

@@ -1874,6 +1874,7 @@ resource "null_resource" "k8s_runner_service_token" {
   triggers = {
     kubeconfig_path = var.kubeconfig_path
     runner_chart    = var.k8s_runner_chart_version
+    runners_chart   = var.runners_chart_version
   }
 
   provisioner "local-exec" {
@@ -1914,7 +1915,7 @@ resource "null_resource" "k8s_runner_service_token" {
             --schema buf.build/agynio/api \
             --protocol grpc \
             --http2-prior-knowledge \
-            -d '{"tokenHash":"'$existing_token'"}' \
+            -d "$(jq -nc --arg t "$existing_token" '{"tokenHash":$t}')" \
             http://runners:50051/agynio.api.runners.v1.RunnersService/ValidateServiceToken \
           >/dev/null 2>&1; then
           exit 0
@@ -1924,7 +1925,6 @@ resource "null_resource" "k8s_runner_service_token" {
 
       kubectl -n "$namespace" delete pod register-k8s-runner --ignore-not-found >/dev/null 2>&1 || true
 
-      restart_needed=true
       response=$(kubectl -n "$namespace" run register-k8s-runner \
         --rm -i --restart=Never \
         --image=ghcr.io/agynio/devcontainer-go:1 \
@@ -1946,7 +1946,7 @@ resource "null_resource" "k8s_runner_service_token" {
 
       kubectl -n "$namespace" create secret generic "$secret_name" --from-literal=token="$service_token" >/dev/null
 
-      if [ "$restart_needed" = "true" ]; then
+      if kubectl -n "$namespace" get deployment k8s-runner >/dev/null 2>&1; then
         kubectl -n "$namespace" rollout restart deployment/k8s-runner >/dev/null
         kubectl -n "$namespace" rollout status deployment/k8s-runner --timeout=5m >/dev/null
       fi
