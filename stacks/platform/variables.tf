@@ -44,6 +44,7 @@ variable "k8s_runner_chart_version" {
 variable "k8s_runner_identity_id" {
   type        = string
   description = "Stable UUID identifying the singleton k8s-runner instance for Ziti identity management"
+  default     = "439e0da2-88cd-46d7-bb9c-56c723c15606"
 }
 
 variable "threads_chart_version" {
