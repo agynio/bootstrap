@@ -1792,7 +1792,6 @@ resource "null_resource" "k8s_runner_registration" {
       set -euo pipefail
       export KUBECONFIG="${var.kubeconfig_path}"
       namespace="${var.platform_namespace}"
-      gateway_url="http://gateway-gateway:8080"
       endpoint="/agynio.api.gateway.v1.RunnersGateway/RegisterRunner"
 
       echo "Waiting for gateway to be ready..."
@@ -1801,10 +1800,18 @@ resource "null_resource" "k8s_runner_registration" {
       echo "Waiting for runners to be ready..."
       kubectl -n "$namespace" wait --for=condition=Available deployment/runners --timeout=120s
 
+      # Give pods time to be fully ready after Available condition
+      sleep 5
+
+      echo "Starting port-forward to gateway..."
+      kubectl -n "$namespace" port-forward svc/gateway-gateway 18080:8080 &
+      PF_PID=$!
+      # Ensure cleanup on exit
+      trap "kill $PF_PID 2>/dev/null || true" EXIT
+      sleep 3
+
       echo "Registering k8s-runner..."
-      response=$(kubectl -n "$namespace" run register-k8s-runner \
-        --quiet --rm -i --restart=Never --image=curlimages/curl:8.5.0 -- \
-        -sf -X POST "$gateway_url$endpoint" \
+      response=$(curl -sf -X POST "http://localhost:18080$endpoint" \
         -H 'Content-Type: application/json' \
         -d '{"name":"k8s-runner"}')
 
