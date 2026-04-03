@@ -18,6 +18,7 @@ output "platform_app_names" {
     argocd_application.files.metadata[0].name,
     argocd_application.k8s_runner.metadata[0].name,
     argocd_application.chat_app.metadata[0].name,
+    argocd_application.console_app.metadata[0].name,
     argocd_application.tracing_app.metadata[0].name,
   ]
 }
@@ -42,6 +43,7 @@ output "platform_app_ids" {
     argocd_application.files.id,
     argocd_application.k8s_runner.id,
     argocd_application.chat_app.id,
+    argocd_application.console_app.id,
     argocd_application.tracing_app.id,
   ]
 }
