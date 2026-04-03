@@ -2,6 +2,10 @@ terraform {
   required_version = ">= 1.5.0"
 
   required_providers {
+    agyn = {
+      source  = "agynio/agyn"
+      version = "~> 0.3"
+    }
     argocd = {
       source  = "argoproj-labs/argocd"
       version = "~> 7.14"
@@ -13,6 +17,10 @@ terraform {
     minio = {
       source  = "aminueza/minio"
       version = "~> 3.28"
+    }
+    null = {
+      source  = "hashicorp/null"
+      version = "~> 3.2"
     }
     openfga = {
       source  = "openfga/openfga"

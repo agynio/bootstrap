@@ -17,6 +17,19 @@ variable "argocd_admin_password" {
   sensitive   = true
 }
 
+variable "ghcr_username" {
+  type        = string
+  description = "Optional GitHub Container Registry username for private charts"
+  default     = ""
+}
+
+variable "ghcr_token" {
+  type        = string
+  description = "Optional GitHub Container Registry token for private charts"
+  default     = ""
+  sensitive   = true
+}
+
 variable "gateway_chart_version" {
   type        = string
   description = "Version of the gateway Helm chart published to GHCR"
@@ -32,19 +45,13 @@ variable "agent_state_chart_version" {
 variable "agents_orchestrator_chart_version" {
   type        = string
   description = "Version of the agents-orchestrator Helm chart published to GHCR"
-  default     = "0.9.0"
+  default     = "0.10.0"
 }
 
 variable "k8s_runner_chart_version" {
   type        = string
   description = "Version of the k8s-runner Helm chart published to GHCR"
-  default     = "0.6.0"
-}
-
-variable "k8s_runner_identity_id" {
-  type        = string
-  description = "Stable UUID identifying the singleton k8s-runner instance for Ziti identity management"
-  default     = "439e0da2-88cd-46d7-bb9c-56c723c15606"
+  default     = "0.7.0"
 }
 
 variable "threads_chart_version" {
@@ -113,10 +120,16 @@ variable "identity_chart_version" {
   default     = "0.1.0"
 }
 
+variable "apps_chart_version" {
+  type        = string
+  description = "Version of the apps Helm chart published to GHCR"
+  default     = "0.1.0"
+}
+
 variable "runners_chart_version" {
   type        = string
   description = "Version of the runners Helm chart published to GHCR"
-  default     = "0.1.1"
+  default     = "0.2.0"
 }
 
 variable "chat_app_chart_version" {
@@ -276,6 +289,12 @@ variable "identity_image_tag" {
   default     = ""
 }
 
+variable "apps_image_tag" {
+  type        = string
+  description = "Optional override for the apps image tag"
+  default     = ""
+}
+
 variable "runners_image_tag" {
   type        = string
   description = "Optional override for the runners image tag"
@@ -284,8 +303,8 @@ variable "runners_image_tag" {
 
 variable "gateway_image_tag" {
   type        = string
-  description = "Optional override for the gateway image tag"
-  default     = ""
+  description = "Override for the gateway image tag"
+  default     = "sha-5fb9bf3"
 }
 
 variable "notifications_redis_addr" {
@@ -359,6 +378,13 @@ variable "identity_db_password" {
   sensitive   = true
 }
 
+variable "apps_db_password" {
+  type        = string
+  description = "Password for the apps PostgreSQL database user"
+  default     = "apps"
+  sensitive   = true
+}
+
 variable "runners_db_password" {
   type        = string
   description = "Password for the runners PostgreSQL database user"
@@ -395,6 +421,12 @@ variable "agents_orchestrator_db_pvc_size" {
 variable "identity_db_pvc_size" {
   type        = string
   description = "Persistent volume claim size for the identity PostgreSQL primary"
+  default     = "5Gi"
+}
+
+variable "apps_db_pvc_size" {
+  type        = string
+  description = "Persistent volume claim size for the apps PostgreSQL primary"
   default     = "5Gi"
 }
 
