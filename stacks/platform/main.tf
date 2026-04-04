@@ -21,7 +21,6 @@ locals {
   resolved_authorization_image_tag       = trimspace(var.authorization_image_tag) != "" ? var.authorization_image_tag : format("v%s", var.authorization_chart_version)
   resolved_identity_image_tag            = trimspace(var.identity_image_tag) != "" ? var.identity_image_tag : var.identity_chart_version
   resolved_runners_image_tag             = trimspace(var.runners_image_tag) != "" ? var.runners_image_tag : var.runners_chart_version
-  resolved_apps_image_tag                = trimspace(var.apps_image_tag) != "" ? var.apps_image_tag : var.apps_chart_version
 
   postgres_image                 = "postgres:16.6-alpine"
   vault_chart_version            = "0.28.1"
@@ -61,7 +60,6 @@ locals {
   authorization_chart_name       = "agynio/charts/authorization"
   identity_chart_name            = "agynio/charts/identity"
   runners_chart_name             = "agynio/charts/runners"
-  apps_chart_name                = "agynio/charts/apps"
   istio_gateway_namespace        = data.terraform_remote_state.system.outputs.istio_gateway_namespace
   istio_gateway_tls_secret_name  = data.terraform_remote_state.system.outputs.wildcard_tls_gateway_secret_name
   openfga_api_url_external       = format("https://openfga.%s:%d", local.base_domain, local.ingress_port)
@@ -796,29 +794,6 @@ locals {
     }
   })
 
-  apps_db_values = yamlencode({
-    fullnameOverride = "apps-db"
-    postgres = {
-      database = "apps"
-      username = "apps"
-      password = var.apps_db_password
-      pgdata   = "/var/lib/postgresql/data/pgdata"
-    }
-    persistence = {
-      size                    = var.apps_db_pvc_size
-      mountPath               = "/var/lib/postgresql/data"
-      volumeClaimTemplateName = "data"
-    }
-    probes = {
-      readiness = {
-        execCommand = ["pg_isready", "-U", "apps", "-d", "apps"]
-      }
-      liveness = {
-        execCommand = ["pg_isready", "-U", "apps", "-d", "apps"]
-      }
-    }
-  })
-
   litellm_values = yamlencode({
     fullnameOverride = "litellm"
     replicaCount     = 1
@@ -1092,38 +1067,6 @@ locals {
       {
         name  = "DATABASE_URL"
         value = format("postgresql://runners:%s@runners-db:5432/runners?sslmode=disable", var.runners_db_password)
-      },
-    ]
-  })
-
-  apps_values = yamlencode({
-    replicaCount     = 1
-    fullnameOverride = "apps"
-    image = {
-      repository = "ghcr.io/agynio/apps"
-      tag        = local.resolved_apps_image_tag
-      pullPolicy = "IfNotPresent"
-    }
-    env = [
-      {
-        name  = "GRPC_ADDRESS"
-        value = ":50051"
-      },
-      {
-        name  = "DATABASE_URL"
-        value = format("postgresql://apps:%s@apps-db:5432/apps?sslmode=disable", var.apps_db_password)
-      },
-      {
-        name  = "IDENTITY_GRPC_TARGET"
-        value = "identity:50051"
-      },
-      {
-        name  = "AUTHORIZATION_GRPC_TARGET"
-        value = "authorization:50051"
-      },
-      {
-        name  = "ZITI_MANAGEMENT_GRPC_TARGET"
-        value = "ziti-management:50051"
       },
     ]
   })
@@ -3139,56 +3082,6 @@ resource "argocd_application" "runners_db" {
   }
 }
 
-resource "argocd_application" "apps_db" {
-  depends_on = [argocd_repository.litellm_repo]
-  wait       = true
-
-  metadata {
-    name      = "apps-db"
-    namespace = "argocd"
-    annotations = {
-      "argocd.argoproj.io/sync-wave" = "8"
-    }
-  }
-
-  spec {
-    project = "default"
-
-    source {
-      repo_url        = local.postgres_chart_repo_host
-      chart           = local.postgres_chart_name
-      target_revision = var.postgres_chart_version
-
-      helm {
-        values = local.apps_db_values
-      }
-    }
-
-    destination {
-      server    = var.destination_server
-      namespace = var.platform_namespace
-    }
-
-    sync_policy {
-      # DB apps always use automated sync with prune disabled for stateful safety,
-      # independent of var.argocd_automated_sync_enabled.
-      automated {
-        prune       = false
-        self_heal   = true
-        allow_empty = false
-      }
-
-      sync_options = local.postgres_sync_options
-    }
-  }
-
-  timeouts {
-    create = "5m"
-    update = "5m"
-    delete = "5m"
-  }
-}
-
 resource "argocd_application" "vault" {
   depends_on = [kubernetes_config_map_v1.vault_auto_init]
 
@@ -3808,54 +3701,6 @@ resource "argocd_application" "runners" {
 
       helm {
         values = local.runners_values
-      }
-    }
-
-    destination {
-      server    = var.destination_server
-      namespace = var.platform_namespace
-    }
-
-    sync_policy {
-      dynamic "automated" {
-        for_each = var.argocd_automated_sync_enabled ? [1] : []
-        content {
-          prune       = var.argocd_prune_enabled
-          self_heal   = var.argocd_self_heal_enabled
-          allow_empty = false
-        }
-      }
-
-      sync_options = local.default_sync_options
-    }
-  }
-}
-
-resource "argocd_application" "apps" {
-  depends_on = [
-    argocd_repository.litellm_repo,
-    argocd_application.apps_db,
-  ]
-  wait = true
-
-  metadata {
-    name      = "apps"
-    namespace = "argocd"
-    annotations = {
-      "argocd.argoproj.io/sync-wave" = "17"
-    }
-  }
-
-  spec {
-    project = "default"
-
-    source {
-      repo_url        = local.platform_chart_repo_host
-      chart           = local.apps_chart_name
-      target_revision = var.apps_chart_version
-
-      helm {
-        values = local.apps_values
       }
     }
 

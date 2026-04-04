@@ -120,12 +120,6 @@ variable "runners_chart_version" {
   default     = "0.2.0"
 }
 
-variable "apps_chart_version" {
-  type        = string
-  description = "Version of the apps Helm chart published to GHCR"
-  default     = "0.1.0"
-}
-
 variable "chat_app_chart_version" {
   type        = string
   description = "Version of the chat-app Helm chart published to GHCR"
@@ -283,12 +277,6 @@ variable "runners_image_tag" {
   default     = ""
 }
 
-variable "apps_image_tag" {
-  type        = string
-  description = "Optional override for the apps image tag"
-  default     = ""
-}
-
 variable "gateway_image_tag" {
   type        = string
   description = "Override for the gateway image tag"
@@ -373,13 +361,6 @@ variable "runners_db_password" {
   sensitive   = true
 }
 
-variable "apps_db_password" {
-  type        = string
-  description = "Password for the apps PostgreSQL database user"
-  default     = "apps"
-  sensitive   = true
-}
-
 variable "threads_db_password" {
   type        = string
   description = "Password for the threads PostgreSQL database user"
@@ -415,12 +396,6 @@ variable "identity_db_pvc_size" {
 variable "runners_db_pvc_size" {
   type        = string
   description = "Persistent volume claim size for the runners PostgreSQL primary"
-  default     = "5Gi"
-}
-
-variable "apps_db_pvc_size" {
-  type        = string
-  description = "Persistent volume claim size for the apps PostgreSQL primary"
   default     = "5Gi"
 }
 

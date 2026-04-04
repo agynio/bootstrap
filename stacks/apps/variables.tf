@@ -59,6 +59,18 @@ variable "k8s_runner_image_tag" {
   default     = ""
 }
 
+variable "apps_chart_version" {
+  type        = string
+  description = "Version of the apps service image"
+  default     = "0.1.0"
+}
+
+variable "apps_image_tag" {
+  type        = string
+  description = "Optional override for the apps image tag"
+  default     = ""
+}
+
 variable "reminders_db_password" {
   type        = string
   description = "Password for the reminders PostgreSQL database user"
@@ -69,5 +81,18 @@ variable "reminders_db_password" {
 variable "reminders_db_pvc_size" {
   type        = string
   description = "Persistent volume claim size for the reminders PostgreSQL primary"
+  default     = "5Gi"
+}
+
+variable "apps_db_password" {
+  type        = string
+  description = "Password for the apps PostgreSQL database user"
+  default     = "apps"
+  sensitive   = true
+}
+
+variable "apps_db_pvc_size" {
+  type        = string
+  description = "Persistent volume claim size for the apps PostgreSQL primary"
   default     = "5Gi"
 }
