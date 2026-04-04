@@ -17,6 +17,19 @@ variable "argocd_admin_password" {
   sensitive   = true
 }
 
+variable "ghcr_username" {
+  type        = string
+  description = "Optional GHCR username for private chart access"
+  default     = ""
+}
+
+variable "ghcr_token" {
+  type        = string
+  description = "Optional GHCR token for private chart access"
+  default     = ""
+  sensitive   = true
+}
+
 variable "gateway_chart_version" {
   type        = string
   description = "Version of the gateway Helm chart published to GHCR"
@@ -33,12 +46,6 @@ variable "agents_orchestrator_chart_version" {
   type        = string
   description = "Version of the agents-orchestrator Helm chart published to GHCR"
   default     = "0.10.0"
-}
-
-variable "k8s_runner_chart_version" {
-  type        = string
-  description = "Version of the k8s-runner Helm chart published to GHCR"
-  default     = "0.7.0"
 }
 
 variable "threads_chart_version" {
@@ -111,6 +118,12 @@ variable "runners_chart_version" {
   type        = string
   description = "Version of the runners Helm chart published to GHCR"
   default     = "0.2.0"
+}
+
+variable "apps_chart_version" {
+  type        = string
+  description = "Version of the apps Helm chart published to GHCR"
+  default     = "0.1.0"
 }
 
 variable "chat_app_chart_version" {
@@ -198,12 +211,6 @@ variable "agents_orchestrator_image_tag" {
   default     = ""
 }
 
-variable "k8s_runner_image_tag" {
-  type        = string
-  description = "Optional override for the k8s-runner image tag"
-  default     = ""
-}
-
 variable "threads_image_tag" {
   type        = string
   description = "Optional override for the threads image tag"
@@ -273,6 +280,12 @@ variable "identity_image_tag" {
 variable "runners_image_tag" {
   type        = string
   description = "Optional override for the runners image tag"
+  default     = ""
+}
+
+variable "apps_image_tag" {
+  type        = string
+  description = "Optional override for the apps image tag"
   default     = ""
 }
 
@@ -360,6 +373,13 @@ variable "runners_db_password" {
   sensitive   = true
 }
 
+variable "apps_db_password" {
+  type        = string
+  description = "Password for the apps PostgreSQL database user"
+  default     = "apps"
+  sensitive   = true
+}
+
 variable "threads_db_password" {
   type        = string
   description = "Password for the threads PostgreSQL database user"
@@ -395,6 +415,12 @@ variable "identity_db_pvc_size" {
 variable "runners_db_pvc_size" {
   type        = string
   description = "Persistent volume claim size for the runners PostgreSQL primary"
+  default     = "5Gi"
+}
+
+variable "apps_db_pvc_size" {
+  type        = string
+  description = "Persistent volume claim size for the apps PostgreSQL primary"
   default     = "5Gi"
 }
 

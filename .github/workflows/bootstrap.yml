@@ -32,7 +32,7 @@ jobs:
         with:
           terraform_version: 1.6.6
 
-      - name: Apply all stacks (k8s -> system -> routing -> minio -> platform)
+      - name: Apply all stacks (k8s -> system -> routing -> minio -> platform -> apps)
         run: ./apply.sh -y
 
       - name: Verify platform workloads and Argo CD health

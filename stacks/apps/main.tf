@@ -1,9 +1,11 @@
 locals {
-  resolved_reminders_image_tag = trimspace(var.reminders_image_tag) != "" ? var.reminders_image_tag : format("v%s", var.reminders_chart_version)
-  platform_chart_repo_host     = "ghcr.io"
-  postgres_chart_repo_host     = "ghcr.io"
-  postgres_chart_name          = "agynio/charts/postgres-helm"
-  reminders_chart_name         = "agynio/charts/reminders"
+  resolved_reminders_image_tag  = trimspace(var.reminders_image_tag) != "" ? var.reminders_image_tag : format("v%s", var.reminders_chart_version)
+  resolved_k8s_runner_image_tag = trimspace(var.k8s_runner_image_tag) != "" ? var.k8s_runner_image_tag : var.k8s_runner_chart_version
+  platform_chart_repo_host      = "ghcr.io"
+  postgres_chart_repo_host      = "ghcr.io"
+  postgres_chart_name           = "agynio/charts/postgres-helm"
+  reminders_chart_name          = "agynio/charts/reminders"
+  k8s_runner_chart_name         = "agynio/charts/k8s-runner"
 
   default_sync_options = [
     "CreateNamespace=true",
@@ -100,10 +102,68 @@ locals {
       },
     ]
   })
-}
 
-data "argocd_repository" "ghcr" {
-  repo = local.platform_chart_repo_host
+  k8s_runner_values = yamlencode({
+    replicaCount     = 1
+    fullnameOverride = "k8s-runner"
+    image = {
+      repository = "ghcr.io/agynio/k8s-runner"
+      tag        = local.resolved_k8s_runner_image_tag
+      pullPolicy = "IfNotPresent"
+    }
+    rbac = {
+      clusterWide = true
+    }
+    securityContext = {
+      runAsNonRoot             = true
+      runAsUser                = 100
+      runAsGroup               = 101
+      readOnlyRootFilesystem   = true
+      allowPrivilegeEscalation = false
+    }
+    env = [
+      {
+        name  = "KUBE_NAMESPACE"
+        value = "agyn-workloads"
+      },
+      {
+        name  = "ZITI_ENABLED"
+        value = "true"
+      },
+      {
+        name  = "GATEWAY_ADDRESS"
+        value = "gateway-gateway:8080"
+      },
+      {
+        name = "SERVICE_TOKEN"
+        valueFrom = {
+          secretKeyRef = {
+            name = "k8s-runner-service-token"
+            key  = "token"
+          }
+        }
+      }
+    ]
+    containerPorts = [
+      {
+        name          = "grpc"
+        containerPort = 50051
+        protocol      = "TCP"
+      }
+    ]
+    service = {
+      enabled = true
+      type    = "ClusterIP"
+      ports = [
+        {
+          name       = "grpc"
+          port       = 50051
+          targetPort = "grpc"
+          protocol   = "TCP"
+        }
+      ]
+    }
+  })
 }
 
 resource "agyn_app" "reminders" {
@@ -126,8 +186,7 @@ resource "kubernetes_secret_v1" "reminders_service_token" {
 }
 
 resource "argocd_application" "reminders_db" {
-  depends_on = [data.argocd_repository.ghcr]
-  wait       = true
+  wait = true
 
   metadata {
     name      = "reminders-db"
@@ -176,7 +235,6 @@ resource "argocd_application" "reminders_db" {
 
 resource "argocd_application" "reminders" {
   depends_on = [
-    data.argocd_repository.ghcr,
     argocd_application.reminders_db,
     kubernetes_secret_v1.reminders_service_token,
   ]
@@ -199,6 +257,66 @@ resource "argocd_application" "reminders" {
 
       helm {
         values = local.reminders_values
+      }
+    }
+
+    destination {
+      server    = var.destination_server
+      namespace = var.platform_namespace
+    }
+
+    sync_policy {
+      automated {
+        prune       = true
+        self_heal   = true
+        allow_empty = false
+      }
+
+      sync_options = local.default_sync_options
+    }
+  }
+}
+
+resource "agyn_runner" "k8s_runner" {
+  name = "k8s-runner"
+}
+
+resource "kubernetes_secret_v1" "k8s_runner_service_token" {
+  metadata {
+    name      = "k8s-runner-service-token"
+    namespace = var.platform_namespace
+  }
+
+  type = "Opaque"
+
+  data = {
+    token = agyn_runner.k8s_runner.service_token
+  }
+}
+
+resource "argocd_application" "k8s_runner" {
+  depends_on = [
+    kubernetes_secret_v1.k8s_runner_service_token,
+  ]
+
+  metadata {
+    name      = "k8s-runner"
+    namespace = "argocd"
+    annotations = {
+      "argocd.argoproj.io/sync-wave" = "18"
+    }
+  }
+
+  spec {
+    project = "default"
+
+    source {
+      repo_url        = local.platform_chart_repo_host
+      chart           = local.k8s_runner_chart_name
+      target_revision = var.k8s_runner_chart_version
+
+      helm {
+        values = local.k8s_runner_values
       }
     }
 
