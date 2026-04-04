@@ -47,6 +47,18 @@ variable "reminders_image_tag" {
   default     = ""
 }
 
+variable "k8s_runner_chart_version" {
+  type        = string
+  description = "Version of the k8s-runner Helm chart published to GHCR"
+  default     = "0.7.0"
+}
+
+variable "k8s_runner_image_tag" {
+  type        = string
+  description = "Optional override for the k8s-runner image tag"
+  default     = ""
+}
+
 variable "reminders_db_password" {
   type        = string
   description = "Password for the reminders PostgreSQL database user"
