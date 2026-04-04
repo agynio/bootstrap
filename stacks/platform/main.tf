@@ -2,7 +2,6 @@ locals {
   resolved_gateway_image_tag             = trimspace(var.gateway_image_tag) != "" ? var.gateway_image_tag : var.gateway_chart_version
   resolved_agent_state_image_tag         = trimspace(var.agent_state_image_tag) != "" ? var.agent_state_image_tag : format("v%s", var.agent_state_chart_version)
   resolved_agents_orchestrator_image_tag = trimspace(var.agents_orchestrator_image_tag) != "" ? var.agents_orchestrator_image_tag : var.agents_orchestrator_chart_version
-  resolved_k8s_runner_image_tag          = trimspace(var.k8s_runner_image_tag) != "" ? var.k8s_runner_image_tag : var.k8s_runner_chart_version
   resolved_threads_image_tag             = trimspace(var.threads_image_tag) != "" ? var.threads_image_tag : var.threads_chart_version
   resolved_tracing_image_tag             = trimspace(var.tracing_image_tag) != "" ? var.tracing_image_tag : format("v%s", var.tracing_chart_version)
   resolved_chat_image_tag                = trimspace(var.chat_image_tag) != "" ? var.chat_image_tag : var.chat_chart_version
@@ -22,6 +21,7 @@ locals {
   resolved_authorization_image_tag       = trimspace(var.authorization_image_tag) != "" ? var.authorization_image_tag : format("v%s", var.authorization_chart_version)
   resolved_identity_image_tag            = trimspace(var.identity_image_tag) != "" ? var.identity_image_tag : var.identity_chart_version
   resolved_runners_image_tag             = trimspace(var.runners_image_tag) != "" ? var.runners_image_tag : var.runners_chart_version
+  resolved_apps_image_tag                = trimspace(var.apps_image_tag) != "" ? var.apps_image_tag : var.apps_chart_version
 
   postgres_image                 = "postgres:16.6-alpine"
   vault_chart_version            = "0.28.1"
@@ -41,7 +41,6 @@ locals {
   postgres_chart_name            = "agynio/charts/postgres-helm"
   agent_state_chart_name         = "agynio/charts/agent-state"
   agents_orchestrator_chart_name = "agynio/charts/agents-orchestrator"
-  k8s_runner_chart_name          = "agynio/charts/k8s-runner"
   threads_chart_name             = "agynio/charts/threads"
   tracing_chart_name             = "agynio/charts/tracing"
   chat_chart_name                = "agynio/charts/chat"
@@ -62,6 +61,7 @@ locals {
   authorization_chart_name       = "agynio/charts/authorization"
   identity_chart_name            = "agynio/charts/identity"
   runners_chart_name             = "agynio/charts/runners"
+  apps_chart_name                = "agynio/charts/apps"
   istio_gateway_namespace        = data.terraform_remote_state.system.outputs.istio_gateway_namespace
   istio_gateway_tls_secret_name  = data.terraform_remote_state.system.outputs.wildcard_tls_gateway_secret_name
   openfga_api_url_external       = format("https://openfga.%s:%d", local.base_domain, local.ingress_port)
@@ -796,6 +796,29 @@ locals {
     }
   })
 
+  apps_db_values = yamlencode({
+    fullnameOverride = "apps-db"
+    postgres = {
+      database = "apps"
+      username = "apps"
+      password = var.apps_db_password
+      pgdata   = "/var/lib/postgresql/data/pgdata"
+    }
+    persistence = {
+      size                    = var.apps_db_pvc_size
+      mountPath               = "/var/lib/postgresql/data"
+      volumeClaimTemplateName = "data"
+    }
+    probes = {
+      readiness = {
+        execCommand = ["pg_isready", "-U", "apps", "-d", "apps"]
+      }
+      liveness = {
+        execCommand = ["pg_isready", "-U", "apps", "-d", "apps"]
+      }
+    }
+  })
+
   litellm_values = yamlencode({
     fullnameOverride = "litellm"
     replicaCount     = 1
@@ -1077,57 +1100,20 @@ locals {
     ]
   })
 
-  k8s_runner_values = yamlencode({
+  apps_values = yamlencode({
     replicaCount     = 1
-    fullnameOverride = "k8s-runner"
+    fullnameOverride = "apps"
     image = {
-      repository = "ghcr.io/agynio/k8s-runner"
-      tag        = local.resolved_k8s_runner_image_tag
+      repository = "ghcr.io/agynio/apps"
+      tag        = local.resolved_apps_image_tag
       pullPolicy = "IfNotPresent"
-    }
-    rbac = {
-      clusterWide = true
-    }
-    securityContext = {
-      runAsNonRoot             = true
-      runAsUser                = 100
-      runAsGroup               = 101
-      readOnlyRootFilesystem   = true
-      allowPrivilegeEscalation = false
     }
     env = [
       {
-        name  = "KUBE_NAMESPACE"
-        value = "agyn-workloads"
+        name  = "DATABASE_URL"
+        value = format("postgresql://apps:%s@apps-db:5432/apps?sslmode=disable", var.apps_db_password)
       },
-      {
-        name  = "ZITI_ENABLED"
-        value = "true"
-      },
-      {
-        name  = "RUNNER_ID"
-        value = var.k8s_runner_identity_id
-      }
     ]
-    containerPorts = [
-      {
-        name          = "grpc"
-        containerPort = 50051
-        protocol      = "TCP"
-      }
-    ]
-    service = {
-      enabled = true
-      type    = "ClusterIP"
-      ports = [
-        {
-          name       = "grpc"
-          port       = 50051
-          targetPort = "grpc"
-          protocol   = "TCP"
-        }
-      ]
-    }
   })
 
   agents_orchestrator_values = yamlencode({
@@ -1173,6 +1159,10 @@ locals {
       {
         name  = "RUNNER_ADDRESS"
         value = "k8s-runner:50051"
+      },
+      {
+        name  = "RUNNERS_ADDRESS"
+        value = "runners:50051"
       }
     ]
   })
@@ -2442,14 +2432,16 @@ resource "argocd_repository" "bitnami_repo" {
   repo = "https://charts.bitnami.com/bitnami"
   type = "helm"
 }
-resource "argocd_repository" "litellm_repo" {
+resource "argocd_repository" "ghcr" {
   repo       = local.litellm_chart_repo_host
   type       = "helm"
   enable_oci = true
+  username   = trimspace(var.ghcr_username) != "" ? var.ghcr_username : null
+  password   = trimspace(var.ghcr_token) != "" ? var.ghcr_token : null
 }
 
 resource "argocd_application" "platform_db" {
-  depends_on = [argocd_repository.litellm_repo]
+  depends_on = [argocd_repository.ghcr]
   wait       = true
 
   metadata {
@@ -2499,7 +2491,7 @@ resource "argocd_application" "platform_db" {
 }
 
 resource "argocd_application" "litellm_db" {
-  depends_on = [argocd_repository.litellm_repo]
+  depends_on = [argocd_repository.ghcr]
   wait       = true
 
   metadata {
@@ -2549,7 +2541,7 @@ resource "argocd_application" "litellm_db" {
 }
 
 resource "argocd_application" "agent_state_db" {
-  depends_on = [argocd_repository.litellm_repo]
+  depends_on = [argocd_repository.ghcr]
   wait       = true
 
   metadata {
@@ -2599,7 +2591,7 @@ resource "argocd_application" "agent_state_db" {
 }
 
 resource "argocd_application" "threads_db" {
-  depends_on = [argocd_repository.litellm_repo]
+  depends_on = [argocd_repository.ghcr]
   wait       = true
 
   metadata {
@@ -2649,7 +2641,7 @@ resource "argocd_application" "threads_db" {
 }
 
 resource "argocd_application" "tracing_db" {
-  depends_on = [argocd_repository.litellm_repo]
+  depends_on = [argocd_repository.ghcr]
   wait       = true
 
   metadata {
@@ -2699,7 +2691,7 @@ resource "argocd_application" "tracing_db" {
 }
 
 resource "argocd_application" "secrets_db" {
-  depends_on = [argocd_repository.litellm_repo]
+  depends_on = [argocd_repository.ghcr]
   wait       = true
 
   metadata {
@@ -2749,7 +2741,7 @@ resource "argocd_application" "secrets_db" {
 }
 
 resource "argocd_application" "llm_db" {
-  depends_on = [argocd_repository.litellm_repo]
+  depends_on = [argocd_repository.ghcr]
   wait       = true
 
   metadata {
@@ -2799,7 +2791,7 @@ resource "argocd_application" "llm_db" {
 }
 
 resource "argocd_application" "agents_db" {
-  depends_on = [argocd_repository.litellm_repo]
+  depends_on = [argocd_repository.ghcr]
   wait       = true
 
   metadata {
@@ -2849,7 +2841,7 @@ resource "argocd_application" "agents_db" {
 }
 
 resource "argocd_application" "ziti_management_db" {
-  depends_on = [argocd_repository.litellm_repo]
+  depends_on = [argocd_repository.ghcr]
   wait       = true
 
   metadata {
@@ -2899,7 +2891,7 @@ resource "argocd_application" "ziti_management_db" {
 }
 
 resource "argocd_application" "users_db" {
-  depends_on = [argocd_repository.litellm_repo]
+  depends_on = [argocd_repository.ghcr]
   wait       = true
 
   metadata {
@@ -2949,7 +2941,7 @@ resource "argocd_application" "users_db" {
 }
 
 resource "argocd_application" "tenants_db" {
-  depends_on = [argocd_repository.litellm_repo]
+  depends_on = [argocd_repository.ghcr]
   wait       = true
 
   metadata {
@@ -2999,7 +2991,7 @@ resource "argocd_application" "tenants_db" {
 }
 
 resource "argocd_application" "agents_orchestrator_db" {
-  depends_on = [argocd_repository.litellm_repo]
+  depends_on = [argocd_repository.ghcr]
   wait       = true
 
   metadata {
@@ -3049,7 +3041,7 @@ resource "argocd_application" "agents_orchestrator_db" {
 }
 
 resource "argocd_application" "identity_db" {
-  depends_on = [argocd_repository.litellm_repo]
+  depends_on = [argocd_repository.ghcr]
   wait       = true
 
   metadata {
@@ -3099,7 +3091,7 @@ resource "argocd_application" "identity_db" {
 }
 
 resource "argocd_application" "runners_db" {
-  depends_on = [argocd_repository.litellm_repo]
+  depends_on = [argocd_repository.ghcr]
   wait       = true
 
   metadata {
@@ -3120,6 +3112,56 @@ resource "argocd_application" "runners_db" {
 
       helm {
         values = local.runners_db_values
+      }
+    }
+
+    destination {
+      server    = var.destination_server
+      namespace = var.platform_namespace
+    }
+
+    sync_policy {
+      # DB apps always use automated sync with prune disabled for stateful safety,
+      # independent of var.argocd_automated_sync_enabled.
+      automated {
+        prune       = false
+        self_heal   = true
+        allow_empty = false
+      }
+
+      sync_options = local.postgres_sync_options
+    }
+  }
+
+  timeouts {
+    create = "5m"
+    update = "5m"
+    delete = "5m"
+  }
+}
+
+resource "argocd_application" "apps_db" {
+  depends_on = [argocd_repository.ghcr]
+  wait       = true
+
+  metadata {
+    name      = "apps-db"
+    namespace = "argocd"
+    annotations = {
+      "argocd.argoproj.io/sync-wave" = "8"
+    }
+  }
+
+  spec {
+    project = "default"
+
+    source {
+      repo_url        = local.postgres_chart_repo_host
+      chart           = local.postgres_chart_name
+      target_revision = var.postgres_chart_version
+
+      helm {
+        values = local.apps_db_values
       }
     }
 
@@ -3246,7 +3288,7 @@ resource "argocd_application" "registry_mirror" {
 
 resource "argocd_application" "litellm" {
   depends_on = [
-    argocd_repository.litellm_repo,
+    argocd_repository.ghcr,
     argocd_application.litellm_db,
   ]
   metadata {
@@ -3291,7 +3333,7 @@ resource "argocd_application" "litellm" {
 }
 
 resource "argocd_application" "ncps" {
-  depends_on = [argocd_repository.litellm_repo]
+  depends_on = [argocd_repository.ghcr]
   metadata {
     name      = "ncps"
     namespace = "argocd"
@@ -3335,7 +3377,7 @@ resource "argocd_application" "ncps" {
 
 resource "argocd_application" "agent_state" {
   depends_on = [
-    argocd_repository.litellm_repo,
+    argocd_repository.ghcr,
     argocd_application.agent_state_db,
   ]
   metadata {
@@ -3381,7 +3423,7 @@ resource "argocd_application" "agent_state" {
 
 resource "argocd_application" "threads" {
   depends_on = [
-    argocd_repository.litellm_repo,
+    argocd_repository.ghcr,
     argocd_application.threads_db,
   ]
   metadata {
@@ -3427,7 +3469,7 @@ resource "argocd_application" "threads" {
 
 resource "argocd_application" "tracing" {
   depends_on = [
-    argocd_repository.litellm_repo,
+    argocd_repository.ghcr,
     argocd_application.tracing_db,
   ]
   metadata {
@@ -3473,7 +3515,7 @@ resource "argocd_application" "tracing" {
 
 resource "argocd_application" "chat" {
   depends_on = [
-    argocd_repository.litellm_repo,
+    argocd_repository.ghcr,
     argocd_application.threads,
   ]
   metadata {
@@ -3519,7 +3561,7 @@ resource "argocd_application" "chat" {
 
 resource "argocd_application" "secrets" {
   depends_on = [
-    argocd_repository.litellm_repo,
+    argocd_repository.ghcr,
     argocd_application.secrets_db,
   ]
   metadata {
@@ -3565,7 +3607,7 @@ resource "argocd_application" "secrets" {
 
 resource "argocd_application" "authorization" {
   depends_on = [
-    argocd_repository.litellm_repo,
+    argocd_repository.ghcr,
     module.openfga_authorization,
   ]
   metadata {
@@ -3611,7 +3653,7 @@ resource "argocd_application" "authorization" {
 
 resource "argocd_application" "identity" {
   depends_on = [
-    argocd_repository.litellm_repo,
+    argocd_repository.ghcr,
     argocd_application.identity_db,
   ]
   metadata {
@@ -3656,7 +3698,7 @@ resource "argocd_application" "identity" {
 }
 
 resource "argocd_application" "token_counting" {
-  depends_on = [argocd_repository.litellm_repo]
+  depends_on = [argocd_repository.ghcr]
   metadata {
     name      = "token-counting"
     namespace = "argocd"
@@ -3743,10 +3785,11 @@ resource "argocd_application" "notifications_redis" {
 
 resource "argocd_application" "runners" {
   depends_on = [
-    argocd_repository.litellm_repo,
+    argocd_repository.ghcr,
     argocd_application.runners_db,
     argocd_application.identity,
     argocd_application.authorization,
+    argocd_application.ziti_management,
   ]
   metadata {
     name      = "runners"
@@ -3789,9 +3832,58 @@ resource "argocd_application" "runners" {
   }
 }
 
+resource "argocd_application" "apps" {
+  depends_on = [
+    argocd_repository.ghcr,
+    argocd_application.apps_db,
+    argocd_application.identity,
+    argocd_application.authorization,
+    argocd_application.ziti_management,
+  ]
+  metadata {
+    name      = "apps"
+    namespace = "argocd"
+    annotations = {
+      "argocd.argoproj.io/sync-wave" = "17"
+    }
+  }
+
+  spec {
+    project = "default"
+
+    source {
+      repo_url        = local.platform_chart_repo_host
+      chart           = local.apps_chart_name
+      target_revision = var.apps_chart_version
+
+      helm {
+        values = local.apps_values
+      }
+    }
+
+    destination {
+      server    = var.destination_server
+      namespace = var.platform_namespace
+    }
+
+    sync_policy {
+      dynamic "automated" {
+        for_each = var.argocd_automated_sync_enabled ? [1] : []
+        content {
+          prune       = var.argocd_prune_enabled
+          self_heal   = var.argocd_self_heal_enabled
+          allow_empty = false
+        }
+      }
+
+      sync_options = local.default_sync_options
+    }
+  }
+}
+
 resource "argocd_application" "agents" {
   depends_on = [
-    argocd_repository.litellm_repo,
+    argocd_repository.ghcr,
     argocd_application.agents_db,
   ]
   metadata {
@@ -3837,7 +3929,7 @@ resource "argocd_application" "agents" {
 
 resource "argocd_application" "ziti_management" {
   depends_on = [
-    argocd_repository.litellm_repo,
+    argocd_repository.ghcr,
     argocd_application.ziti_management_db,
   ]
 
@@ -3884,7 +3976,7 @@ resource "argocd_application" "ziti_management" {
 
 resource "argocd_application" "users" {
   depends_on = [
-    argocd_repository.litellm_repo,
+    argocd_repository.ghcr,
     argocd_application.users_db,
   ]
   wait = true
@@ -3931,7 +4023,7 @@ resource "argocd_application" "users" {
 
 resource "argocd_application" "tenants" {
   depends_on = [
-    argocd_repository.litellm_repo,
+    argocd_repository.ghcr,
     argocd_application.tenants_db,
     argocd_application.authorization,
   ]
@@ -3978,7 +4070,7 @@ resource "argocd_application" "tenants" {
 
 resource "argocd_application" "llm" {
   depends_on = [
-    argocd_repository.litellm_repo,
+    argocd_repository.ghcr,
     argocd_application.llm_db,
   ]
   metadata {
@@ -4029,7 +4121,7 @@ resource "minio_s3_bucket" "files" {
 
 resource "argocd_application" "files" {
   depends_on = [
-    argocd_repository.litellm_repo,
+    argocd_repository.ghcr,
     kubernetes_stateful_set_v1.files_db,
     minio_s3_bucket.files,
   ]
@@ -4076,7 +4168,7 @@ resource "argocd_application" "files" {
 
 resource "argocd_application" "notifications" {
   depends_on = [
-    argocd_repository.litellm_repo,
+    argocd_repository.ghcr,
     argocd_application.notifications_redis,
   ]
   metadata {
@@ -4120,61 +4212,15 @@ resource "argocd_application" "notifications" {
   }
 }
 
-resource "argocd_application" "k8s_runner" {
-  depends_on = [
-    argocd_repository.litellm_repo,
-    kubernetes_namespace_v1.agyn_workloads,
-  ]
-  metadata {
-    name      = "k8s-runner"
-    namespace = "argocd"
-    annotations = {
-      "argocd.argoproj.io/sync-wave" = "18"
-    }
-  }
-
-  spec {
-    project = "default"
-
-    source {
-      repo_url        = local.platform_chart_repo_host
-      chart           = local.k8s_runner_chart_name
-      target_revision = var.k8s_runner_chart_version
-
-      helm {
-        values = local.k8s_runner_values
-      }
-    }
-
-    destination {
-      server    = var.destination_server
-      namespace = var.platform_namespace
-    }
-
-    sync_policy {
-      dynamic "automated" {
-        for_each = var.argocd_automated_sync_enabled ? [1] : []
-        content {
-          prune       = var.argocd_prune_enabled
-          self_heal   = var.argocd_self_heal_enabled
-          allow_empty = false
-        }
-      }
-
-      sync_options = local.default_sync_options
-    }
-  }
-}
-
 resource "argocd_application" "agents_orchestrator" {
   depends_on = [
-    argocd_repository.litellm_repo,
+    argocd_repository.ghcr,
     argocd_application.agents_orchestrator_db,
     argocd_application.threads,
     argocd_application.notifications,
     argocd_application.agents,
-    argocd_application.k8s_runner,
     argocd_application.secrets,
+    argocd_application.runners,
   ]
   metadata {
     name      = "agents-orchestrator"
@@ -4218,7 +4264,7 @@ resource "argocd_application" "agents_orchestrator" {
 }
 
 resource "argocd_application" "chat_app" {
-  depends_on = [argocd_repository.litellm_repo]
+  depends_on = [argocd_repository.ghcr]
   metadata {
     name      = "chat-app"
     namespace = "argocd"
@@ -4261,7 +4307,7 @@ resource "argocd_application" "chat_app" {
 }
 
 resource "argocd_application" "console_app" {
-  depends_on = [argocd_repository.litellm_repo]
+  depends_on = [argocd_repository.ghcr]
   metadata {
     name      = "console-app"
     namespace = "argocd"
@@ -4304,7 +4350,7 @@ resource "argocd_application" "console_app" {
 }
 
 resource "argocd_application" "tracing_app" {
-  depends_on = [argocd_repository.litellm_repo]
+  depends_on = [argocd_repository.ghcr]
   metadata {
     name      = "tracing-app"
     namespace = "argocd"
@@ -4348,6 +4394,7 @@ resource "argocd_application" "tracing_app" {
 
 resource "argocd_application" "gateway" {
   depends_on = [argocd_application.llm, argocd_application.ziti_management]
+  wait       = true
   metadata {
     name      = "gateway"
     namespace = "argocd"
