@@ -131,10 +131,6 @@ locals {
         value = "true"
       },
       {
-        name  = "RUNNER_ID"
-        value = agyn_runner.k8s_runner.identity_id
-      },
-      {
         name  = "GATEWAY_ADDRESS"
         value = "gateway-gateway:8080"
       },
@@ -289,9 +285,20 @@ resource "argocd_application" "reminders" {
   }
 }
 
+resource "terraform_data" "k8s_runner_identity" {
+  input = local.resolved_k8s_runner_image_tag
+}
+
 resource "agyn_runner" "k8s_runner" {
-  name   = "k8s-runner"
-  labels = {}
+  name = "k8s-runner"
+  labels = {
+    type = "kubernetes"
+  }
+
+  lifecycle {
+    ignore_changes       = [labels]
+    replace_triggered_by = [terraform_data.k8s_runner_identity]
+  }
 }
 
 resource "kubernetes_secret_v1" "k8s_runner_service_token" {
