@@ -20,7 +20,7 @@ variable "argocd_admin_password" {
 variable "gateway_chart_version" {
   type        = string
   description = "Version of the gateway Helm chart published to GHCR"
-  default     = "0.16.0"
+  default     = "0.17.0"
 }
 
 variable "agent_state_chart_version" {
