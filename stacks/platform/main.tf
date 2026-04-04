@@ -928,21 +928,10 @@ locals {
       tag        = local.resolved_secrets_image_tag
       pullPolicy = "IfNotPresent"
     }
-    configMounts = [
-      {
-        name       = "encryption-key"
-        sourceName = "secrets-encryption-key"
-        type       = "secret"
-        mountPath  = "/etc/secrets-encryption"
-        readOnly   = true
-      },
-    ]
-    env = [
-      {
-        name  = "ENCRYPTION_KEY_FILE"
-        value = "/etc/secrets-encryption/encryptionKey"
-      },
-    ]
+    secrets = {
+      encryptionKeyFile       = "/etc/secrets-encryption/encryptionKey"
+      encryptionKeySecretName = "secrets-encryption-key"
+    }
   })
 
   agents_values = yamlencode({
