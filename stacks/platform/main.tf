@@ -4216,6 +4216,7 @@ resource "argocd_application" "agents_orchestrator" {
   depends_on = [
     argocd_repository.ghcr,
     argocd_application.agents_orchestrator_db,
+    argocd_application.ziti_management,
     argocd_application.threads,
     argocd_application.notifications,
     argocd_application.agents,
