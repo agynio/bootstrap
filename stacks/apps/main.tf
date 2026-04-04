@@ -166,12 +166,6 @@ locals {
   })
 }
 
-# The GHCR OCI repository (ghcr.io) is managed by stacks/platform
-# (argocd_repository.litellm_repo). apply.sh guarantees platform
-# runs before apps, so the repo exists by the time this stack applies.
-# This resource is a no-op dependency anchor documenting the cross-stack contract.
-resource "terraform_data" "ghcr_repo_dependency" {}
-
 resource "agyn_app" "reminders" {
   slug        = "reminders"
   name        = "Reminders"
@@ -192,8 +186,7 @@ resource "kubernetes_secret_v1" "reminders_service_token" {
 }
 
 resource "argocd_application" "reminders_db" {
-  depends_on = [terraform_data.ghcr_repo_dependency]
-  wait       = true
+  wait = true
 
   metadata {
     name      = "reminders-db"
@@ -242,7 +235,6 @@ resource "argocd_application" "reminders_db" {
 
 resource "argocd_application" "reminders" {
   depends_on = [
-    terraform_data.ghcr_repo_dependency,
     argocd_application.reminders_db,
     kubernetes_secret_v1.reminders_service_token,
   ]
@@ -307,7 +299,6 @@ resource "kubernetes_secret_v1" "k8s_runner_service_token" {
 
 resource "argocd_application" "k8s_runner" {
   depends_on = [
-    terraform_data.ghcr_repo_dependency,
     kubernetes_secret_v1.k8s_runner_service_token,
   ]
 
