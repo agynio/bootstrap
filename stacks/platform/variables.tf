@@ -291,7 +291,7 @@ variable "apps_image_tag" {
 
 variable "gateway_image_tag" {
   type        = string
-  description = "Override for the gateway image tag"
+  description = "Optional override for the gateway image tag"
   default     = ""
 }
 
