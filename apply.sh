@@ -480,6 +480,71 @@ step_start "stack:platform"
 run_stack "platform"
 step_end "stack:platform"
 
+echo "=== Waiting for platform ArgoCD applications to sync ==="
+for app in gateway apps runners; do
+  echo "--- Waiting for ${app} ---"
+  synced=0
+  for i in $(seq 1 60); do
+    sync_status=$(kubectl --kubeconfig "${KUBECONFIG_PATH}" \
+      -n argocd get application "${app}" \
+      -o jsonpath='{.status.sync.status}' 2>/dev/null || echo "Unknown")
+    health_status=$(kubectl --kubeconfig "${KUBECONFIG_PATH}" \
+      -n argocd get application "${app}" \
+      -o jsonpath='{.status.health.status}' 2>/dev/null || echo "Unknown")
+
+    if [[ "${sync_status}" == "Synced" && "${health_status}" == "Healthy" ]]; then
+      echo "${app}: Synced and Healthy"
+      synced=1
+      break
+    fi
+    echo "  ${app}: sync=${sync_status} health=${health_status} (${i}/60)"
+    sleep 10
+  done
+
+  if [[ "${synced}" -ne 1 ]]; then
+    echo "ERROR: ${app} did not become Synced+Healthy within timeout"
+    echo "--- Full Application status ---"
+    kubectl --kubeconfig "${KUBECONFIG_PATH}" \
+      -n argocd get application "${app}" -o yaml 2>&1 || true
+    echo "--- ${app} namespace pods ---"
+    ns=$(kubectl --kubeconfig "${KUBECONFIG_PATH}" \
+      -n argocd get application "${app}" \
+      -o jsonpath='{.spec.destination.namespace}' 2>/dev/null || echo "unknown")
+    kubectl --kubeconfig "${KUBECONFIG_PATH}" \
+      -n "${ns}" get pods -o wide 2>&1 || true
+    echo "--- ${app} namespace events ---"
+    kubectl --kubeconfig "${KUBECONFIG_PATH}" \
+      -n "${ns}" get events --sort-by='.lastTimestamp' 2>&1 | tail -30 || true
+    exit 1
+  fi
+done
+
+echo "=== Waiting for gateway HTTP endpoint ==="
+gateway_base_url="https://gateway.${domain}:${port}"
+gateway_paths=("/healthz" "/health" "/readyz" "/version" "/")
+gateway_ready=0
+for i in $(seq 1 60); do
+  for path in "${gateway_paths[@]}"; do
+    status=$(curl -sk -o /dev/null -w '%{http_code}' "${gateway_base_url}${path}" || true)
+    if [[ "${status}" =~ ^[0-9]{3}$ ]] && (( status >= 200 && status < 500 )); then
+      echo "Gateway responded on ${gateway_base_url}${path} (status ${status})."
+      gateway_ready=1
+      break
+    fi
+  done
+
+  if [[ "${gateway_ready}" -eq 1 ]]; then
+    break
+  fi
+  echo "Waiting for gateway HTTP endpoint... (${i}/60)"
+  sleep 5
+done
+
+if [[ "${gateway_ready}" -ne 1 ]]; then
+  echo "ERROR: Gateway did not become ready at ${gateway_base_url}" >&2
+  exit 1
+fi
+
 step_start "stack:apps"
 run_stack "apps"
 step_end "stack:apps"
