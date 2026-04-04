@@ -928,6 +928,10 @@ locals {
       tag        = local.resolved_secrets_image_tag
       pullPolicy = "IfNotPresent"
     }
+    secrets = {
+      encryptionKeyFile       = "/etc/secrets-encryption/encryptionKey"
+      encryptionKeySecretName = "secrets-encryption-key"
+    }
   })
 
   agents_values = yamlencode({
@@ -1788,6 +1792,19 @@ resource "kubernetes_secret" "litellm_master_key" {
   }
 
   type = "Opaque"
+}
+
+resource "kubernetes_secret_v1" "secrets_encryption_key" {
+  metadata {
+    name      = "secrets-encryption-key"
+    namespace = kubernetes_namespace.platform.metadata[0].name
+  }
+
+  type = "Opaque"
+
+  data = {
+    encryptionKey = var.secrets_encryption_key
+  }
 }
 
 resource "kubernetes_config_map_v1" "vault_auto_init" {

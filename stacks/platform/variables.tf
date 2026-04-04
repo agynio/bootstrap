@@ -601,6 +601,13 @@ variable "secrets_db_pvc_size" {
   default     = "5Gi"
 }
 
+variable "secrets_encryption_key" {
+  type        = string
+  description = "Symmetric encryption key for locally-stored secret values in the Secrets service"
+  default     = "dev-encryption-key-32bytes!!@#$%"
+  sensitive   = true
+}
+
 variable "authorization_chart_version" {
   type        = string
   description = "Version of the authorization Helm chart published to GHCR"
