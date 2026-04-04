@@ -131,6 +131,10 @@ locals {
         value = "true"
       },
       {
+        name  = "RUNNER_ID"
+        value = agyn_runner.k8s_runner.identity_id
+      },
+      {
         name  = "GATEWAY_ADDRESS"
         value = "gateway-gateway:8080"
       },
@@ -166,6 +170,18 @@ locals {
   })
 }
 
+resource "argocd_repository" "ghcr" {
+  repo       = local.platform_chart_repo_host
+  type       = "helm"
+  enable_oci = true
+}
+
+resource "agyn_app" "reminders" {
+  slug        = "reminders"
+  name        = "Reminders"
+  description = "Delayed message delivery to threads"
+}
+
 resource "kubernetes_secret_v1" "reminders_service_token" {
   metadata {
     name      = "reminders-service-token"
@@ -175,12 +191,13 @@ resource "kubernetes_secret_v1" "reminders_service_token" {
   type = "Opaque"
 
   data = {
-    token = var.reminders_service_token
+    token = agyn_app.reminders.service_token
   }
 }
 
 resource "argocd_application" "reminders_db" {
-  wait = true
+  depends_on = [argocd_repository.ghcr]
+  wait       = true
 
   metadata {
     name      = "reminders-db"
@@ -229,6 +246,7 @@ resource "argocd_application" "reminders_db" {
 
 resource "argocd_application" "reminders" {
   depends_on = [
+    argocd_repository.ghcr,
     argocd_application.reminders_db,
     kubernetes_secret_v1.reminders_service_token,
   ]
@@ -272,7 +290,8 @@ resource "argocd_application" "reminders" {
 }
 
 resource "agyn_runner" "k8s_runner" {
-  name = "k8s-runner"
+  name   = "k8s-runner"
+  labels = {}
 }
 
 resource "kubernetes_secret_v1" "k8s_runner_service_token" {
@@ -290,6 +309,7 @@ resource "kubernetes_secret_v1" "k8s_runner_service_token" {
 
 resource "argocd_application" "k8s_runner" {
   depends_on = [
+    argocd_repository.ghcr,
     kubernetes_secret_v1.k8s_runner_service_token,
   ]
 

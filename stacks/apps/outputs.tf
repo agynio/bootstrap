@@ -1,14 +1,14 @@
 output "app_ids" {
   description = "App IDs keyed by slug"
   value = {
-    reminders = var.reminders_app_id
+    reminders = agyn_app.reminders.id
   }
 }
 
 output "app_identity_ids" {
   description = "App identity IDs keyed by slug"
   value = {
-    reminders = var.reminders_app_identity_id
+    reminders = agyn_app.reminders.identity_id
   }
 }
 
