@@ -285,19 +285,10 @@ resource "argocd_application" "reminders" {
   }
 }
 
-resource "terraform_data" "k8s_runner_identity" {
-  input = local.resolved_k8s_runner_image_tag
-}
-
 resource "agyn_runner" "k8s_runner" {
   name = "k8s-runner"
   labels = {
     type = "kubernetes"
-  }
-
-  lifecycle {
-    ignore_changes       = [labels]
-    replace_triggered_by = [terraform_data.k8s_runner_identity]
   }
 }
 
