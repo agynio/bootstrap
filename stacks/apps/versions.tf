@@ -4,7 +4,7 @@ terraform {
   required_providers {
     agyn = {
       source  = "agynio/agyn"
-      version = "~> 0.4"
+      version = "~> 0.5"
     }
     argocd = {
       source  = "argoproj-labs/argocd"

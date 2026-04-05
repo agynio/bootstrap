@@ -33,7 +33,7 @@ variable "ghcr_token" {
 variable "gateway_chart_version" {
   type        = string
   description = "Version of the gateway Helm chart published to GHCR"
-  default     = "0.17.0"
+  default     = "0.18.0"
 }
 
 variable "agent_state_chart_version" {
@@ -123,7 +123,7 @@ variable "runners_chart_version" {
 variable "apps_chart_version" {
   type        = string
   description = "Version of the apps Helm chart published to GHCR"
-  default     = "0.1.0"
+  default     = "0.2.0"
 }
 
 variable "chat_app_chart_version" {

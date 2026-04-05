@@ -1,3 +1,15 @@
+output "bootstrap_organization_id" {
+  description = "Platform organization ID"
+  value       = agyn_organization.platform.id
+}
+
+output "app_installation_ids" {
+  description = "App installation IDs keyed by slug"
+  value = {
+    reminders = agyn_app_installation.reminders.id
+  }
+}
+
 output "app_ids" {
   description = "App IDs keyed by slug"
   value = {
