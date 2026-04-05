@@ -166,10 +166,17 @@ locals {
   })
 }
 
+resource "agyn_organization" "platform" {
+  name = "Platform"
+}
+
 resource "agyn_app" "reminders" {
-  slug        = "reminders"
-  name        = "Reminders"
-  description = "Delayed message delivery to threads"
+  organization_id = agyn_organization.platform.id
+  slug            = "reminders"
+  name            = "Reminders"
+  description     = "Delayed message delivery to threads"
+  permissions     = ["thread:write"]
+  visibility      = "internal"
 }
 
 resource "kubernetes_secret_v1" "reminders_service_token" {
