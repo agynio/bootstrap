@@ -599,7 +599,7 @@ variable "registry_mirror_pvc_size" {
 variable "secrets_chart_version" {
   type        = string
   description = "Version of the secrets Helm chart published to GHCR"
-  default     = "0.1.0"
+  default     = "0.2.0"
 }
 
 variable "secrets_image_tag" {
