@@ -646,6 +646,18 @@ variable "openfga_namespace" {
   default     = "openfga"
 }
 
+variable "media_proxy_chart_version" {
+  type        = string
+  description = "Version of the media-proxy Helm chart published to GHCR"
+  default     = "0.1.0"
+}
+
+variable "media_proxy_image_tag" {
+  type        = string
+  description = "Optional override for the media-proxy container image tag"
+  default     = ""
+}
+
 variable "llm_proxy_chart_version" {
   type        = string
   description = "Version of the llm-proxy Helm chart published to GHCR"

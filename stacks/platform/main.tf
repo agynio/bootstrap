@@ -9,6 +9,7 @@ locals {
   resolved_console_app_image_tag         = trimspace(var.console_app_image_tag) != "" ? var.console_app_image_tag : var.console_app_chart_version
   resolved_tracing_app_image_tag         = trimspace(var.tracing_app_image_tag) != "" ? var.tracing_app_image_tag : var.tracing_app_chart_version
   resolved_files_image_tag               = trimspace(var.files_image_tag) != "" ? var.files_image_tag : var.files_chart_version
+  resolved_media_proxy_image_tag         = trimspace(var.media_proxy_image_tag) != "" ? var.media_proxy_image_tag : local.media_proxy_default_image_tag
   resolved_llm_image_tag                 = trimspace(var.llm_image_tag) != "" ? var.llm_image_tag : format("v%s", var.llm_chart_version)
   resolved_llm_proxy_image_tag           = trimspace(var.llm_proxy_image_tag) != "" ? var.llm_proxy_image_tag : var.llm_proxy_chart_version
   resolved_secrets_image_tag             = trimspace(var.secrets_image_tag) != "" ? var.secrets_image_tag : format("v%s", var.secrets_chart_version)
@@ -25,6 +26,7 @@ locals {
 
   postgres_image                 = "postgres:16.6-alpine"
   vault_chart_version            = "0.28.1"
+  media_proxy_default_image_tag  = "0.1.0"
   registry_mirror_repo_url       = "https://github.com/twuni/docker-registry.helm.git"
   registry_mirror_chart_path     = "."
   registry_mirror_chart_revision = "v2.2.2"
@@ -48,6 +50,7 @@ locals {
   console_app_chart_name         = "agynio/charts/console-app"
   tracing_app_chart_name         = "agynio/charts/tracing-app"
   files_chart_name               = "agynio/charts/files"
+  media_proxy_chart_name         = "agynio/charts/media-proxy"
   llm_chart_name                 = "agynio/charts/llm"
   llm_proxy_chart_name           = "agynio/charts/llm-proxy"
   secrets_chart_name             = "agynio/charts/secrets"
@@ -1321,6 +1324,44 @@ locals {
     }
   })
 
+  media_proxy_values = yamlencode({
+    replicaCount     = 1
+    fullnameOverride = "media-proxy"
+    image = {
+      repository = "ghcr.io/agynio/media-proxy"
+      tag        = local.resolved_media_proxy_image_tag
+      pullPolicy = "IfNotPresent"
+    }
+    containerPorts = [
+      {
+        name          = "http"
+        containerPort = 8080
+        protocol      = "TCP"
+      }
+    ]
+    service = {
+      enabled = true
+      type    = "ClusterIP"
+      ports = [
+        {
+          name       = "http"
+          port       = 8080
+          targetPort = "http"
+          protocol   = "TCP"
+        }
+      ]
+    }
+    mediaProxy = {
+      listenAddr        = ":8080"
+      oidcIssuerUrl     = var.oidc_issuer_url
+      oidcClientId      = var.oidc_client_id
+      usersGrpcTarget   = "users-users:50051"
+      filesGrpcTarget   = "files:50051"
+      authzGrpcTarget   = "authorization:50051"
+      corsAllowedOrigin = format("https://chat.%s:%d", local.base_domain, local.ingress_port)
+    }
+  })
+
   llm_values = yamlencode({
     fullnameOverride = "llm"
     image = {
@@ -1575,6 +1616,10 @@ locals {
       {
         name  = "API_BASE_URL"
         value = "/api"
+      },
+      {
+        name  = "MEDIA_PROXY_URL"
+        value = format("https://media.%s:%d", local.base_domain, local.ingress_port)
       }
     ]
   })
@@ -2140,6 +2185,51 @@ resource "kubernetes_manifest" "virtualservice_gateway" {
             {
               "destination" = {
                 "host" = "gateway-gateway.platform.svc.cluster.local"
+                "port" = {
+                  "number" = 8080
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+
+  computed_fields = [
+    "metadata.annotations",
+    "metadata.labels",
+  ]
+
+  depends_on = [
+    data.terraform_remote_state.system,
+  ]
+}
+
+resource "kubernetes_manifest" "virtualservice_media_proxy" {
+  manifest = {
+    "apiVersion" = "networking.istio.io/v1beta1"
+    "kind"       = "VirtualService"
+    "metadata" = {
+      "name"      = "media-proxy"
+      "namespace" = local.istio_gateway_namespace
+    }
+    "spec" = {
+      "hosts"    = ["media.${local.base_domain}"]
+      "gateways" = ["platform-gateway"]
+      "http" = [
+        {
+          "match" = [
+            {
+              "uri" = {
+                "prefix" = "/"
+              }
+            }
+          ]
+          "route" = [
+            {
+              "destination" = {
+                "host" = "media-proxy.platform.svc.cluster.local"
                 "port" = {
                   "number" = 8080
                 }
@@ -4233,6 +4323,54 @@ resource "argocd_application" "agents_orchestrator" {
 
       helm {
         values = local.agents_orchestrator_values
+      }
+    }
+
+    destination {
+      server    = var.destination_server
+      namespace = var.platform_namespace
+    }
+
+    sync_policy {
+      dynamic "automated" {
+        for_each = var.argocd_automated_sync_enabled ? [1] : []
+        content {
+          prune       = var.argocd_prune_enabled
+          self_heal   = var.argocd_self_heal_enabled
+          allow_empty = false
+        }
+      }
+
+      sync_options = local.default_sync_options
+    }
+  }
+}
+
+resource "argocd_application" "media_proxy" {
+  depends_on = [
+    argocd_repository.ghcr,
+    argocd_application.users,
+    argocd_application.files,
+    argocd_application.authorization,
+  ]
+  metadata {
+    name      = "media-proxy"
+    namespace = "argocd"
+    annotations = {
+      "argocd.argoproj.io/sync-wave" = "20"
+    }
+  }
+
+  spec {
+    project = "default"
+
+    source {
+      repo_url        = local.platform_chart_repo_host
+      chart           = local.media_proxy_chart_name
+      target_revision = var.media_proxy_chart_version
+
+      helm {
+        values = local.media_proxy_values
       }
     }
 
