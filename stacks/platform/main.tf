@@ -1133,14 +1133,6 @@ locals {
         value = format("postgresql://orchestrator:%s@agents-orchestrator-db:5432/orchestrator?sslmode=disable", var.agents_orchestrator_db_password)
       },
       {
-        name  = "DEFAULT_AGENT_IMAGE"
-        value = "alpine:3.21"
-      },
-      {
-        name  = "DEFAULT_INIT_IMAGE"
-        value = "ghcr.io/agynio/agent-init-codex:0.6.0"
-      },
-      {
         name  = "POLL_INTERVAL"
         value = "5s"
       },
