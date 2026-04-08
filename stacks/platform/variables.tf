@@ -33,7 +33,7 @@ variable "ghcr_token" {
 variable "gateway_chart_version" {
   type        = string
   description = "Version of the gateway Helm chart published to GHCR"
-  default     = "0.18.0"
+  default     = "0.19.0"
 }
 
 variable "agent_state_chart_version" {
@@ -45,7 +45,7 @@ variable "agent_state_chart_version" {
 variable "agents_orchestrator_chart_version" {
   type        = string
   description = "Version of the agents-orchestrator Helm chart published to GHCR"
-  default     = "0.11.0"
+  default     = "0.12.0"
 }
 
 variable "threads_chart_version" {
@@ -93,7 +93,7 @@ variable "agents_chart_version" {
 variable "ziti_management_chart_version" {
   type        = string
   description = "Version of the ziti-management Helm chart published to GHCR"
-  default     = "0.8.0"
+  default     = "0.9.0"
 }
 
 variable "users_chart_version" {
@@ -661,11 +661,11 @@ variable "media_proxy_image_tag" {
 variable "llm_proxy_chart_version" {
   type        = string
   description = "Version of the llm-proxy Helm chart published to GHCR"
-  default     = "0.8.0"
+  default     = "0.9.0"
 }
 
 variable "llm_proxy_image_tag" {
   type        = string
   description = "Optional override for the llm-proxy image tag"
-  default     = "0.8.0"
+  default     = ""
 }
