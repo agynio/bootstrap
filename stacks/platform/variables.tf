@@ -439,7 +439,7 @@ variable "tracing_db_pvc_size" {
 variable "files_chart_version" {
   type        = string
   description = "Version of the files Helm chart published to GHCR"
-  default     = "0.1.2"
+  default     = "0.1.3"
 }
 
 variable "files_image_tag" {
