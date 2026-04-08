@@ -655,5 +655,5 @@ variable "llm_proxy_chart_version" {
 variable "llm_proxy_image_tag" {
   type        = string
   description = "Optional override for the llm-proxy image tag"
-  default     = "0.8.0"
+  default     = ""
 }
