@@ -649,7 +649,7 @@ variable "openfga_namespace" {
 variable "media_proxy_chart_version" {
   type        = string
   description = "Version of the media-proxy Helm chart published to GHCR"
-  default     = "0.1.2"
+  default     = "0.1.3"
 }
 
 variable "media_proxy_image_tag" {
