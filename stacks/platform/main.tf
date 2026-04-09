@@ -1162,6 +1162,7 @@ locals {
   })
 
   authorization_values = yamlencode({
+    fullnameOverride = "authorization"
     image = {
       repository = "ghcr.io/agynio/authorization"
       tag        = local.resolved_authorization_image_tag
