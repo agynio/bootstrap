@@ -2,9 +2,12 @@ locals {
   openziti_repository_url           = "https://openziti.io/helm-charts"
   ziti_namespace                    = "ziti"
   router_enrollment_secret_name     = "ziti-router-enrollment"
-  gateway_identity_secret_name      = "ziti-gateway-enrollment"
-  management_identity_secret_name   = "ziti-management-enrollment"
-  orchestrator_identity_secret_name = "ziti-orchestrator-enrollment"
+  gateway_identity_secret_name      = "ziti-gateway-identity"
+  management_identity_secret_name   = "ziti-management-identity"
+  orchestrator_identity_secret_name = "ziti-orchestrator-identity"
+  runner_identity_secret_name       = "ziti-runner-identity"
+  # Stores enrolled identity JSON containing private keys.
+  identity_enrollment_dir = "${path.module}/.terraform/ziti-identities"
 
   router_values = yamlencode({
     ctrl = {
@@ -114,43 +117,47 @@ resource "ziti_identity" "orchestrator" {
   role_attributes = ["orchestrators"]
 }
 
-resource "kubernetes_secret_v1" "gateway_identity_enrollment" {
-  metadata {
-    name      = local.gateway_identity_secret_name
-    namespace = local.ziti_namespace
-  }
-
-  type = "Opaque"
-
-  data = {
-    enrollmentJwt = ziti_identity.gateway.enrollment_token
-  }
+resource "ziti_identity" "runner" {
+  name            = "runner"
+  type            = "Device"
+  role_attributes = ["runners"]
 }
 
-resource "kubernetes_secret_v1" "ziti_management_identity_enrollment" {
-  metadata {
-    name      = local.management_identity_secret_name
-    namespace = local.ziti_namespace
-  }
-
-  type = "Opaque"
-
-  data = {
-    enrollmentJwt = ziti_identity.ziti_management.enrollment_token
-  }
+module "gateway_identity_enrollment" {
+  source           = "../../modules/ziti-identity-enrollment"
+  identity_name    = "gateway"
+  enrollment_token = ziti_identity.gateway.enrollment_token
+  secret_name      = local.gateway_identity_secret_name
+  namespace        = local.ziti_namespace
+  enrollment_dir   = local.identity_enrollment_dir
 }
 
-resource "kubernetes_secret_v1" "orchestrator_identity_enrollment" {
-  metadata {
-    name      = local.orchestrator_identity_secret_name
-    namespace = local.ziti_namespace
-  }
+module "ziti_management_identity_enrollment" {
+  source           = "../../modules/ziti-identity-enrollment"
+  identity_name    = "ziti-management"
+  enrollment_token = ziti_identity.ziti_management.enrollment_token
+  secret_name      = local.management_identity_secret_name
+  namespace        = local.ziti_namespace
+  enrollment_dir   = local.identity_enrollment_dir
+  unpack_id        = true
+}
 
-  type = "Opaque"
+module "orchestrator_identity_enrollment" {
+  source           = "../../modules/ziti-identity-enrollment"
+  identity_name    = "orchestrator"
+  enrollment_token = ziti_identity.orchestrator.enrollment_token
+  secret_name      = local.orchestrator_identity_secret_name
+  namespace        = local.ziti_namespace
+  enrollment_dir   = local.identity_enrollment_dir
+}
 
-  data = {
-    enrollmentJwt = ziti_identity.orchestrator.enrollment_token
-  }
+module "runner_identity_enrollment" {
+  source           = "../../modules/ziti-identity-enrollment"
+  identity_name    = "runner"
+  enrollment_token = ziti_identity.runner.enrollment_token
+  secret_name      = local.runner_identity_secret_name
+  namespace        = local.ziti_namespace
+  enrollment_dir   = local.identity_enrollment_dir
 }
 
 resource "ziti_service_policy" "agents_dial_gateway" {
