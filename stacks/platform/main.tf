@@ -2094,10 +2094,18 @@ resource "kubernetes_manifest" "virtualservice_tracing_app" {
           "match" = [
             {
               "uri" = {
-                "prefix" = "/api"
+                "prefix" = "/api/"
+              }
+            },
+            {
+              "uri" = {
+                "exact" = "/api"
               }
             }
           ]
+          "rewrite" = {
+            "uri" = "/"
+          }
           "route" = [
             {
               "destination" = {
