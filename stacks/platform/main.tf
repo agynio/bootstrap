@@ -1357,7 +1357,6 @@ locals {
       oidcClientId      = var.oidc_client_id
       usersGrpcTarget   = "users:50051"
       filesGrpcTarget   = "files:50051"
-      authzGrpcTarget   = "authorization:50051"
       corsAllowedOrigin = format("https://chat.%s:%d", local.base_domain, local.ingress_port)
     }
   })
