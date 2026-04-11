@@ -477,7 +477,7 @@ variable "files_db_pvc_size" {
 variable "llm_chart_version" {
   type        = string
   description = "Version of the llm Helm chart published to GHCR"
-  default     = "0.3.0"
+  default     = "0.4.0"
 }
 
 variable "llm_image_tag" {
@@ -674,7 +674,7 @@ variable "media_proxy_image_tag" {
 variable "llm_proxy_chart_version" {
   type        = string
   description = "Version of the llm-proxy Helm chart published to GHCR"
-  default     = "0.9.1"
+  default     = "0.10.0"
 }
 
 variable "llm_proxy_image_tag" {
