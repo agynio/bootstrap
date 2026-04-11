@@ -568,6 +568,29 @@ locals {
     }
   })
 
+  chat_db_values = yamlencode({
+    fullnameOverride = "chat-db"
+    postgres = {
+      database = "chat"
+      username = "chat"
+      password = var.chat_db_password
+      pgdata   = "/var/lib/postgresql/data/pgdata"
+    }
+    persistence = {
+      size                    = var.chat_db_pvc_size
+      mountPath               = "/var/lib/postgresql/data"
+      volumeClaimTemplateName = "data"
+    }
+    probes = {
+      readiness = {
+        execCommand = ["pg_isready", "-U", "chat", "-d", "chat"]
+      }
+      liveness = {
+        execCommand = ["pg_isready", "-U", "chat", "-d", "chat"]
+      }
+    }
+  })
+
   tracing_db_values = yamlencode({
     fullnameOverride = "tracing-db"
     postgres = {
@@ -938,6 +961,12 @@ locals {
       tag        = local.resolved_chat_image_tag
       pullPolicy = "IfNotPresent"
     }
+    env = [
+      {
+        name  = "DATABASE_URL"
+        value = format("postgresql://chat:%s@chat-db:5432/chat?sslmode=disable", var.chat_db_password)
+      },
+    ]
   })
 
   secrets_values = yamlencode({
@@ -2721,6 +2750,56 @@ resource "argocd_application" "threads_db" {
   }
 }
 
+resource "argocd_application" "chat_db" {
+  depends_on = [argocd_repository.ghcr]
+  wait       = true
+
+  metadata {
+    name      = "chat-db"
+    namespace = "argocd"
+    annotations = {
+      "argocd.argoproj.io/sync-wave" = "7"
+    }
+  }
+
+  spec {
+    project = "default"
+
+    source {
+      repo_url        = local.postgres_chart_repo_host
+      chart           = local.postgres_chart_name
+      target_revision = var.postgres_chart_version
+
+      helm {
+        values = local.chat_db_values
+      }
+    }
+
+    destination {
+      server    = var.destination_server
+      namespace = var.platform_namespace
+    }
+
+    sync_policy {
+      # DB apps always use automated sync with prune disabled for stateful safety,
+      # independent of var.argocd_automated_sync_enabled.
+      automated {
+        prune       = false
+        self_heal   = true
+        allow_empty = false
+      }
+
+      sync_options = local.postgres_sync_options
+    }
+  }
+
+  timeouts {
+    create = "5m"
+    update = "5m"
+    delete = "5m"
+  }
+}
+
 resource "argocd_application" "tracing_db" {
   depends_on = [argocd_repository.ghcr]
   wait       = true
@@ -3597,6 +3676,7 @@ resource "argocd_application" "tracing" {
 resource "argocd_application" "chat" {
   depends_on = [
     argocd_repository.ghcr,
+    argocd_application.chat_db,
     argocd_application.threads,
   ]
   metadata {
