@@ -99,7 +99,7 @@ variable "ziti_management_chart_version" {
 variable "users_chart_version" {
   type        = string
   description = "Version of the users Helm chart published to GHCR"
-  default     = "0.4.1"
+  default     = "0.5.0"
 }
 
 variable "organizations_chart_version" {
@@ -129,7 +129,7 @@ variable "apps_chart_version" {
 variable "chat_app_chart_version" {
   type        = string
   description = "Version of the chat-app Helm chart published to GHCR"
-  default     = "0.4.1"
+  default     = "0.5.0"
 }
 
 variable "chat_app_image_tag" {
