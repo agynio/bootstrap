@@ -33,7 +33,7 @@ variable "ghcr_token" {
 variable "gateway_chart_version" {
   type        = string
   description = "Version of the gateway Helm chart published to GHCR"
-  default     = "0.19.0"
+  default     = "0.20.0"
 }
 
 variable "agent_state_chart_version" {
@@ -226,7 +226,7 @@ variable "tracing_image_tag" {
 variable "chat_chart_version" {
   type        = string
   description = "Version of the chat Helm chart published to GHCR"
-  default     = "0.2.2"
+  default     = "0.3.0"
 }
 
 variable "chat_image_tag" {
@@ -387,6 +387,13 @@ variable "threads_db_password" {
   sensitive   = true
 }
 
+variable "chat_db_password" {
+  type        = string
+  description = "Password for the chat PostgreSQL database user"
+  default     = "chat"
+  sensitive   = true
+}
+
 variable "tracing_db_password" {
   type        = string
   description = "Password for the tracing PostgreSQL database user"
@@ -427,6 +434,12 @@ variable "apps_db_pvc_size" {
 variable "threads_db_pvc_size" {
   type        = string
   description = "Persistent volume claim size for the threads PostgreSQL primary"
+  default     = "5Gi"
+}
+
+variable "chat_db_pvc_size" {
+  type        = string
+  description = "Persistent volume claim size for the chat PostgreSQL primary"
   default     = "5Gi"
 }
 
