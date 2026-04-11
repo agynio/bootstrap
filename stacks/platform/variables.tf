@@ -129,7 +129,7 @@ variable "apps_chart_version" {
 variable "chat_app_chart_version" {
   type        = string
   description = "Version of the chat-app Helm chart published to GHCR"
-  default     = "0.5.0"
+  default     = "0.4.1"
 }
 
 variable "chat_app_image_tag" {
