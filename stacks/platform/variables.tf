@@ -102,6 +102,12 @@ variable "users_chart_version" {
   default     = "0.5.0"
 }
 
+variable "expose_chart_version" {
+  type        = string
+  description = "Version of the expose Helm chart published to GHCR"
+  default     = "0.1.0"
+}
+
 variable "organizations_chart_version" {
   type        = string
   description = "Version of the organizations Helm chart published to GHCR"
@@ -262,6 +268,12 @@ variable "ziti_management_image_tag" {
 variable "users_image_tag" {
   type        = string
   description = "Optional override for the users image tag"
+  default     = ""
+}
+
+variable "expose_image_tag" {
+  type        = string
+  description = "Optional override for the expose image tag"
   default     = ""
 }
 
@@ -542,6 +554,19 @@ variable "users_db_password" {
 variable "users_db_pvc_size" {
   type        = string
   description = "Persistent volume claim size for the users PostgreSQL primary"
+  default     = "5Gi"
+}
+
+variable "expose_db_password" {
+  type        = string
+  description = "Password for the expose PostgreSQL database user"
+  default     = "expose"
+  sensitive   = true
+}
+
+variable "expose_db_pvc_size" {
+  type        = string
+  description = "Persistent volume claim size for the expose PostgreSQL primary"
   default     = "5Gi"
 }
 

@@ -18,6 +18,7 @@ locals {
   resolved_agents_image_tag              = trimspace(var.agents_image_tag) != "" ? var.agents_image_tag : var.agents_chart_version
   resolved_ziti_management_image_tag     = trimspace(var.ziti_management_image_tag) != "" ? var.ziti_management_image_tag : var.ziti_management_chart_version
   resolved_users_image_tag               = trimspace(var.users_image_tag) != "" ? var.users_image_tag : var.users_chart_version
+  resolved_expose_image_tag              = trimspace(var.expose_image_tag) != "" ? var.expose_image_tag : var.expose_chart_version
   resolved_organizations_image_tag       = trimspace(var.organizations_image_tag) != "" ? var.organizations_image_tag : var.organizations_chart_version
   resolved_authorization_image_tag       = trimspace(var.authorization_image_tag) != "" ? var.authorization_image_tag : format("v%s", var.authorization_chart_version)
   resolved_identity_image_tag            = trimspace(var.identity_image_tag) != "" ? var.identity_image_tag : var.identity_chart_version
@@ -59,6 +60,7 @@ locals {
   agents_chart_name              = "agynio/charts/agents"
   ziti_management_chart_name     = "agynio/charts/ziti-management"
   users_chart_name               = "agynio/charts/users"
+  expose_chart_name              = "agynio/charts/expose"
   organizations_chart_name       = "agynio/charts/organizations"
   authorization_chart_name       = "agynio/charts/authorization"
   identity_chart_name            = "agynio/charts/identity"
@@ -729,6 +731,29 @@ locals {
     }
   })
 
+  expose_db_values = yamlencode({
+    fullnameOverride = "expose-db"
+    postgres = {
+      database = "expose"
+      username = "expose"
+      password = var.expose_db_password
+      pgdata   = "/var/lib/postgresql/data/pgdata"
+    }
+    persistence = {
+      size                    = var.expose_db_pvc_size
+      mountPath               = "/var/lib/postgresql/data"
+      volumeClaimTemplateName = "data"
+    }
+    probes = {
+      readiness = {
+        execCommand = ["pg_isready", "-U", "expose", "-d", "expose"]
+      }
+      liveness = {
+        execCommand = ["pg_isready", "-U", "expose", "-d", "expose"]
+      }
+    }
+  })
+
   tenants_db_values = yamlencode({
     fullnameOverride = "tenants-db"
     postgres = {
@@ -1080,6 +1105,37 @@ locals {
       {
         name  = "DATABASE_URL"
         value = format("postgresql://users:%s@users-db:5432/users?sslmode=disable", var.users_db_password)
+      },
+    ]
+  })
+
+  expose_values = yamlencode({
+    fullnameOverride = "expose"
+    image = {
+      repository = "ghcr.io/agynio/expose"
+      tag        = local.resolved_expose_image_tag
+      pullPolicy = "IfNotPresent"
+    }
+    env = [
+      {
+        name  = "DATABASE_URL"
+        value = format("postgresql://expose:%s@expose-db:5432/expose?sslmode=disable", var.expose_db_password)
+      },
+      {
+        name  = "ZITI_MANAGEMENT_ADDRESS"
+        value = "ziti-management:50051"
+      },
+      {
+        name  = "RUNNERS_ADDRESS"
+        value = "runners:50051"
+      },
+      {
+        name  = "NOTIFICATIONS_ADDRESS"
+        value = "notifications:50051"
+      },
+      {
+        name  = "RECONCILIATION_INTERVAL"
+        value = "30s"
       },
     ]
   })
@@ -3100,6 +3156,56 @@ resource "argocd_application" "users_db" {
   }
 }
 
+resource "argocd_application" "expose_db" {
+  depends_on = [argocd_repository.ghcr]
+  wait       = true
+
+  metadata {
+    name      = "expose-db"
+    namespace = "argocd"
+    annotations = {
+      "argocd.argoproj.io/sync-wave" = "8"
+    }
+  }
+
+  spec {
+    project = "default"
+
+    source {
+      repo_url        = local.postgres_chart_repo_host
+      chart           = local.postgres_chart_name
+      target_revision = var.postgres_chart_version
+
+      helm {
+        values = local.expose_db_values
+      }
+    }
+
+    destination {
+      server    = var.destination_server
+      namespace = var.platform_namespace
+    }
+
+    sync_policy {
+      # DB apps always use automated sync with prune disabled for stateful safety,
+      # independent of var.argocd_automated_sync_enabled.
+      automated {
+        prune       = false
+        self_heal   = true
+        allow_empty = false
+      }
+
+      sync_options = local.postgres_sync_options
+    }
+  }
+
+  timeouts {
+    create = "5m"
+    update = "5m"
+    delete = "5m"
+  }
+}
+
 resource "argocd_application" "tenants_db" {
   depends_on = [argocd_repository.ghcr]
   wait       = true
@@ -4182,6 +4288,56 @@ resource "argocd_application" "users" {
   }
 }
 
+resource "argocd_application" "expose" {
+  depends_on = [
+    argocd_repository.ghcr,
+    argocd_application.expose_db,
+    argocd_application.ziti_management,
+    argocd_application.runners,
+    argocd_application.notifications,
+  ]
+  wait = true
+  metadata {
+    name      = "expose"
+    namespace = "argocd"
+    annotations = {
+      "argocd.argoproj.io/sync-wave" = "17"
+    }
+  }
+
+  spec {
+    project = "default"
+
+    source {
+      repo_url        = local.platform_chart_repo_host
+      chart           = local.expose_chart_name
+      target_revision = var.expose_chart_version
+
+      helm {
+        values = local.expose_values
+      }
+    }
+
+    destination {
+      server    = var.destination_server
+      namespace = var.platform_namespace
+    }
+
+    sync_policy {
+      dynamic "automated" {
+        for_each = var.argocd_automated_sync_enabled ? [1] : []
+        content {
+          prune       = var.argocd_prune_enabled
+          self_heal   = var.argocd_self_heal_enabled
+          allow_empty = false
+        }
+      }
+
+      sync_options = local.default_sync_options
+    }
+  }
+}
+
 resource "argocd_application" "tenants" {
   depends_on = [
     argocd_repository.ghcr,
@@ -4603,7 +4759,7 @@ resource "argocd_application" "tracing_app" {
 }
 
 resource "argocd_application" "gateway" {
-  depends_on = [argocd_application.llm, argocd_application.ziti_management]
+  depends_on = [argocd_application.llm, argocd_application.ziti_management, argocd_application.expose]
   wait       = true
   metadata {
     name      = "gateway"
