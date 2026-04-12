@@ -33,7 +33,7 @@ variable "ghcr_token" {
 variable "gateway_chart_version" {
   type        = string
   description = "Version of the gateway Helm chart published to GHCR"
-  default     = "0.20.0"
+  default     = "0.21.0"
 }
 
 variable "agent_state_chart_version" {
@@ -45,7 +45,7 @@ variable "agent_state_chart_version" {
 variable "agents_orchestrator_chart_version" {
   type        = string
   description = "Version of the agents-orchestrator Helm chart published to GHCR"
-  default     = "0.13.1"
+  default     = "0.13.0"
 }
 
 variable "threads_chart_version" {
@@ -87,7 +87,7 @@ variable "postgres_chart_version" {
 variable "agents_chart_version" {
   type        = string
   description = "Version of the agents Helm chart published to GHCR"
-  default     = "0.6.1"
+  default     = "0.7.0"
 }
 
 variable "ziti_management_chart_version" {
@@ -123,7 +123,7 @@ variable "identity_chart_version" {
 variable "runners_chart_version" {
   type        = string
   description = "Version of the runners Helm chart published to GHCR"
-  default     = "0.4.0"
+  default     = "0.5.0"
 }
 
 variable "apps_chart_version" {
