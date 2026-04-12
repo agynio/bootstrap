@@ -45,7 +45,7 @@ variable "agent_state_chart_version" {
 variable "agents_orchestrator_chart_version" {
   type        = string
   description = "Version of the agents-orchestrator Helm chart published to GHCR"
-  default     = "0.12.0"
+  default     = "0.12.1"
 }
 
 variable "threads_chart_version" {
@@ -184,7 +184,7 @@ variable "oidc_client_secret" {
 variable "tracing_app_chart_version" {
   type        = string
   description = "Version of the tracing-app Helm chart published to GHCR"
-  default     = "0.2.0"
+  default     = "0.2.1"
 }
 
 variable "tracing_app_image_tag" {
