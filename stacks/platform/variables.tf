@@ -45,7 +45,7 @@ variable "agent_state_chart_version" {
 variable "agents_orchestrator_chart_version" {
   type        = string
   description = "Version of the agents-orchestrator Helm chart published to GHCR"
-  default     = "0.13.1"
+  default     = "0.13.2"
 }
 
 variable "threads_chart_version" {
@@ -93,7 +93,7 @@ variable "agents_chart_version" {
 variable "ziti_management_chart_version" {
   type        = string
   description = "Version of the ziti-management Helm chart published to GHCR"
-  default     = "0.10.4"
+  default     = "0.10.5"
 }
 
 variable "users_chart_version" {
@@ -699,7 +699,7 @@ variable "media_proxy_image_tag" {
 variable "llm_proxy_chart_version" {
   type        = string
   description = "Version of the llm-proxy Helm chart published to GHCR"
-  default     = "0.10.0"
+  default     = "0.10.2"
 }
 
 variable "llm_proxy_image_tag" {
