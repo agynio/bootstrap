@@ -50,7 +50,7 @@ variable "reminders_image_tag" {
 variable "k8s_runner_chart_version" {
   type        = string
   description = "Version of the k8s-runner Helm chart published to GHCR"
-  default     = "0.9.0"
+  default     = "0.10.1"
 }
 
 variable "k8s_runner_image_tag" {
