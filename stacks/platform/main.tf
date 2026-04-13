@@ -995,8 +995,16 @@ locals {
     }
     env = [
       {
+        name  = "GRPC_ADDRESS"
+        value = ":50051"
+      },
+      {
         name  = "DATABASE_URL"
         value = format("postgresql://metering:%s@metering-db:5432/metering?sslmode=disable", var.metering_db_password)
+      },
+      {
+        name  = "LOG_LEVEL"
+        value = "info"
       },
     ]
   })
