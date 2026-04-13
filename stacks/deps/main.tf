@@ -21,6 +21,9 @@ locals {
   })
 
   ziti_controller_values = yamlencode({
+    cluster = {
+      mode = "standalone"
+    }
     clientApi = {
       advertisedHost = "ziti.${local.base_domain}"
       advertisedPort = local.ingress_port

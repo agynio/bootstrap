@@ -32,5 +32,5 @@ variable "trust_manager_chart_version" {
 variable "ziti_controller_chart_version" {
   type        = string
   description = "OpenZiti controller chart version"
-  default     = "2.1.2"
+  default     = "3.2.0-pre6"
 }

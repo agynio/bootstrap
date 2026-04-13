@@ -19,5 +19,5 @@ variable "ziti_admin_password" {
 variable "ziti_router_chart_version" {
   type        = string
   description = "OpenZiti router chart version"
-  default     = "2.1.0"
+  default     = "3.0.0-pre5"
 }
