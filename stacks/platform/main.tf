@@ -3,6 +3,7 @@ locals {
   resolved_agent_state_image_tag         = trimspace(var.agent_state_image_tag) != "" ? var.agent_state_image_tag : format("v%s", var.agent_state_chart_version)
   resolved_agents_orchestrator_image_tag = trimspace(var.agents_orchestrator_image_tag) != "" ? var.agents_orchestrator_image_tag : var.agents_orchestrator_chart_version
   resolved_threads_image_tag             = trimspace(var.threads_image_tag) != "" ? var.threads_image_tag : var.threads_chart_version
+  resolved_metering_image_tag            = trimspace(var.metering_image_tag) != "" ? var.metering_image_tag : var.metering_chart_version
   resolved_tracing_image_tag             = trimspace(var.tracing_image_tag) != "" ? var.tracing_image_tag : format("v%s", var.tracing_chart_version)
   resolved_chat_image_tag                = trimspace(var.chat_image_tag) != "" ? var.chat_image_tag : var.chat_chart_version
   resolved_chat_app_image_tag            = trimspace(var.chat_app_image_tag) != "" ? var.chat_app_image_tag : var.chat_app_chart_version
@@ -44,6 +45,7 @@ locals {
   agent_state_chart_name         = "agynio/charts/agent-state"
   agents_orchestrator_chart_name = "agynio/charts/agents-orchestrator"
   threads_chart_name             = "agynio/charts/threads"
+  metering_chart_name            = "agynio/charts/metering"
   tracing_chart_name             = "agynio/charts/tracing"
   chat_chart_name                = "agynio/charts/chat"
   chat_app_chart_name            = "agynio/charts/chat-app"
@@ -570,6 +572,29 @@ locals {
     }
   })
 
+  metering_db_values = yamlencode({
+    fullnameOverride = "metering-db"
+    postgres = {
+      database = "metering"
+      username = "metering"
+      password = var.metering_db_password
+      pgdata   = "/var/lib/postgresql/data/pgdata"
+    }
+    persistence = {
+      size                    = var.metering_db_pvc_size
+      mountPath               = "/var/lib/postgresql/data"
+      volumeClaimTemplateName = "data"
+    }
+    probes = {
+      readiness = {
+        execCommand = ["pg_isready", "-U", "metering", "-d", "metering"]
+      }
+      liveness = {
+        execCommand = ["pg_isready", "-U", "metering", "-d", "metering"]
+      }
+    }
+  })
+
   chat_db_values = yamlencode({
     fullnameOverride = "chat-db"
     postgres = {
@@ -958,6 +983,22 @@ locals {
       tag        = local.resolved_threads_image_tag
       pullPolicy = "IfNotPresent"
     }
+  })
+
+  metering_values = yamlencode({
+    replicaCount     = 1
+    fullnameOverride = "metering"
+    image = {
+      repository = "ghcr.io/agynio/metering"
+      tag        = local.resolved_metering_image_tag
+      pullPolicy = "IfNotPresent"
+    }
+    env = [
+      {
+        name  = "DATABASE_URL"
+        value = format("postgresql://metering:%s@metering-db:5432/metering?sslmode=disable", var.metering_db_password)
+      },
+    ]
   })
 
   tracing_values = yamlencode({
@@ -2814,6 +2855,56 @@ resource "argocd_application" "threads_db" {
   }
 }
 
+resource "argocd_application" "metering_db" {
+  depends_on = [argocd_repository.ghcr]
+  wait       = true
+
+  metadata {
+    name      = "metering-db"
+    namespace = "argocd"
+    annotations = {
+      "argocd.argoproj.io/sync-wave" = "7"
+    }
+  }
+
+  spec {
+    project = "default"
+
+    source {
+      repo_url        = local.postgres_chart_repo_host
+      chart           = local.postgres_chart_name
+      target_revision = var.postgres_chart_version
+
+      helm {
+        values = local.metering_db_values
+      }
+    }
+
+    destination {
+      server    = var.destination_server
+      namespace = var.platform_namespace
+    }
+
+    sync_policy {
+      # DB apps always use automated sync with prune disabled for stateful safety,
+      # independent of var.argocd_automated_sync_enabled.
+      automated {
+        prune       = false
+        self_heal   = true
+        allow_empty = false
+      }
+
+      sync_options = local.postgres_sync_options
+    }
+  }
+
+  timeouts {
+    create = "5m"
+    update = "5m"
+    delete = "5m"
+  }
+}
+
 resource "argocd_application" "chat_db" {
   depends_on = [argocd_repository.ghcr]
   wait       = true
@@ -3718,6 +3809,52 @@ resource "argocd_application" "threads" {
 
       helm {
         values = local.threads_values
+      }
+    }
+
+    destination {
+      server    = var.destination_server
+      namespace = var.platform_namespace
+    }
+
+    sync_policy {
+      dynamic "automated" {
+        for_each = var.argocd_automated_sync_enabled ? [1] : []
+        content {
+          prune       = var.argocd_prune_enabled
+          self_heal   = var.argocd_self_heal_enabled
+          allow_empty = false
+        }
+      }
+
+      sync_options = local.default_sync_options
+    }
+  }
+}
+
+resource "argocd_application" "metering" {
+  depends_on = [
+    argocd_repository.ghcr,
+    argocd_application.metering_db,
+  ]
+  metadata {
+    name      = "metering"
+    namespace = "argocd"
+    annotations = {
+      "argocd.argoproj.io/sync-wave" = "16"
+    }
+  }
+
+  spec {
+    project = "default"
+
+    source {
+      repo_url        = local.platform_chart_repo_host
+      chart           = local.metering_chart_name
+      target_revision = var.metering_chart_version
+
+      helm {
+        values = local.metering_values
       }
     }
 
