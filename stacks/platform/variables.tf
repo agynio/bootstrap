@@ -54,6 +54,12 @@ variable "threads_chart_version" {
   default     = "0.3.2"
 }
 
+variable "metering_chart_version" {
+  type        = string
+  description = "Version of the metering Helm chart published to GHCR"
+  default     = "0.1.0"
+}
+
 variable "tracing_chart_version" {
   type        = string
   description = "Version of the tracing Helm chart published to GHCR"
@@ -220,6 +226,12 @@ variable "agents_orchestrator_image_tag" {
 variable "threads_image_tag" {
   type        = string
   description = "Optional override for the threads image tag"
+  default     = ""
+}
+
+variable "metering_image_tag" {
+  type        = string
+  description = "Optional override for the metering image tag"
   default     = ""
 }
 
@@ -399,6 +411,13 @@ variable "threads_db_password" {
   sensitive   = true
 }
 
+variable "metering_db_password" {
+  type        = string
+  description = "Password for the metering PostgreSQL database user"
+  default     = "metering"
+  sensitive   = true
+}
+
 variable "chat_db_password" {
   type        = string
   description = "Password for the chat PostgreSQL database user"
@@ -446,6 +465,12 @@ variable "apps_db_pvc_size" {
 variable "threads_db_pvc_size" {
   type        = string
   description = "Persistent volume claim size for the threads PostgreSQL primary"
+  default     = "5Gi"
+}
+
+variable "metering_db_pvc_size" {
+  type        = string
+  description = "Persistent volume claim size for the metering PostgreSQL primary"
   default     = "5Gi"
 }
 
