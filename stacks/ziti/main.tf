@@ -9,7 +9,7 @@ locals {
   router_values = yamlencode({
     ctrl = {
       # Use controller service port (ingress advertised port), not container 1280.
-      endpoint = "ziti-controller-client.ziti.svc:${local.ingress_port}"
+      endpoint = "ziti.${local.base_domain}:${local.ingress_port}"
     }
     edge = {
       advertisedHost = "ziti-router.${local.base_domain}"
