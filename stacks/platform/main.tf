@@ -1091,6 +1091,10 @@ locals {
         name  = "ZITI_ENROLLMENT_JWT_FILE"
         value = "/etc/ziti-enrollment/enrollmentJwt"
       },
+      {
+        name  = "ZITI_IDENTITY_NAME_RESOLVE"
+        value = "true"
+      },
     ]
   })
 
