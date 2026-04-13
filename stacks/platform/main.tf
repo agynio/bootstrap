@@ -1748,7 +1748,7 @@ locals {
       },
       {
         name  = "OIDC_SCOPE"
-        value = "openid profile email"
+        value = "openid profile email offline_access"
       },
       {
         name  = "API_BASE_URL"
@@ -1827,7 +1827,7 @@ locals {
       },
       {
         name  = "OIDC_SCOPE"
-        value = "openid profile email"
+        value = "openid profile email offline_access"
       },
       {
         name  = "API_BASE_URL"
