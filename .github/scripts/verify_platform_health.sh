@@ -16,7 +16,7 @@ SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/../.." && pwd)
 readonly KUBECONFIG_PATH="$REPO_ROOT/stacks/k8s/.kube/agyn-local-kubeconfig.yaml"
 ZITI_MGMT_ENDPOINT=${ZITI_MGMT_ENDPOINT:-}
-ZITI_OVERLAY_SERVICES=(gateway)
+ZITI_OVERLAY_SERVICES=(gateway llm-proxy tracing)
 ZITI_OVERLAY_ROLE_CHECKS=("runner-services")
 
 if [[ ! -f "$KUBECONFIG_PATH" ]]; then
@@ -24,7 +24,7 @@ if [[ ! -f "$KUBECONFIG_PATH" ]]; then
   exit 1
 fi
 
-REQUIRED_APPS_JSON='["cert-manager","trust-manager","ziti-controller","ziti-management","registry-mirror","minio","platform-db","threads-db","chat-db","identity-db","runners-db","metering-db","identity","authorization","gateway","runners","notifications-redis","notifications","metering","threads","chat","k8s-runner"]'
+REQUIRED_APPS_JSON='["cert-manager","trust-manager","ziti-controller","ziti-management","registry-mirror","minio","platform-db","threads-db","chat-db","identity-db","runners-db","tracing-db","metering-db","identity","authorization","gateway","tracing","runners","notifications-redis","notifications","metering","threads","chat","k8s-runner"]'
 
 deadline=$((SECONDS + TOTAL_TIMEOUT))
 pod_terminal_failures_streak=0

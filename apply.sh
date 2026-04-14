@@ -257,6 +257,74 @@ merge_kubeconfig() {
   echo "Merged k3d kubeconfig into ${target_config}."
 }
 
+json_extract_string() {
+  local key="$1"
+  local json="$2"
+  local value
+
+  value=$(printf '%s' "$json" | sed -n "s/.*\"${key}\":[[:space:]]*\"\([^\"]*\)\".*/\1/p" | head -n 1)
+  if [[ -n "$value" ]]; then
+    printf '%s' "$value"
+    return 0
+  fi
+
+  return 1
+}
+
+json_extract_number() {
+  local key="$1"
+  local json="$2"
+  local value
+
+  value=$(printf '%s' "$json" | sed -n "s/.*\"${key}\":[[:space:]]*\([0-9][0-9]*\).*/\1/p" | head -n 1)
+  if [[ -n "$value" ]]; then
+    printf '%s' "$value"
+    return 0
+  fi
+
+  return 1
+}
+
+ziti_authenticate() {
+  local endpoint="$1"
+  local username="$2"
+  local password="$3"
+  local payload
+  local response
+  local token
+
+  payload=$(printf '{"username":"%s","password":"%s"}' "$username" "$password")
+  if ! response=$(curl -sk --fail -X POST "${endpoint}/authenticate?method=password" \
+    -H 'Content-Type: application/json' -d "$payload"); then
+    return 1
+  fi
+
+  if ! token=$(json_extract_string "token" "$response"); then
+    return 1
+  fi
+
+  printf '%s' "$token"
+}
+
+ziti_service_total_count() {
+  local endpoint="$1"
+  local token="$2"
+  local service_name="$3"
+  local response
+  local total_count
+
+  if ! response=$(curl -sk --fail -H "zt-session: ${token}" \
+    "${endpoint}/services?filter=name%3D%22${service_name}%22"); then
+    return 1
+  fi
+
+  if ! total_count=$(json_extract_number "totalCount" "$response"); then
+    return 1
+  fi
+
+  printf '%s' "$total_count"
+}
+
 declare -a step_names=()
 declare -a step_durations=()
 step_started_at=0
@@ -458,6 +526,48 @@ if [ "${ZITI_EXIT}" -ne 0 ]; then
 fi
 step_end "stack:ziti"
 
+echo "=== Verifying required Ziti services ==="
+ziti_admin_username=$(kubectl --kubeconfig "${KUBECONFIG_PATH}" -n ziti \
+  get secret ziti-controller-admin-secret \
+  -o go-template='{{index .data "admin-user" | base64decode}}' 2>/dev/null || true)
+ziti_admin_password=$(kubectl --kubeconfig "${KUBECONFIG_PATH}" -n ziti \
+  get secret ziti-controller-admin-secret \
+  -o go-template='{{index .data "admin-password" | base64decode}}' 2>/dev/null || true)
+
+if [[ -z "${ziti_admin_username}" || -z "${ziti_admin_password}" ]]; then
+  echo "ERROR: Unable to read Ziti admin credentials from secret ziti-controller-admin-secret in namespace ziti." >&2
+  echo "Hint: rerun terraform -chdir=stacks/ziti apply" >&2
+  exit 1
+fi
+
+ziti_mgmt_endpoint="https://ziti-mgmt.${domain}:${port}/edge/management/v1"
+if ! ziti_token=$(ziti_authenticate "${ziti_mgmt_endpoint}" "${ziti_admin_username}" "${ziti_admin_password}"); then
+  echo "ERROR: Failed to authenticate to Ziti management API at ${ziti_mgmt_endpoint}." >&2
+  echo "Hint: rerun terraform -chdir=stacks/ziti apply" >&2
+  exit 1
+fi
+
+required_ziti_services=(gateway llm-proxy tracing)
+for service_name in "${required_ziti_services[@]}"; do
+  if ! total_count=$(ziti_service_total_count "${ziti_mgmt_endpoint}" "${ziti_token}" "${service_name}"); then
+    echo "ERROR: Failed to query Ziti service '${service_name}'." >&2
+    echo "Hint: rerun terraform -chdir=stacks/ziti apply" >&2
+    exit 1
+  fi
+
+  if ! [[ "${total_count}" =~ ^[0-9]+$ ]]; then
+    echo "ERROR: Unexpected Ziti service count for '${service_name}'." >&2
+    echo "Hint: rerun terraform -chdir=stacks/ziti apply" >&2
+    exit 1
+  fi
+
+  if (( total_count < 1 )); then
+    echo "ERROR: Required Ziti service '${service_name}' not found in the overlay." >&2
+    echo "Hint: rerun terraform -chdir=stacks/ziti apply" >&2
+    exit 1
+  fi
+done
+
 step_start "stack:data"
 run_stack "data"
 step_end "stack:data"
@@ -467,7 +577,7 @@ run_stack "platform"
 step_end "stack:platform"
 
 echo "=== Waiting for platform ArgoCD applications to sync ==="
-for app in gateway apps runners; do
+for app in gateway apps runners tracing; do
   echo "--- Waiting for ${app} ---"
   synced=0
   for i in $(seq 1 60); do
