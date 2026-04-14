@@ -36,12 +36,6 @@ variable "gateway_chart_version" {
   default     = "0.21.0"
 }
 
-variable "agent_state_chart_version" {
-  type        = string
-  description = "Version of the agent-state Helm chart published to GHCR"
-  default     = "0.1.0"
-}
-
 variable "agents_orchestrator_chart_version" {
   type        = string
   description = "Version of the agents-orchestrator Helm chart published to GHCR"
@@ -211,12 +205,6 @@ variable "destination_server" {
   default     = "https://kubernetes.default.svc"
 }
 
-variable "agent_state_image_tag" {
-  type        = string
-  description = "Optional override for the agent-state image tag"
-  default     = ""
-}
-
 variable "agents_orchestrator_image_tag" {
   type        = string
   description = "Optional override for the agents-orchestrator image tag"
@@ -356,26 +344,6 @@ variable "platform_db_pvc_size" {
   default     = "5Gi"
 }
 
-variable "litellm_db_password" {
-  type        = string
-  description = "Password for the LiteLLM PostgreSQL database user"
-  default     = "change-me"
-  sensitive   = true
-}
-
-variable "litellm_db_pvc_size" {
-  type        = string
-  description = "Persistent volume claim size for the LiteLLM PostgreSQL primary"
-  default     = "5Gi"
-}
-
-variable "agent_state_db_password" {
-  type        = string
-  description = "Password for the agent-state PostgreSQL database user"
-  default     = "agentstate"
-  sensitive   = true
-}
-
 variable "agents_orchestrator_db_password" {
   type        = string
   description = "Password for the agents-orchestrator PostgreSQL database user"
@@ -430,12 +398,6 @@ variable "tracing_db_password" {
   description = "Password for the tracing PostgreSQL database user"
   default     = "tracing"
   sensitive   = true
-}
-
-variable "agent_state_db_pvc_size" {
-  type        = string
-  description = "Persistent volume claim size for the agent-state PostgreSQL primary"
-  default     = "5Gi"
 }
 
 variable "agents_orchestrator_db_pvc_size" {
@@ -618,39 +580,6 @@ variable "minio_bucket_name" {
   type        = string
   description = "Default MinIO bucket name for files service"
   default     = "files"
-}
-
-variable "litellm_master_key" {
-  type        = string
-  description = "LiteLLM master key used by platform workloads"
-  default     = "sk-dev-master-1234"
-  sensitive   = true
-}
-
-variable "litellm_salt_key" {
-  type        = string
-  description = "LiteLLM salt key used by platform workloads"
-  default     = "sk-dev-salt-1234"
-  sensitive   = true
-}
-
-variable "litellm_ui_username" {
-  type        = string
-  description = "LiteLLM UI username for dev-only admin access"
-  default     = "admin"
-}
-
-variable "litellm_ui_password" {
-  type        = string
-  description = "LiteLLM UI password for dev-only admin access"
-  default     = "admin"
-  sensitive   = true
-}
-
-variable "vault_pvc_size" {
-  type        = string
-  description = "Persistent volume claim size for Vault data"
-  default     = "5Gi"
 }
 
 variable "registry_mirror_pvc_size" {
