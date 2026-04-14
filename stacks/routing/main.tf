@@ -16,7 +16,6 @@ locals {
     "openfga.${local.base_domain}",
     "openfga-playground.${local.base_domain}",
     "tracing.${local.base_domain}",
-    "vault.${local.base_domain}",
   ]
 }
 

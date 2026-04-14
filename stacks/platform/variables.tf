@@ -582,12 +582,6 @@ variable "minio_bucket_name" {
   default     = "files"
 }
 
-variable "vault_pvc_size" {
-  type        = string
-  description = "Persistent volume claim size for Vault data"
-  default     = "5Gi"
-}
-
 variable "registry_mirror_pvc_size" {
   type        = string
   description = "Persistent volume claim size for the registry mirror"
