@@ -528,6 +528,10 @@ locals {
         name  = "DATABASE_URL"
         value = format("postgresql://tracing:%s@tracing-db:5432/tracing?sslmode=disable", var.tracing_db_password)
       },
+      {
+        name  = "ZITI_ENABLED"
+        value = "true"
+      },
     ]
     image = {
       repository = "ghcr.io/agynio/tracing"
@@ -2991,6 +2995,7 @@ resource "argocd_application" "tracing" {
   depends_on = [
     argocd_repository.ghcr,
     argocd_application.tracing_db,
+    argocd_application.ziti_management,
   ]
   metadata {
     name      = "tracing"
