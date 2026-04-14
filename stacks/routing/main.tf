@@ -9,7 +9,6 @@ locals {
     "chat.${local.base_domain}",
     "console.${local.base_domain}",
     "gateway.${local.base_domain}",
-    "litellm.${local.base_domain}",
     "llm.${local.base_domain}",
     "media.${local.base_domain}",
     "minio.${local.base_domain}",
@@ -17,7 +16,6 @@ locals {
     "openfga.${local.base_domain}",
     "openfga-playground.${local.base_domain}",
     "tracing.${local.base_domain}",
-    "vault.${local.base_domain}",
   ]
 }
 
