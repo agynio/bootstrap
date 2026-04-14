@@ -45,7 +45,7 @@ variable "agent_state_chart_version" {
 variable "agents_orchestrator_chart_version" {
   type        = string
   description = "Version of the agents-orchestrator Helm chart published to GHCR"
-  default     = "0.13.5"
+  default     = "0.13.6"
 }
 
 variable "threads_chart_version" {
@@ -63,7 +63,7 @@ variable "metering_chart_version" {
 variable "tracing_chart_version" {
   type        = string
   description = "Version of the tracing Helm chart published to GHCR"
-  default     = "0.2.1"
+  default     = "0.3.0"
 }
 
 variable "token_counting_chart_version" {
@@ -99,7 +99,7 @@ variable "agents_chart_version" {
 variable "ziti_management_chart_version" {
   type        = string
   description = "Version of the ziti-management Helm chart published to GHCR"
-  default     = "0.10.6"
+  default     = "0.10.7"
 }
 
 variable "users_chart_version" {
