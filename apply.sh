@@ -417,20 +417,6 @@ done
 step_end "stack:deps"
 
 step_start "stack:ziti"
-echo "=== Waiting for OpenZiti Controller secret ==="
-for i in $(seq 1 30); do
-  ZITI_ADMIN_PASSWORD=$(kubectl --kubeconfig "${KUBECONFIG_PATH}" \
-    -n ziti get secret ziti-controller-admin-secret \
-    -o go-template='{{index .data "admin-password" | base64decode}}' 2>/dev/null) && break
-  echo "Waiting for ziti-controller admin secret... (${i}/30)"
-  sleep 5
-done
-
-if [[ -z "${ZITI_ADMIN_PASSWORD:-}" ]]; then
-  echo "ERROR: Could not retrieve ziti-controller admin password" >&2
-  exit 1
-fi
-
 echo "=== Waiting for OpenZiti Management API ==="
 management_ready=0
 for i in $(seq 1 60); do
@@ -449,7 +435,7 @@ if [[ "${management_ready}" -ne 1 ]]; then
 fi
 
 ZITI_EXIT=0
-run_stack "ziti" -var "ziti_admin_password=${ZITI_ADMIN_PASSWORD}" || ZITI_EXIT=$?
+run_stack "ziti" || ZITI_EXIT=$?
 
 if [ "${ZITI_EXIT}" -ne 0 ]; then
   echo "=== Ziti stack failed (exit code: ${ZITI_EXIT}). Dumping diagnostics ==="

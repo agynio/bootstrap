@@ -1,6 +1,6 @@
 provider "ziti" {
   username = var.ziti_admin_username
-  password = var.ziti_admin_password
+  password = local.ziti_admin_password
   host     = format("https://ziti-mgmt.%s:%d/edge/management/v1", local.base_domain, local.ingress_port)
 }
 
