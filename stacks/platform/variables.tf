@@ -184,7 +184,7 @@ variable "oidc_client_secret" {
 variable "tracing_app_chart_version" {
   type        = string
   description = "Version of the tracing-app Helm chart published to GHCR"
-  default     = "0.3.0"
+  default     = "0.2.1"
 }
 
 variable "tracing_app_image_tag" {
