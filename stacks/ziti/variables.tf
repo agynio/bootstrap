@@ -10,12 +10,6 @@ variable "ziti_admin_username" {
   default     = "admin"
 }
 
-variable "ziti_admin_password" {
-  type        = string
-  description = "Admin password used for Ziti controller authentication"
-  sensitive   = true
-}
-
 variable "ziti_router_chart_version" {
   type        = string
   description = "OpenZiti router chart version"
