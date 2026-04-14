@@ -33,7 +33,7 @@ variable "ghcr_token" {
 variable "gateway_chart_version" {
   type        = string
   description = "Version of the gateway Helm chart published to GHCR"
-  default     = "0.21.0"
+  default     = "0.21.1"
 }
 
 variable "agents_orchestrator_chart_version" {
@@ -476,7 +476,7 @@ variable "files_db_pvc_size" {
 variable "llm_chart_version" {
   type        = string
   description = "Version of the llm Helm chart published to GHCR"
-  default     = "0.4.0"
+  default     = "0.4.1"
 }
 
 variable "llm_image_tag" {
