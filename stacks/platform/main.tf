@@ -1,6 +1,5 @@
 locals {
   resolved_gateway_image_tag             = trimspace(var.gateway_image_tag) != "" ? var.gateway_image_tag : var.gateway_chart_version
-  resolved_agent_state_image_tag         = trimspace(var.agent_state_image_tag) != "" ? var.agent_state_image_tag : format("v%s", var.agent_state_chart_version)
   resolved_agents_orchestrator_image_tag = trimspace(var.agents_orchestrator_image_tag) != "" ? var.agents_orchestrator_image_tag : var.agents_orchestrator_chart_version
   resolved_threads_image_tag             = trimspace(var.threads_image_tag) != "" ? var.threads_image_tag : var.threads_chart_version
   resolved_metering_image_tag            = trimspace(var.metering_image_tag) != "" ? var.metering_image_tag : var.metering_chart_version
@@ -31,18 +30,12 @@ locals {
   registry_mirror_repo_url       = "https://github.com/twuni/docker-registry.helm.git"
   registry_mirror_chart_path     = "."
   registry_mirror_chart_revision = "v2.2.2"
-  litellm_chart_repo_host        = "ghcr.io"
-  litellm_chart_repo_url         = "oci://ghcr.io/berriai/litellm-helm"
-  litellm_chart_name             = "litellm-helm"
-  litellm_chart_full_name        = replace(local.litellm_chart_repo_url, "oci://${local.litellm_chart_repo_host}/", "")
-  litellm_chart_revision         = "1.81.12-stable.1"
   ncps_chart_repo_host           = "ghcr.io"
   ncps_chart_name                = "agynio/charts/ncps"
   ncps_chart_revision            = "0.1.3"
   platform_chart_repo_host       = "ghcr.io"
   postgres_chart_repo_host       = "ghcr.io"
   postgres_chart_name            = "agynio/charts/postgres-helm"
-  agent_state_chart_name         = "agynio/charts/agent-state"
   agents_orchestrator_chart_name = "agynio/charts/agents-orchestrator"
   threads_chart_name             = "agynio/charts/threads"
   metering_chart_name            = "agynio/charts/metering"
@@ -503,52 +496,6 @@ locals {
     }
   })
 
-  litellm_db_values = yamlencode({
-    fullnameOverride = "litellm-db"
-    postgres = {
-      database = "litellm"
-      username = "litellm"
-      password = var.litellm_db_password
-      pgdata   = "/var/lib/postgresql/data/pgdata"
-    }
-    persistence = {
-      size                    = var.litellm_db_pvc_size
-      mountPath               = "/var/lib/postgresql/data"
-      volumeClaimTemplateName = "data"
-    }
-    probes = {
-      readiness = {
-        execCommand = ["pg_isready", "-U", "litellm", "-d", "litellm"]
-      }
-      liveness = {
-        execCommand = ["pg_isready", "-U", "litellm", "-d", "litellm"]
-      }
-    }
-  })
-
-  agent_state_db_values = yamlencode({
-    fullnameOverride = "agent-state-db"
-    postgres = {
-      database = "agentstate"
-      username = "agentstate"
-      password = var.agent_state_db_password
-      pgdata   = "/var/lib/postgresql/data/pgdata"
-    }
-    persistence = {
-      size                    = var.agent_state_db_pvc_size
-      mountPath               = "/var/lib/postgresql/data"
-      volumeClaimTemplateName = "data"
-    }
-    probes = {
-      readiness = {
-        execCommand = ["pg_isready", "-U", "agentstate", "-d", "agentstate"]
-      }
-      liveness = {
-        execCommand = ["pg_isready", "-U", "agentstate", "-d", "agentstate"]
-      }
-    }
-  })
-
   threads_db_values = yamlencode({
     fullnameOverride = "threads-db"
     postgres = {
@@ -891,71 +838,6 @@ locals {
       liveness = {
         execCommand = ["pg_isready", "-U", "apps", "-d", "apps"]
       }
-    }
-  })
-
-  litellm_values = yamlencode({
-    fullnameOverride = "litellm"
-    replicaCount     = 1
-    image = {
-      pullPolicy = "IfNotPresent"
-    }
-    ingress = {
-      enabled = false
-    }
-    service = {
-      type = "ClusterIP"
-      port = 4000
-    }
-    masterkeySecretName = "litellm-master-key"
-    masterkeySecretKey  = "LITELLM_MASTER_KEY"
-    environmentSecrets  = ["litellm-master-key"]
-    envVars = {
-      DATABASE_URL = format("postgresql://litellm:%s@litellm-db:5432/litellm", var.litellm_db_password)
-      UI_USERNAME  = var.litellm_ui_username
-      UI_PASSWORD  = var.litellm_ui_password
-    }
-    proxy_config = {
-      model_list = [
-        {
-          model_name = "health-check"
-          litellm_params = {
-            model   = "openai/fake"
-            api_key = "placeholder"
-          }
-        }
-      ]
-      general_settings = {
-        master_key        = "os.environ/LITELLM_MASTER_KEY"
-        store_model_in_db = true
-      }
-    }
-    db = {
-      deployStandalone = false
-    }
-    migrationJob = {
-      enabled = true
-      hooks = {
-        argocd = {
-          enabled = true
-        }
-      }
-    }
-  })
-
-  agent_state_values = yamlencode({
-    replicaCount     = 1
-    fullnameOverride = "agent-state"
-    service = {
-      port = 50051
-    }
-    database = {
-      url = format("postgresql://agentstate:%s@agent-state-db:5432/agentstate?sslmode=disable", var.agent_state_db_password)
-    }
-    image = {
-      repository = "ghcr.io/agynio/agent-state"
-      tag        = local.resolved_agent_state_image_tag
-      pullPolicy = "IfNotPresent"
     }
   })
 
@@ -1944,20 +1826,6 @@ resource "kubernetes_secret_v1" "ziti_management_enrollment" {
   }
 }
 
-resource "kubernetes_secret" "litellm_master_key" {
-  metadata {
-    name      = "litellm-master-key"
-    namespace = kubernetes_namespace.platform.metadata[0].name
-  }
-
-  data = {
-    LITELLM_MASTER_KEY = var.litellm_master_key
-    LITELLM_SALT_KEY   = var.litellm_salt_key
-  }
-
-  type = "Opaque"
-}
-
 resource "kubernetes_secret_v1" "secrets_encryption_key" {
   metadata {
     name      = "secrets-encryption-key"
@@ -2441,51 +2309,6 @@ resource "kubernetes_manifest" "virtualservice_llm_proxy" {
   ]
 }
 
-resource "kubernetes_manifest" "virtualservice_litellm" {
-  manifest = {
-    "apiVersion" = "networking.istio.io/v1beta1"
-    "kind"       = "VirtualService"
-    "metadata" = {
-      "name"      = "litellm"
-      "namespace" = local.istio_gateway_namespace
-    }
-    "spec" = {
-      "hosts"    = ["litellm.${local.base_domain}"]
-      "gateways" = ["platform-gateway"]
-      "http" = [
-        {
-          "match" = [
-            {
-              "uri" = {
-                "prefix" = "/"
-              }
-            }
-          ]
-          "route" = [
-            {
-              "destination" = {
-                "host" = "litellm.platform.svc.cluster.local"
-                "port" = {
-                  "number" = 4000
-                }
-              }
-            }
-          ]
-        }
-      ]
-    }
-  }
-
-  computed_fields = [
-    "metadata.annotations",
-    "metadata.labels",
-  ]
-
-  depends_on = [
-    data.terraform_remote_state.system,
-  ]
-}
-
 resource "kubernetes_manifest" "virtualservice_vault" {
   manifest = {
     "apiVersion" = "networking.istio.io/v1beta1"
@@ -2660,7 +2483,7 @@ resource "argocd_repository" "bitnami_repo" {
   type = "helm"
 }
 resource "argocd_repository" "ghcr" {
-  repo       = local.litellm_chart_repo_host
+  repo       = "ghcr.io"
   type       = "helm"
   enable_oci = true
   username   = trimspace(var.ghcr_username) != "" ? var.ghcr_username : null
@@ -2689,106 +2512,6 @@ resource "argocd_application" "platform_db" {
 
       helm {
         values = local.platform_db_values
-      }
-    }
-
-    destination {
-      server    = var.destination_server
-      namespace = var.platform_namespace
-    }
-
-    sync_policy {
-      # DB apps always use automated sync with prune disabled for stateful safety,
-      # independent of var.argocd_automated_sync_enabled.
-      automated {
-        prune       = false
-        self_heal   = true
-        allow_empty = false
-      }
-
-      sync_options = local.postgres_sync_options
-    }
-  }
-
-  timeouts {
-    create = "5m"
-    update = "5m"
-    delete = "5m"
-  }
-}
-
-resource "argocd_application" "litellm_db" {
-  depends_on = [argocd_repository.ghcr]
-  wait       = true
-
-  metadata {
-    name      = "litellm-db"
-    namespace = "argocd"
-    annotations = {
-      "argocd.argoproj.io/sync-wave" = "6"
-    }
-  }
-
-  spec {
-    project = "default"
-
-    source {
-      repo_url        = local.postgres_chart_repo_host
-      chart           = local.postgres_chart_name
-      target_revision = var.postgres_chart_version
-
-      helm {
-        values = local.litellm_db_values
-      }
-    }
-
-    destination {
-      server    = var.destination_server
-      namespace = var.platform_namespace
-    }
-
-    sync_policy {
-      # DB apps always use automated sync with prune disabled for stateful safety,
-      # independent of var.argocd_automated_sync_enabled.
-      automated {
-        prune       = false
-        self_heal   = true
-        allow_empty = false
-      }
-
-      sync_options = local.postgres_sync_options
-    }
-  }
-
-  timeouts {
-    create = "5m"
-    update = "5m"
-    delete = "5m"
-  }
-}
-
-resource "argocd_application" "agent_state_db" {
-  depends_on = [argocd_repository.ghcr]
-  wait       = true
-
-  metadata {
-    name      = "agent-state-db"
-    namespace = "argocd"
-    annotations = {
-      "argocd.argoproj.io/sync-wave" = "7"
-    }
-  }
-
-  spec {
-    project = "default"
-
-    source {
-      repo_url        = local.postgres_chart_repo_host
-      chart           = local.postgres_chart_name
-      target_revision = var.postgres_chart_version
-
-      helm {
-        values = local.agent_state_db_values
       }
     }
 
@@ -3663,52 +3386,6 @@ resource "argocd_application" "registry_mirror" {
   }
 }
 
-resource "argocd_application" "litellm" {
-  depends_on = [
-    argocd_repository.ghcr,
-    argocd_application.litellm_db,
-  ]
-  metadata {
-    name      = "litellm"
-    namespace = "argocd"
-    annotations = {
-      "argocd.argoproj.io/sync-wave" = "12"
-    }
-  }
-
-  spec {
-    project = "default"
-
-    source {
-      repo_url        = local.litellm_chart_repo_host
-      chart           = local.litellm_chart_full_name
-      target_revision = local.litellm_chart_revision
-
-      helm {
-        values = local.litellm_values
-      }
-    }
-
-    destination {
-      server    = var.destination_server
-      namespace = var.platform_namespace
-    }
-
-    sync_policy {
-      dynamic "automated" {
-        for_each = var.argocd_automated_sync_enabled ? [1] : []
-        content {
-          prune       = var.argocd_prune_enabled
-          self_heal   = var.argocd_self_heal_enabled
-          allow_empty = false
-        }
-      }
-
-      sync_options = local.default_sync_options
-    }
-  }
-}
-
 resource "argocd_application" "ncps" {
   depends_on = [argocd_repository.ghcr]
   metadata {
@@ -3729,52 +3406,6 @@ resource "argocd_application" "ncps" {
 
       helm {
         values = local.ncps_values
-      }
-    }
-
-    destination {
-      server    = var.destination_server
-      namespace = var.platform_namespace
-    }
-
-    sync_policy {
-      dynamic "automated" {
-        for_each = var.argocd_automated_sync_enabled ? [1] : []
-        content {
-          prune       = var.argocd_prune_enabled
-          self_heal   = var.argocd_self_heal_enabled
-          allow_empty = false
-        }
-      }
-
-      sync_options = local.default_sync_options
-    }
-  }
-}
-
-resource "argocd_application" "agent_state" {
-  depends_on = [
-    argocd_repository.ghcr,
-    argocd_application.agent_state_db,
-  ]
-  metadata {
-    name      = "agent-state"
-    namespace = "argocd"
-    annotations = {
-      "argocd.argoproj.io/sync-wave" = "16"
-    }
-  }
-
-  spec {
-    project = "default"
-
-    source {
-      repo_url        = local.platform_chart_repo_host
-      chart           = local.agent_state_chart_name
-      target_revision = var.agent_state_chart_version
-
-      helm {
-        values = local.agent_state_values
       }
     }
 

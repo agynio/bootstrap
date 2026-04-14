@@ -9,7 +9,6 @@ locals {
     "chat.${local.base_domain}",
     "console.${local.base_domain}",
     "gateway.${local.base_domain}",
-    "litellm.${local.base_domain}",
     "llm.${local.base_domain}",
     "media.${local.base_domain}",
     "minio.${local.base_domain}",
