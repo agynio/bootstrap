@@ -489,18 +489,6 @@ locals {
         name  = "DATABASE_URL"
         value = format("postgresql://threads:%s@threads-db:5432/threads?sslmode=disable", var.threads_db_password)
       },
-      {
-        name  = "NOTIFICATIONS_ADDRESS"
-        value = "notifications:50051"
-      },
-      {
-        name  = "IDENTITY_ADDRESS"
-        value = "identity:50051"
-      },
-      {
-        name  = "METERING_SERVICE_ADDRESS"
-        value = "metering:50051"
-      },
     ]
     securityContext = {
       runAsUser  = 100
