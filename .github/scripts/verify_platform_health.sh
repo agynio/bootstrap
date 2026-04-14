@@ -24,7 +24,7 @@ if [[ ! -f "$KUBECONFIG_PATH" ]]; then
   exit 1
 fi
 
-REQUIRED_APPS_JSON='["cert-manager","trust-manager","ziti-controller","ziti-management","registry-mirror","minio","platform-db","threads-db","chat-db","identity-db","runners-db","identity","authorization","gateway","runners","notifications-redis","notifications","threads","chat","k8s-runner"]'
+REQUIRED_APPS_JSON='["cert-manager","trust-manager","ziti-controller","ziti-management","registry-mirror","minio","platform-db","threads-db","chat-db","identity-db","runners-db","metering-db","identity","authorization","gateway","runners","notifications-redis","notifications","metering","threads","chat","k8s-runner"]'
 
 deadline=$((SECONDS + TOTAL_TIMEOUT))
 pod_terminal_failures_streak=0
