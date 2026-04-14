@@ -195,6 +195,38 @@ resource "ziti_service_policy" "agents_dial_llm_proxy" {
   serviceroles  = [format("@%s", ziti_service.llm_proxy.id)]
 }
 
+resource "ziti_intercept_v1_config" "tracing_intercept" {
+  name      = "tracing-intercept-v1"
+  addresses = ["tracing.ziti"]
+  protocols = ["tcp"]
+  port_ranges = [
+    {
+      low  = 443
+      high = 443
+    }
+  ]
+}
+
+resource "ziti_service" "tracing" {
+  name            = "tracing"
+  configs         = [ziti_intercept_v1_config.tracing_intercept.id]
+  role_attributes = ["tracing"]
+}
+
+resource "ziti_service_policy" "tracing_bind" {
+  name          = "tracing-bind"
+  type          = "Bind"
+  identityroles = ["#tracing-hosts"]
+  serviceroles  = [format("@%s", ziti_service.tracing.id)]
+}
+
+resource "ziti_service_policy" "agents_dial_tracing" {
+  name          = "agents-dial-tracing"
+  type          = "Dial"
+  identityroles = ["#agents"]
+  serviceroles  = [format("@%s", ziti_service.tracing.id)]
+}
+
 resource "ziti_service_policy" "runners_bind" {
   name          = "runners-bind"
   type          = "Bind"
