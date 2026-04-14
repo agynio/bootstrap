@@ -36,12 +36,6 @@ variable "gateway_chart_version" {
   default     = "0.21.2"
 }
 
-variable "agent_state_chart_version" {
-  type        = string
-  description = "Version of the agent-state Helm chart published to GHCR"
-  default     = "0.1.0"
-}
-
 variable "agents_orchestrator_chart_version" {
   type        = string
   description = "Version of the agents-orchestrator Helm chart published to GHCR"
