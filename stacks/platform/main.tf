@@ -480,12 +480,20 @@ locals {
         }
       ]
     }
-    extraEnvVars = [
+    env = [
+      {
+        name  = "GRPC_ADDRESS"
+        value = ":50051"
+      },
       {
         name  = "DATABASE_URL"
         value = format("postgresql://threads:%s@threads-db:5432/threads?sslmode=disable", var.threads_db_password)
       },
     ]
+    securityContext = {
+      runAsUser  = 100
+      runAsGroup = 101
+    }
     image = {
       repository = "ghcr.io/agynio/threads"
       tag        = local.resolved_threads_image_tag
