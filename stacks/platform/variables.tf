@@ -33,7 +33,7 @@ variable "ghcr_token" {
 variable "gateway_chart_version" {
   type        = string
   description = "Version of the gateway Helm chart published to GHCR"
-  default     = "0.21.2"
+  default     = "0.22.0"
 }
 
 variable "agents_orchestrator_chart_version" {
