@@ -373,8 +373,50 @@ step_start "stack:routing"
 run_stack "routing"
 step_end "stack:routing"
 
+ziti_admin_password_override=""
+ziti_xtrace_enabled=false
+if [[ "${-}" == *x* ]]; then
+  ziti_xtrace_enabled=true
+  set +x
+fi
+
+if ! ziti_secret_present=$(kubectl --kubeconfig "${KUBECONFIG_PATH}" -n ziti \
+  get secret ziti-controller-admin-secret --ignore-not-found -o name 2>/dev/null); then
+  echo "Error: failed to check for existing ziti-controller-admin-secret." >&2
+  if [[ "${ziti_xtrace_enabled}" == "true" ]]; then
+    set -x
+  fi
+  exit 1
+fi
+
+if [[ -n "${ziti_secret_present}" ]]; then
+  ziti_admin_password_override=$(kubectl --kubeconfig "${KUBECONFIG_PATH}" -n ziti \
+    get secret ziti-controller-admin-secret \
+    -o go-template='{{index .data "admin-password" | base64decode}}' 2>/dev/null || true)
+  if [[ -z "${ziti_admin_password_override}" ]]; then
+    echo "Error: ziti-controller-admin-secret exists but admin-password is empty." >&2
+    if [[ "${ziti_xtrace_enabled}" == "true" ]]; then
+      set -x
+    fi
+    exit 1
+  fi
+fi
+
+if [[ -z "${ziti_admin_password_override}" && "${ziti_xtrace_enabled}" == "true" ]]; then
+  set -x
+  ziti_xtrace_enabled=false
+fi
+
 step_start "stack:deps"
-run_stack "deps"
+if [[ -n "${ziti_admin_password_override}" ]]; then
+  TF_VAR_ziti_admin_password_override="${ziti_admin_password_override}" run_stack "deps"
+else
+  run_stack "deps"
+fi
+unset ziti_admin_password_override
+if [[ "${ziti_xtrace_enabled}" == "true" ]]; then
+  set -x
+fi
 
 echo "=== Waiting for ArgoCD applications to sync ==="
 for app in cert-manager trust-manager ziti-controller; do

@@ -47,6 +47,7 @@ locals {
     useCustomAdminSecret  = true
     customAdminSecretName = local.ziti_admin_secret_name
   })
+  ziti_admin_password = var.ziti_admin_password_override != "" ? var.ziti_admin_password_override : random_password.ziti_controller_admin.result
 }
 
 resource "random_password" "ziti_controller_admin" {
@@ -64,7 +65,7 @@ resource "kubernetes_secret_v1" "ziti_controller_admin" {
 
   data = {
     "admin-user"     = "admin"
-    "admin-password" = random_password.ziti_controller_admin.result
+    "admin-password" = local.ziti_admin_password
   }
 
   lifecycle {

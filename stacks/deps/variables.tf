@@ -17,6 +17,13 @@ variable "argocd_admin_password" {
   sensitive   = true
 }
 
+variable "ziti_admin_password_override" {
+  type        = string
+  description = "Optional override for the Ziti admin password to preserve existing credentials during upgrades"
+  default     = ""
+  sensitive   = true
+}
+
 variable "cert_manager_chart_version" {
   type        = string
   description = "cert-manager chart version"

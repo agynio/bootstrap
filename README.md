@@ -54,3 +54,15 @@ Default domain and port: `agyn.dev` on `2496`.
 - Argo CD: https://argocd.agyn.dev:2496/
 - OpenFGA API: https://openfga.agyn.dev:2496/
 - OpenFGA Playground: https://openfga-playground.agyn.dev:2496/
+
+## Upgrade notes
+
+### Ziti admin secret migration (Issue #349)
+
+On existing clusters, rerun `./apply.sh -y` after upgrading. It preserves the legacy
+`ziti-controller-admin-secret` password while seeding the new
+`ziti-controller-admin-credentials` secret.
+
+If the legacy secret was already pruned or rotated, recreate it with the correct
+admin password (or reset the controller admin password) and rerun `./apply.sh -y`
+or `TF_VAR_ziti_admin_password_override=... terraform -chdir=stacks/deps apply`.

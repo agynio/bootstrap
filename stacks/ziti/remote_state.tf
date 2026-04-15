@@ -8,7 +8,7 @@ data "terraform_remote_state" "k8s" {
 
 data "kubernetes_secret_v1" "ziti_admin" {
   metadata {
-    name      = "ziti-controller-admin-secret"
+    name      = "ziti-controller-admin-credentials"
     namespace = "ziti"
   }
 }

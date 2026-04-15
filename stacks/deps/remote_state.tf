@@ -21,7 +21,7 @@ locals {
   argocd_namespace        = local.installed_namespaces[4]
   cert_manager_namespace  = local.installed_namespaces[0]
   ziti_namespace          = local.installed_namespaces[1]
-  ziti_admin_secret_name  = "ziti-controller-admin-secret"
+  ziti_admin_secret_name  = "ziti-controller-admin-credentials"
   destination_server      = "https://kubernetes.default.svc"
   istio_gateway_namespace = data.terraform_remote_state.system.outputs.istio_gateway_namespace
 }
