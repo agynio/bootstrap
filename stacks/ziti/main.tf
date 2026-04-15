@@ -255,13 +255,6 @@ resource "ziti_service_policy" "gateway_dial_apps" {
   serviceroles  = ["#app-services"]
 }
 
-resource "ziti_service_policy" "agents_host_exposed" {
-  name          = "agents-host-exposed"
-  type          = "Bind"
-  identityroles = ["#agents"]
-  serviceroles  = ["#exposed-services"]
-}
-
 resource "ziti_edge_router_policy" "all_identities_all_routers" {
   name            = "all-identities-all-routers"
   identityroles   = ["#all"]
