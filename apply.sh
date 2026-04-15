@@ -526,7 +526,12 @@ if [ "${ZITI_EXIT}" -ne 0 ]; then
 fi
 step_end "stack:ziti"
 
-echo "=== Verifying required Ziti services ==="
+ziti_xtrace_enabled=false
+if [[ "${-}" == *x* ]]; then
+  ziti_xtrace_enabled=true
+  set +x
+fi
+
 ziti_admin_username=$(kubectl --kubeconfig "${KUBECONFIG_PATH}" -n ziti \
   get secret ziti-controller-admin-secret \
   -o go-template='{{index .data "admin-user" | base64decode}}' 2>/dev/null || true)
@@ -567,6 +572,12 @@ for service_name in "${required_ziti_services[@]}"; do
     exit 1
   fi
 done
+
+unset ziti_admin_password
+
+if [[ "${ziti_xtrace_enabled}" == "true" ]]; then
+  set -x
+fi
 
 step_start "stack:data"
 run_stack "data"
