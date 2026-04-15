@@ -44,7 +44,32 @@ locals {
       enabled = true
       size    = "2Gi"
     }
+    useCustomAdminSecret  = true
+    customAdminSecretName = local.ziti_admin_secret_name
   })
+}
+
+resource "random_password" "ziti_controller_admin" {
+  length  = 32
+  special = false
+}
+
+resource "kubernetes_secret_v1" "ziti_controller_admin" {
+  metadata {
+    name      = local.ziti_admin_secret_name
+    namespace = local.ziti_namespace
+  }
+
+  type = "Opaque"
+
+  data = {
+    "admin-user"     = "admin"
+    "admin-password" = random_password.ziti_controller_admin.result
+  }
+
+  lifecycle {
+    ignore_changes = [data]
+  }
 }
 
 resource "argocd_repository" "jetstack" {
@@ -201,6 +226,7 @@ resource "argocd_application" "ziti_controller" {
     argocd_application.cert_manager,
     argocd_application.trust_manager,
     argocd_repository.openziti,
+    kubernetes_secret_v1.ziti_controller_admin,
   ]
   wait = false
 
