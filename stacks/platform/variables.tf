@@ -105,7 +105,7 @@ variable "users_chart_version" {
 variable "expose_chart_version" {
   type        = string
   description = "Version of the expose Helm chart published to GHCR"
-  default     = "0.1.3"
+  default     = "0.1.4"
 }
 
 variable "organizations_chart_version" {
