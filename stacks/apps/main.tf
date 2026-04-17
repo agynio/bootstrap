@@ -368,7 +368,6 @@ resource "null_resource" "bootstrap_admin_oidc_user" {
     environment = {
       ADMIN_OIDC_SUBJECT = local.admin_oidc_subject
       ADMIN_TOKEN        = local.cluster_admin_token
-      GATEWAY_URL        = local.gateway_url
       USERS_GATEWAY_URL  = local.users_gateway_url
     }
 
