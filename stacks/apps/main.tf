@@ -7,7 +7,7 @@ locals {
   postgres_chart_name           = "agynio/charts/postgres-helm"
   reminders_chart_name          = "agynio/charts/reminders"
   k8s_runner_chart_name         = "agynio/charts/k8s-runner"
-  users_gateway_url             = format("%s/api/agynio.api.gateway.v1.UsersGateway", local.gateway_url)
+  users_gateway_url             = format("%s/agynio.api.gateway.v1.UsersGateway", local.gateway_url)
 
   default_sync_options = [
     "CreateNamespace=true",
