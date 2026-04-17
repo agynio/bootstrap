@@ -1,11 +1,13 @@
 locals {
   resolved_reminders_image_tag  = trimspace(var.reminders_image_tag) != "" ? var.reminders_image_tag : format("v%s", var.reminders_chart_version)
   resolved_k8s_runner_image_tag = trimspace(var.k8s_runner_image_tag) != "" ? var.k8s_runner_image_tag : var.k8s_runner_chart_version
+  admin_oidc_subject            = trimspace(var.admin_oidc_subject)
   platform_chart_repo_host      = "ghcr.io"
   postgres_chart_repo_host      = "ghcr.io"
   postgres_chart_name           = "agynio/charts/postgres-helm"
   reminders_chart_name          = "agynio/charts/reminders"
   k8s_runner_chart_name         = "agynio/charts/k8s-runner"
+  users_gateway_url             = format("%s/api/agynio.api.gateway.v1.UsersGateway", local.gateway_url)
 
   default_sync_options = [
     "CreateNamespace=true",
@@ -351,4 +353,124 @@ resource "argocd_application" "k8s_runner" {
       sync_options = local.default_sync_options
     }
   }
+}
+
+resource "null_resource" "bootstrap_admin_oidc_user" {
+  triggers = {
+    admin_oidc_subject       = local.admin_oidc_subject
+    gateway_url              = local.gateway_url
+    cluster_admin_token_hash = sha256(local.cluster_admin_token)
+  }
+
+  provisioner "local-exec" {
+    interpreter = ["/usr/bin/env", "bash", "-c"]
+
+    environment = {
+      ADMIN_OIDC_SUBJECT = local.admin_oidc_subject
+      ADMIN_TOKEN        = local.cluster_admin_token
+      GATEWAY_URL        = local.gateway_url
+      USERS_GATEWAY_URL  = local.users_gateway_url
+    }
+
+    command = <<-EOT
+      set -euo pipefail
+
+      if ! command -v python3 >/dev/null 2>&1; then
+        echo "Error: python3 is required to provision the admin OIDC user." >&2
+        exit 1
+      fi
+
+      create_response="$(mktemp)"
+      update_response="$(mktemp)"
+
+      cleanup() {
+        rm -f "$create_response" "$update_response"
+      }
+      trap cleanup EXIT
+
+      create_payload="$(python3 - <<'PY'
+import json
+import os
+
+oidc_subject = os.environ["ADMIN_OIDC_SUBJECT"]
+print(json.dumps({"oidcSubject": oidc_subject, "name": oidc_subject}))
+PY
+      )"
+
+      create_status=$(curl -sk -o "$create_response" -w "%%{http_code}" \
+        -H "Content-Type: application/json" \
+        -H "Connect-Protocol-Version: 1" \
+        -H "Authorization: Bearer $ADMIN_TOKEN" \
+        "$USERS_GATEWAY_URL/CreateUser" \
+        -d "$create_payload")
+
+      create_body="$(cat "$create_response")"
+
+      if [[ "$create_status" != "200" ]]; then
+        echo "CreateUser failed (status $create_status): $create_body" >&2
+        exit 1
+      fi
+
+      identity_id="$(printf '%s' "$create_body" | python3 - <<'PY'
+import json
+import sys
+
+payload = json.load(sys.stdin)
+user = payload.get("user") or {}
+meta = user.get("meta") or {}
+identity_id = meta.get("id") or ""
+if not identity_id:
+    raise SystemExit("CreateUser response missing user.meta.id")
+print(identity_id)
+PY
+      )"
+
+      update_payload="$(IDENTITY_ID="$identity_id" python3 - <<'PY'
+import json
+import os
+
+identity_id = os.environ["IDENTITY_ID"]
+print(json.dumps({"identityId": identity_id, "clusterRole": "CLUSTER_ROLE_ADMIN"}))
+PY
+      )"
+
+      update_status=$(curl -sk -o "$update_response" -w "%%{http_code}" \
+        -H "Content-Type: application/json" \
+        -H "Connect-Protocol-Version: 1" \
+        -H "Authorization: Bearer $ADMIN_TOKEN" \
+        "$USERS_GATEWAY_URL/UpdateUser" \
+        -d "$update_payload")
+
+      update_body="$(cat "$update_response")"
+
+      if [[ "$update_status" != "200" ]]; then
+        if printf '%s' "$update_body" | python3 - <<'PY'; then
+import json
+import sys
+
+try:
+    payload = json.load(sys.stdin)
+except json.JSONDecodeError:
+    sys.exit(1)
+
+code = str(payload.get("code", "")).lower()
+message = str(payload.get("message", "")).lower()
+
+if code == "already_exists" or "already exists" in message:
+    sys.exit(0)
+sys.exit(1)
+PY
+        then
+          echo "Cluster admin role already set for $identity_id."
+          exit 0
+        fi
+        echo "UpdateUser failed (status $update_status): $update_body" >&2
+        exit 1
+      fi
+
+      echo "Cluster admin role ensured for $ADMIN_OIDC_SUBJECT (identity $identity_id)."
+    EOT
+  }
+
+  depends_on = [agyn_organization.platform]
 }
