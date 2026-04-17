@@ -1,7 +1,6 @@
 ## Requirements
 
 - terraform
-- python3 (required for bootstrap admin user provisioning)
 - kubectl (optional; only needed for kubeconfig merge and cluster interaction)
 
 ## Setup
