@@ -474,7 +474,7 @@ PY
         -d "$update_payload")
 
       if [[ "$update_status" != "200" ]]; then
-        if python3 - "$update_response" "$update_status" <<'PY'; then
+        if python3 - "$update_response" "$update_status" <<'PY'
 import json
 import sys
 
