@@ -388,6 +388,26 @@ resource "null_resource" "bootstrap_admin_oidc_user" {
       }
       trap cleanup EXIT
 
+      show_response_snippet() {
+        local label="$1"
+        local status="$2"
+        local file="$3"
+
+        python3 - "$label" "$status" "$file" <<'PY'
+import sys
+
+label = sys.argv[1]
+status = sys.argv[2]
+path = sys.argv[3]
+
+with open(path, "rb") as handle:
+    data = handle.read()
+
+snippet = data.decode("utf-8", errors="replace")[:200]
+sys.stderr.write(f"{label} failed (status {status}): {snippet}\n")
+PY
+      }
+
       create_payload="$(python3 - <<'PY'
 import json
 import os
@@ -397,25 +417,36 @@ print(json.dumps({"oidcSubject": oidc_subject, "name": oidc_subject}))
 PY
       )"
 
-      create_status=$(curl -sk -o "$create_response" -w "%%{http_code}" \
+      create_status=$(curl -sk --compressed -o "$create_response" -w "%%{http_code}" \
         -H "Content-Type: application/json" \
+        -H "Accept: application/json" \
         -H "Connect-Protocol-Version: 1" \
         -H "Authorization: Bearer $ADMIN_TOKEN" \
         "$USERS_GATEWAY_URL/CreateUser" \
         -d "$create_payload")
 
-      create_body="$(cat "$create_response")"
-
       if [[ "$create_status" != "200" ]]; then
-        echo "CreateUser failed (status $create_status): $create_body" >&2
+        show_response_snippet "CreateUser" "$create_status" "$create_response"
         exit 1
       fi
 
-      identity_id="$(printf '%s' "$create_body" | python3 - <<'PY'
+      identity_id="$(python3 - "$create_response" "$create_status" <<'PY'
 import json
 import sys
 
-payload = json.load(sys.stdin)
+path = sys.argv[1]
+status = sys.argv[2]
+
+with open(path, "rb") as handle:
+    data = handle.read()
+
+try:
+    payload = json.loads(data)
+except json.JSONDecodeError:
+    snippet = data.decode("utf-8", errors="replace")[:200]
+    sys.stderr.write(f"CreateUser response not JSON (status {status}): {snippet}\n")
+    sys.exit(1)
+
 user = payload.get("user") or {}
 meta = user.get("meta") or {}
 identity_id = meta.get("id") or ""
@@ -434,23 +465,30 @@ print(json.dumps({"identityId": identity_id, "clusterRole": "CLUSTER_ROLE_ADMIN"
 PY
       )"
 
-      update_status=$(curl -sk -o "$update_response" -w "%%{http_code}" \
+      update_status=$(curl -sk --compressed -o "$update_response" -w "%%{http_code}" \
         -H "Content-Type: application/json" \
+        -H "Accept: application/json" \
         -H "Connect-Protocol-Version: 1" \
         -H "Authorization: Bearer $ADMIN_TOKEN" \
         "$USERS_GATEWAY_URL/UpdateUser" \
         -d "$update_payload")
 
-      update_body="$(cat "$update_response")"
-
       if [[ "$update_status" != "200" ]]; then
-        if printf '%s' "$update_body" | python3 - <<'PY'; then
+        if python3 - "$update_response" "$update_status" <<'PY'; then
 import json
 import sys
 
+path = sys.argv[1]
+status = sys.argv[2]
+
+with open(path, "rb") as handle:
+    data = handle.read()
+
 try:
-    payload = json.load(sys.stdin)
+    payload = json.loads(data)
 except json.JSONDecodeError:
+    snippet = data.decode("utf-8", errors="replace")[:200]
+    sys.stderr.write(f"UpdateUser response not JSON (status {status}): {snippet}\n")
     sys.exit(1)
 
 code = str(payload.get("code", "")).lower()
@@ -458,13 +496,15 @@ message = str(payload.get("message", "")).lower()
 
 if code == "already_exists" or "already exists" in message:
     sys.exit(0)
+
+snippet = data.decode("utf-8", errors="replace")[:200]
+sys.stderr.write(f"UpdateUser failed (status {status}): {snippet}\n")
 sys.exit(1)
 PY
         then
           echo "Cluster admin role already set for $identity_id."
           exit 0
         fi
-        echo "UpdateUser failed (status $update_status): $update_body" >&2
         exit 1
       fi
 
