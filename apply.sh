@@ -25,6 +25,7 @@ Environment variables:
   OIDC_ISSUER_URL     Override the OIDC issuer URL (default: https://mockauth.dev/r/301ebb13-15a8-48f4-baac-e3fa25be29fc/oidc)
   OIDC_CLIENT_ID      Override the OIDC client ID (default: client_MU95KU3gHQf5Ir7p)
   OIDC_CLIENT_SECRET  Override the OIDC client secret (default: XPKka2i9uzISrKZ95zxli8sY51BK4eTJ)
+  ADMIN_OIDC_SUBJECT  Optional OIDC subject for the bootstrap admin user (default: admin@agyn.io)
   GHCR_USERNAME        Optional GHCR username for private OCI charts
   GHCR_TOKEN           Optional GHCR token for private OCI charts
 EOF
@@ -146,6 +147,11 @@ else
   echo "OIDC client secret provided via OIDC_CLIENT_SECRET environment variable: ${oidc_client_secret}"
 fi
 
+admin_oidc_subject="${ADMIN_OIDC_SUBJECT:-}"
+if [[ -n "${admin_oidc_subject}" ]]; then
+  echo "Admin OIDC subject provided via ADMIN_OIDC_SUBJECT environment variable: ${admin_oidc_subject}"
+fi
+
 ghcr_username="${GHCR_USERNAME:-}"
 ghcr_token="${GHCR_TOKEN:-}"
 
@@ -178,6 +184,10 @@ run_stack() {
       -var "ghcr_username=${ghcr_username}"
       -var "ghcr_token=${ghcr_token}"
     )
+  fi
+
+  if [[ "${stack}" == "apps" && -n "${admin_oidc_subject}" ]]; then
+    apply_cmd+=(-var "admin_oidc_subject=${admin_oidc_subject}")
   fi
 
   if [[ "${#extra_args[@]}" -gt 0 ]]; then

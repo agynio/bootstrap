@@ -23,6 +23,17 @@ variable "argocd_admin_password" {
   sensitive   = true
 }
 
+variable "admin_oidc_subject" {
+  type        = string
+  description = "OIDC subject for the bootstrap cluster admin user"
+  default     = "admin@agyn.io"
+
+  validation {
+    condition     = trimspace(var.admin_oidc_subject) != ""
+    error_message = "admin_oidc_subject must not be empty."
+  }
+}
+
 variable "destination_server" {
   type        = string
   description = "Kubernetes API server address for Argo CD application destinations"
