@@ -5,6 +5,16 @@ provider "registry.terraform.io/agynio/agyn" {
   version     = "0.6.9"
   constraints = "~> 0.6"
   hashes = [
+    "h1:A/5SkIKuRK+osCSe5BmC0fioMot+cda//JCDbygaKTY=",
+    "h1:FgisfWmx7GV6TBsmCyL9uQdM2wQjG7S+sKAfTiUH9tA=",
+    "h1:GMQKN7L6nazYSQqDfKlu/3IODAwHdShajwuQOjZ39ds=",
+    "h1:IgoB4DiXQC7sM25VOc2tDf4+H14hgIEew+Eb8JQYo70=",
+    "h1:Jdjq+n6y7jSgwxov8hIRrfUBcEUXY8C7dmX0kiflDOU=",
+    "h1:Nu/RE0XUisxeBIFn3SHwD5VbukAmJtvPfcs5gm8sBhE=",
+    "h1:O3uXGWwubV7B4PoXkPdxleHvBW3HxVe5zLyk33+SaPg=",
+    "h1:RDUjV2/z4Ud6dn1d2OWTKHZez3eirgs9mGIMdGrODqw=",
+    "h1:YtBs8dtHUVXxZeqry7ktiO7j4a5GFavHnT/Yga8IRFg=",
+    "h1:pG/TTnhblIVPqKAUfXNTUTBGM4lMMGR7VNSIYaYyYuQ=",
     "h1:v4N7sxIIoXqevuLawmcyWslZtyoZSTR035ZwPPq58m4=",
     "zh:0d5c6c713075960701b5267d1de4d1eb95eeb8171a4d1da1240b5c55dcf63c53",
     "zh:175905910ac9fcb3f9f4eabe1e0349ab8cd6a145504ec340c6de27680e1c478b",

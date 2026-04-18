@@ -136,6 +136,12 @@ locals {
         value = "gateway-gateway:8080"
       },
       {
+        name = "CAPABILITY_IMPLEMENTATIONS"
+        value = jsonencode({
+          docker = "rootless"
+        })
+      },
+      {
         name = "SERVICE_TOKEN"
         valueFrom = {
           secretKeyRef = {
@@ -304,6 +310,7 @@ resource "agyn_runner" "k8s_runner" {
   labels = {
     type = "kubernetes"
   }
+  capabilities = ["docker"]
 }
 
 resource "kubernetes_secret_v1" "k8s_runner_service_token" {
