@@ -18,12 +18,6 @@ Use auto-apply mode to skip prompts and run Terraform with `-input=false -auto-a
 ./apply.sh -y
 ```
 
-Override the bootstrap admin OIDC subject (default `admin@agyn.io`) via `ADMIN_OIDC_SUBJECT`:
-
-```sh
-ADMIN_OIDC_SUBJECT=admin@example.com ./apply.sh -y
-```
-
 **Manual**
 
 ```sh
