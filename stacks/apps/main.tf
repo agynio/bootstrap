@@ -1,6 +1,7 @@
 locals {
   resolved_reminders_image_tag  = trimspace(var.reminders_image_tag) != "" ? var.reminders_image_tag : format("v%s", var.reminders_chart_version)
   resolved_k8s_runner_image_tag = trimspace(var.k8s_runner_image_tag) != "" ? var.k8s_runner_image_tag : var.k8s_runner_chart_version
+  admin_oidc_subject            = trimspace(var.admin_oidc_subject)
   platform_chart_repo_host      = "ghcr.io"
   postgres_chart_repo_host      = "ghcr.io"
   postgres_chart_name           = "agynio/charts/postgres-helm"
@@ -168,6 +169,14 @@ locals {
 
 resource "agyn_organization" "platform" {
   name = "Platform"
+}
+
+resource "agyn_user" "admin" {
+  oidc_subject = local.admin_oidc_subject
+  name         = local.admin_oidc_subject
+  cluster_role = "admin"
+
+  depends_on = [agyn_organization.platform]
 }
 
 resource "agyn_app" "reminders" {
