@@ -184,7 +184,7 @@ resource "agyn_app" "reminders" {
   slug            = "reminders"
   name            = "Reminders"
   description     = "Delayed message delivery to threads"
-  visibility      = "internal"
+  visibility      = "public"
   permissions     = ["thread:write"]
 }
 
