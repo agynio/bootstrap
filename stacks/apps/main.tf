@@ -311,10 +311,6 @@ resource "agyn_runner" "k8s_runner" {
     type = "kubernetes"
   }
   capabilities = ["docker"]
-
-  lifecycle {
-    ignore_changes = [capabilities]
-  }
 }
 
 resource "kubernetes_secret_v1" "k8s_runner_service_token" {
