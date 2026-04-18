@@ -57,7 +57,7 @@ variable "metering_chart_version" {
 variable "tracing_chart_version" {
   type        = string
   description = "Version of the tracing Helm chart published to GHCR"
-  default     = "0.3.0"
+  default     = "0.3.1"
 }
 
 variable "token_counting_chart_version" {
@@ -135,7 +135,7 @@ variable "apps_chart_version" {
 variable "chat_app_chart_version" {
   type        = string
   description = "Version of the chat-app Helm chart published to GHCR"
-  default     = "0.4.3"
+  default     = "0.4.4"
 }
 
 variable "chat_app_image_tag" {
@@ -184,7 +184,7 @@ variable "oidc_client_secret" {
 variable "tracing_app_chart_version" {
   type        = string
   description = "Version of the tracing-app Helm chart published to GHCR"
-  default     = "0.2.1"
+  default     = "0.2.2"
 }
 
 variable "tracing_app_image_tag" {
