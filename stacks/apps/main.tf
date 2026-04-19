@@ -1,12 +1,14 @@
 locals {
-  resolved_reminders_image_tag  = trimspace(var.reminders_image_tag) != "" ? var.reminders_image_tag : format("v%s", var.reminders_chart_version)
-  resolved_k8s_runner_image_tag = trimspace(var.k8s_runner_image_tag) != "" ? var.k8s_runner_image_tag : var.k8s_runner_chart_version
-  admin_oidc_subject            = trimspace(var.admin_oidc_subject)
-  platform_chart_repo_host      = "ghcr.io"
-  postgres_chart_repo_host      = "ghcr.io"
-  postgres_chart_name           = "agynio/charts/postgres-helm"
-  reminders_chart_name          = "agynio/charts/reminders"
-  k8s_runner_chart_name         = "agynio/charts/k8s-runner"
+  resolved_reminders_image_tag          = trimspace(var.reminders_image_tag) != "" ? var.reminders_image_tag : format("v%s", var.reminders_chart_version)
+  resolved_k8s_runner_image_tag         = trimspace(var.k8s_runner_image_tag) != "" ? var.k8s_runner_image_tag : var.k8s_runner_chart_version
+  resolved_telegram_connector_image_tag = trimspace(var.telegram_connector_image_tag) != "" ? var.telegram_connector_image_tag : var.telegram_connector_chart_version
+  admin_oidc_subject                    = trimspace(var.admin_oidc_subject)
+  platform_chart_repo_host              = "ghcr.io"
+  postgres_chart_repo_host              = "ghcr.io"
+  postgres_chart_name                   = "agynio/charts/postgres-helm"
+  reminders_chart_name                  = "agynio/charts/reminders"
+  telegram_connector_chart_name         = "agynio/charts/telegram-connector"
+  k8s_runner_chart_name                 = "agynio/charts/k8s-runner"
 
   default_sync_options = [
     "CreateNamespace=true",
@@ -104,6 +106,102 @@ locals {
     ]
   })
 
+  telegram_connector_db_values = yamlencode({
+    fullnameOverride = "telegram-connector-db"
+    postgres = {
+      database = "telegram"
+      username = "telegram"
+      password = var.telegram_connector_db_password
+      pgdata   = "/var/lib/postgresql/data/pgdata"
+    }
+    persistence = {
+      size                    = var.telegram_connector_db_pvc_size
+      mountPath               = "/var/lib/postgresql/data"
+      volumeClaimTemplateName = "data"
+    }
+    probes = {
+      readiness = {
+        execCommand = ["pg_isready", "-U", "telegram", "-d", "telegram"]
+      }
+      liveness = {
+        execCommand = ["pg_isready", "-U", "telegram", "-d", "telegram"]
+      }
+    }
+  })
+
+  telegram_connector_values = yamlencode({
+    replicaCount     = 1
+    fullnameOverride = "telegram-connector"
+    image = {
+      repository = "ghcr.io/agynio/telegram-connector"
+      tag        = local.resolved_telegram_connector_image_tag
+      pullPolicy = "IfNotPresent"
+    }
+    securityContext = {
+      runAsNonRoot = false
+    }
+    extraVolumes = [
+      {
+        name     = "ziti-identity"
+        emptyDir = {}
+      }
+    ]
+    extraVolumeMounts = [
+      {
+        name      = "ziti-identity"
+        mountPath = "/ziti"
+        readOnly  = false
+      }
+    ]
+    env = [
+      {
+        name  = "HTTP_ADDRESS"
+        value = ":8080"
+      },
+      {
+        name  = "DATABASE_URL"
+        value = format("postgresql://telegram:%s@telegram-connector-db:5432/telegram?sslmode=disable", var.telegram_connector_db_password)
+      },
+      {
+        name  = "ZITI_IDENTITY_FILE"
+        value = "/ziti/identity.json"
+      },
+      {
+        name = "SERVICE_TOKEN"
+        valueFrom = {
+          secretKeyRef = {
+            name = "telegram-connector-service-token"
+            key  = "token"
+          }
+        }
+      },
+      {
+        name  = "GATEWAY_URL"
+        value = "http://gateway-gateway.platform.svc.cluster.local:8080"
+      },
+      {
+        name  = "ZITI_SERVICE_NAME"
+        value = "app-telegram"
+      },
+      {
+        name  = "GATEWAY_SERVICE_NAME"
+        value = "gateway"
+      },
+      {
+        name  = "APP_ID"
+        value = tostring(agyn_app.telegram.id)
+      },
+      {
+        name  = "TELEGRAM_BASE_URL"
+        value = "https://api.telegram.org"
+      },
+      {
+        name  = "TELEGRAM_POLL_TIMEOUT"
+        value = "25s"
+      },
+    ]
+  })
+
   k8s_runner_values = yamlencode({
     replicaCount     = 1
     fullnameOverride = "k8s-runner"
@@ -194,10 +292,25 @@ resource "agyn_app" "reminders" {
   permissions     = ["thread:write"]
 }
 
+resource "agyn_app" "telegram" {
+  organization_id = agyn_organization.platform.id
+  slug            = "telegram"
+  name            = "Telegram Connector"
+  description     = "Telegram connector for threads"
+  visibility      = "public"
+  permissions     = ["thread:create", "thread:write", "participant:add"]
+}
+
 resource "agyn_app_installation" "reminders" {
   app_id          = agyn_app.reminders.id
   organization_id = agyn_organization.platform.id
   slug            = "reminders"
+}
+
+resource "agyn_app_installation" "telegram" {
+  app_id          = agyn_app.telegram.id
+  organization_id = agyn_organization.platform.id
+  slug            = "telegram"
 }
 
 resource "kubernetes_secret_v1" "reminders_service_token" {
@@ -210,6 +323,19 @@ resource "kubernetes_secret_v1" "reminders_service_token" {
 
   data = {
     token = agyn_app.reminders.service_token
+  }
+}
+
+resource "kubernetes_secret_v1" "telegram_connector_service_token" {
+  metadata {
+    name      = "telegram-connector-service-token"
+    namespace = var.platform_namespace
+  }
+
+  type = "Opaque"
+
+  data = {
+    token = agyn_app.telegram.service_token
   }
 }
 
@@ -285,6 +411,98 @@ resource "argocd_application" "reminders" {
 
       helm {
         values = local.reminders_values
+      }
+    }
+
+    destination {
+      server    = var.destination_server
+      namespace = var.platform_namespace
+    }
+
+    sync_policy {
+      automated {
+        prune       = true
+        self_heal   = true
+        allow_empty = false
+      }
+
+      sync_options = local.default_sync_options
+    }
+  }
+}
+
+resource "argocd_application" "telegram_connector_db" {
+  wait = true
+
+  metadata {
+    name      = "telegram-connector-db"
+    namespace = "argocd"
+    annotations = {
+      "argocd.argoproj.io/sync-wave" = "7"
+    }
+  }
+
+  spec {
+    project = "default"
+
+    source {
+      repo_url        = local.postgres_chart_repo_host
+      chart           = local.postgres_chart_name
+      target_revision = var.postgres_chart_version
+
+      helm {
+        values = local.telegram_connector_db_values
+      }
+    }
+
+    destination {
+      server    = var.destination_server
+      namespace = var.platform_namespace
+    }
+
+    sync_policy {
+      # DB apps always use automated sync with prune disabled for stateful safety.
+      automated {
+        prune       = false
+        self_heal   = true
+        allow_empty = false
+      }
+
+      sync_options = local.postgres_sync_options
+    }
+  }
+
+  timeouts {
+    create = "5m"
+    update = "5m"
+    delete = "5m"
+  }
+}
+
+resource "argocd_application" "telegram_connector" {
+  depends_on = [
+    argocd_application.telegram_connector_db,
+    kubernetes_secret_v1.telegram_connector_service_token,
+  ]
+
+  metadata {
+    name      = "telegram-connector"
+    namespace = "argocd"
+    annotations = {
+      "argocd.argoproj.io/sync-wave" = "30"
+    }
+  }
+
+  spec {
+    project = "default"
+
+    source {
+      repo_url        = local.platform_chart_repo_host
+      chart           = local.telegram_connector_chart_name
+      target_revision = var.telegram_connector_chart_version
+
+      helm {
+        values = local.telegram_connector_values
       }
     }
 
