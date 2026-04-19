@@ -137,9 +137,6 @@ locals {
       tag        = local.resolved_telegram_connector_image_tag
       pullPolicy = "IfNotPresent"
     }
-    securityContext = {
-      runAsNonRoot = false
-    }
     extraVolumes = [
       {
         name     = "ziti-identity"
