@@ -1926,7 +1926,7 @@ resource "kubernetes_service_v1" "organizations_alias" {
     port {
       name        = "grpc"
       port        = 50051
-      target_port = 50051
+      target_port = "grpc"
       protocol    = "TCP"
     }
   }
