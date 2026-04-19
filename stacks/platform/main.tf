@@ -1908,6 +1908,30 @@ resource "kubernetes_service_v1" "files_db" {
   }
 }
 
+resource "kubernetes_service_v1" "organizations_alias" {
+  metadata {
+    name      = "organizations"
+    namespace = kubernetes_namespace.platform.metadata[0].name
+    labels = {
+      "app.kubernetes.io/managed-by" = "terraform"
+    }
+  }
+
+  spec {
+    selector = {
+      "app.kubernetes.io/name"     = "organizations"
+      "app.kubernetes.io/instance" = "tenants"
+    }
+
+    port {
+      name        = "grpc"
+      port        = 50051
+      target_port = "grpc"
+      protocol    = "TCP"
+    }
+  }
+}
+
 resource "kubernetes_stateful_set_v1" "files_db" {
   metadata {
     name      = "files-db"
@@ -4056,7 +4080,7 @@ resource "argocd_application" "gateway" {
             clusterAdminToken       = random_password.cluster_admin_token.result
             clusterAdminIdentityId  = local.cluster_admin_identity_id
             usersGrpcTarget         = "users:50051"
-            organizationsGrpcTarget = "tenants:50051"
+            organizationsGrpcTarget = "organizations:50051"
           }
           env = [
             {
