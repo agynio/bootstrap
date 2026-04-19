@@ -352,25 +352,25 @@ locals {
     }
   })
 
-  tenants_db_values = yamlencode({
-    fullnameOverride = "tenants-db"
+  organizations_db_values = yamlencode({
+    fullnameOverride = "organizations-db"
     postgres = {
-      database = "tenants"
-      username = "tenants"
-      password = var.tenants_db_password
+      database = "organizations"
+      username = "organizations"
+      password = var.organizations_db_password
       pgdata   = "/var/lib/postgresql/data/pgdata"
     }
     persistence = {
-      size                    = var.tenants_db_pvc_size
+      size                    = var.organizations_db_pvc_size
       mountPath               = "/var/lib/postgresql/data"
       volumeClaimTemplateName = "data"
     }
     probes = {
       readiness = {
-        execCommand = ["pg_isready", "-U", "tenants", "-d", "tenants"]
+        execCommand = ["pg_isready", "-U", "organizations", "-d", "organizations"]
       }
       liveness = {
-        execCommand = ["pg_isready", "-U", "tenants", "-d", "tenants"]
+        execCommand = ["pg_isready", "-U", "organizations", "-d", "organizations"]
       }
     }
   })
@@ -714,7 +714,7 @@ locals {
   })
 
   organizations_values = yamlencode({
-    fullnameOverride = "tenants"
+    fullnameOverride = "organizations"
     image = {
       repository = "ghcr.io/agynio/organizations"
       tag        = local.resolved_organizations_image_tag
@@ -723,7 +723,7 @@ locals {
     env = [
       {
         name  = "DATABASE_URL"
-        value = format("postgresql://tenants:%s@tenants-db:5432/tenants?sslmode=disable", var.tenants_db_password)
+        value = format("postgresql://organizations:%s@organizations-db:5432/organizations?sslmode=disable", var.organizations_db_password)
       },
     ]
   })
@@ -1908,30 +1908,6 @@ resource "kubernetes_service_v1" "files_db" {
   }
 }
 
-resource "kubernetes_service_v1" "organizations_alias" {
-  metadata {
-    name      = "organizations"
-    namespace = kubernetes_namespace.platform.metadata[0].name
-    labels = {
-      "app.kubernetes.io/managed-by" = "terraform"
-    }
-  }
-
-  spec {
-    selector = {
-      "app.kubernetes.io/name"     = "organizations"
-      "app.kubernetes.io/instance" = "tenants"
-    }
-
-    port {
-      name        = "grpc"
-      port        = 50051
-      target_port = "grpc"
-      protocol    = "TCP"
-    }
-  }
-}
-
 resource "kubernetes_stateful_set_v1" "files_db" {
   metadata {
     name      = "files-db"
@@ -2595,12 +2571,12 @@ resource "argocd_application" "expose_db" {
   }
 }
 
-resource "argocd_application" "tenants_db" {
+resource "argocd_application" "organizations_db" {
   depends_on = [argocd_repository.ghcr]
   wait       = true
 
   metadata {
-    name      = "tenants-db"
+    name      = "organizations-db"
     namespace = "argocd"
     annotations = {
       "argocd.argoproj.io/sync-wave" = "8"
@@ -2616,7 +2592,7 @@ resource "argocd_application" "tenants_db" {
       target_revision = var.postgres_chart_version
 
       helm {
-        values = local.tenants_db_values
+        values = local.organizations_db_values
       }
     }
 
@@ -3629,14 +3605,14 @@ resource "argocd_application" "expose" {
   }
 }
 
-resource "argocd_application" "tenants" {
+resource "argocd_application" "organizations" {
   depends_on = [
     argocd_repository.ghcr,
-    argocd_application.tenants_db,
+    argocd_application.organizations_db,
     argocd_application.authorization,
   ]
   metadata {
-    name      = "tenants"
+    name      = "organizations"
     namespace = "argocd"
     annotations = {
       "argocd.argoproj.io/sync-wave" = "17"
