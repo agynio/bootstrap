@@ -512,10 +512,10 @@ variable "ziti_management_db_password" {
   sensitive   = true
 }
 
-variable "tenants_db_password" {
+variable "organizations_db_password" {
   type        = string
-  description = "Password for the tenants PostgreSQL database user"
-  default     = "tenants"
+  description = "Password for the organizations PostgreSQL database user"
+  default     = "organizations"
   sensitive   = true
 }
 
@@ -557,9 +557,9 @@ variable "expose_db_pvc_size" {
   default     = "5Gi"
 }
 
-variable "tenants_db_pvc_size" {
+variable "organizations_db_pvc_size" {
   type        = string
-  description = "Persistent volume claim size for the tenants PostgreSQL primary"
+  description = "Persistent volume claim size for the organizations PostgreSQL primary"
   default     = "5Gi"
 }
 
