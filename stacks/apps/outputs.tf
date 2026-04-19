@@ -7,6 +7,7 @@ output "app_installation_ids" {
   description = "App installation IDs keyed by slug"
   value = {
     reminders = agyn_app_installation.reminders.id
+    telegram  = agyn_app_installation.telegram.id
   }
 }
 
@@ -14,6 +15,7 @@ output "app_ids" {
   description = "App IDs keyed by slug"
   value = {
     reminders = agyn_app.reminders.id
+    telegram  = agyn_app.telegram.id
   }
 }
 
@@ -21,6 +23,7 @@ output "app_identity_ids" {
   description = "App identity IDs keyed by slug"
   value = {
     reminders = agyn_app.reminders.identity_id
+    telegram  = agyn_app.telegram.identity_id
   }
 }
 
@@ -36,6 +39,8 @@ output "argocd_app_names" {
   value = [
     argocd_application.reminders_db.metadata[0].name,
     argocd_application.reminders.metadata[0].name,
+    argocd_application.telegram_connector_db.metadata[0].name,
+    argocd_application.telegram_connector.metadata[0].name,
     argocd_application.k8s_runner.metadata[0].name,
   ]
 }
@@ -45,6 +50,8 @@ output "argocd_app_ids" {
   value = [
     argocd_application.reminders_db.id,
     argocd_application.reminders.id,
+    argocd_application.telegram_connector_db.id,
+    argocd_application.telegram_connector.id,
     argocd_application.k8s_runner.id,
   ]
 }

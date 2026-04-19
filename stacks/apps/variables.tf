@@ -82,3 +82,28 @@ variable "reminders_db_pvc_size" {
   description = "Persistent volume claim size for the reminders PostgreSQL primary"
   default     = "5Gi"
 }
+
+variable "telegram_connector_chart_version" {
+  type        = string
+  description = "Version of the telegram-connector Helm chart published to GHCR"
+  default     = "0.1.2"
+}
+
+variable "telegram_connector_image_tag" {
+  type        = string
+  description = "Optional override for the telegram-connector image tag"
+  default     = ""
+}
+
+variable "telegram_connector_db_password" {
+  type        = string
+  description = "Password for the telegram-connector PostgreSQL database user"
+  default     = "telegram"
+  sensitive   = true
+}
+
+variable "telegram_connector_db_pvc_size" {
+  type        = string
+  description = "Persistent volume claim size for the telegram-connector PostgreSQL primary"
+  default     = "5Gi"
+}
