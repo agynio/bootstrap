@@ -232,7 +232,7 @@ variable "tracing_image_tag" {
 variable "chat_chart_version" {
   type        = string
   description = "Version of the chat Helm chart published to GHCR"
-  default     = "0.3.0"
+  default     = "0.3.1"
 }
 
 variable "chat_image_tag" {
