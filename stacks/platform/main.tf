@@ -2128,9 +2128,9 @@ resource "argocd_application" "threads_db" {
   }
 
   timeouts {
-    create = "5m"
-    update = "5m"
-    delete = "5m"
+    create = "10m"
+    update = "10m"
+    delete = "10m"
   }
 }
 
