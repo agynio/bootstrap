@@ -37,3 +37,16 @@ jobs:
 
       - name: Verify platform workloads and Argo CD health
         run: ./.github/scripts/verify_platform_health.sh
+
+      - name: Dump authorization diagnostics
+        if: failure()
+        run: |
+          kubectl -n argocd get applications.argoproj.io authorization -o yaml || true
+          kubectl -n platform get deploy,rs,pods,svc -l app.kubernetes.io/name=authorization -o wide || true
+          pods=$(kubectl -n platform get pods -l app.kubernetes.io/name=authorization -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' || true)
+          for pod in $pods; do
+            echo "## describe $pod"
+            kubectl -n platform describe pod "$pod" || true
+          done
+          kubectl -n platform logs deploy/authorization --all-containers --tail=200 || true
+          kubectl -n platform get events --sort-by=.lastTimestamp | tail -n 80 || true

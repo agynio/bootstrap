@@ -2178,8 +2178,8 @@ resource "argocd_application" "metering_db" {
   }
 
   timeouts {
-    create = "5m"
-    update = "5m"
+    create = "10m"
+    update = "10m"
     delete = "5m"
   }
 }
