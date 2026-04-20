@@ -57,7 +57,7 @@ variable "metering_chart_version" {
 variable "tracing_chart_version" {
   type        = string
   description = "Version of the tracing Helm chart published to GHCR"
-  default     = "0.3.1"
+  default     = "0.3.3"
 }
 
 variable "token_counting_chart_version" {
@@ -87,7 +87,7 @@ variable "postgres_chart_version" {
 variable "agents_chart_version" {
   type        = string
   description = "Version of the agents Helm chart published to GHCR"
-  default     = "0.7.1"
+  default     = "0.7.2"
 }
 
 variable "ziti_management_chart_version" {
