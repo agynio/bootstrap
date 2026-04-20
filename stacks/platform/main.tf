@@ -825,11 +825,24 @@ locals {
       repository = "ghcr.io/agynio/authorization"
       tag        = local.resolved_authorization_image_tag
     }
-    openfga = {
-      apiUrl  = local.openfga_api_url_internal
-      storeId = module.openfga_authorization.store_id
-      modelId = module.openfga_authorization.model_id
-    }
+    env = [
+      {
+        name  = "GRPC_ADDRESS"
+        value = ":50051"
+      },
+      {
+        name  = "OPENFGA_API_URL"
+        value = local.openfga_api_url_internal
+      },
+      {
+        name  = "OPENFGA_STORE_ID"
+        value = module.openfga_authorization.store_id
+      },
+      {
+        name  = "OPENFGA_MODEL_ID"
+        value = module.openfga_authorization.model_id
+      }
+    ]
   })
 
   token_counting_values = yamlencode({
@@ -2065,9 +2078,9 @@ resource "argocd_application" "platform_db" {
   }
 
   timeouts {
-    create = "5m"
-    update = "5m"
-    delete = "5m"
+    create = "10m"
+    update = "10m"
+    delete = "10m"
   }
 }
 
