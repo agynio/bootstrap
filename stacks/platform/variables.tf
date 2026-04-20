@@ -111,7 +111,7 @@ variable "expose_chart_version" {
 variable "organizations_chart_version" {
   type        = string
   description = "Version of the organizations Helm chart published to GHCR"
-  default     = "0.4.0"
+  default     = "0.4.1"
 }
 
 variable "identity_chart_version" {
@@ -147,7 +147,7 @@ variable "chat_app_image_tag" {
 variable "console_app_chart_version" {
   type        = string
   description = "Version of the console-app Helm chart published to GHCR"
-  default     = "0.9.1"
+  default     = "0.9.2"
 }
 
 variable "console_app_image_tag" {
