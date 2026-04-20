@@ -3144,6 +3144,7 @@ resource "argocd_application" "authorization" {
     argocd_repository.ghcr,
     module.openfga_authorization,
   ]
+  wait = true
   metadata {
     name      = "authorization"
     namespace = "argocd"
@@ -3182,6 +3183,12 @@ resource "argocd_application" "authorization" {
 
       sync_options = local.default_sync_options
     }
+  }
+
+  timeouts {
+    create = "5m"
+    update = "5m"
+    delete = "5m"
   }
 }
 
