@@ -20,7 +20,7 @@ locals {
   resolved_users_image_tag               = trimspace(var.users_image_tag) != "" ? var.users_image_tag : var.users_chart_version
   resolved_expose_image_tag              = trimspace(var.expose_image_tag) != "" ? var.expose_image_tag : var.expose_chart_version
   resolved_organizations_image_tag       = trimspace(var.organizations_image_tag) != "" ? var.organizations_image_tag : var.organizations_chart_version
-  resolved_authorization_image_tag       = trimspace(var.authorization_image_tag) != "" ? var.authorization_image_tag : format("v%s", var.authorization_chart_version)
+  resolved_authorization_image_tag       = trimspace(var.authorization_image_tag) != "" ? var.authorization_image_tag : var.authorization_chart_version
   resolved_identity_image_tag            = trimspace(var.identity_image_tag) != "" ? var.identity_image_tag : var.identity_chart_version
   resolved_runners_image_tag             = trimspace(var.runners_image_tag) != "" ? var.runners_image_tag : var.runners_chart_version
   resolved_apps_image_tag                = trimspace(var.apps_image_tag) != "" ? var.apps_image_tag : var.apps_chart_version
@@ -825,10 +825,27 @@ locals {
       repository = "ghcr.io/agynio/authorization"
       tag        = local.resolved_authorization_image_tag
     }
-    openfga = {
-      apiUrl  = local.openfga_api_url_internal
-      storeId = module.openfga_authorization.store_id
-      modelId = module.openfga_authorization.model_id
+    env = [
+      {
+        name  = "GRPC_ADDRESS"
+        value = ":50051"
+      },
+      {
+        name  = "OPENFGA_API_URL"
+        value = local.openfga_api_url_internal
+      },
+      {
+        name  = "OPENFGA_STORE_ID"
+        value = module.openfga_authorization.store_id
+      },
+      {
+        name  = "OPENFGA_MODEL_ID"
+        value = module.openfga_authorization.model_id
+      }
+    ]
+    securityContext = {
+      runAsUser  = 100
+      runAsGroup = 101
     }
   })
 
@@ -1414,11 +1431,11 @@ locals {
   })
 }
 
-# NOTE: The module ref (v0.4.1) must be updated in lockstep with
+# NOTE: The module ref (v0.5.1) must be updated in lockstep with
 # var.authorization_chart_version to ensure the provisioned FGA model
 # matches the model expected by the deployed Helm chart.
 module "openfga_authorization" {
-  source          = "github.com/agynio/authorization//terraform?ref=v0.4.1"
+  source          = "github.com/agynio/authorization//terraform?ref=v0.5.1"
   openfga_api_url = local.openfga_api_url_external
 }
 
@@ -3144,6 +3161,7 @@ resource "argocd_application" "authorization" {
     argocd_repository.ghcr,
     module.openfga_authorization,
   ]
+  wait = true
   metadata {
     name      = "authorization"
     namespace = "argocd"
@@ -3182,6 +3200,12 @@ resource "argocd_application" "authorization" {
 
       sync_options = local.default_sync_options
     }
+  }
+
+  timeouts {
+    create = "5m"
+    update = "5m"
+    delete = "5m"
   }
 }
 
