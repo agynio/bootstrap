@@ -843,6 +843,10 @@ locals {
         value = module.openfga_authorization.model_id
       }
     ]
+    securityContext = {
+      runAsUser  = 100
+      runAsGroup = 101
+    }
   })
 
   token_counting_values = yamlencode({
@@ -2228,8 +2232,8 @@ resource "argocd_application" "chat_db" {
   }
 
   timeouts {
-    create = "5m"
-    update = "5m"
+    create = "10m"
+    update = "10m"
     delete = "5m"
   }
 }

@@ -40,6 +40,8 @@ jobs:
 
       - name: Dump authorization diagnostics
         if: failure()
+        env:
+          KUBECONFIG: stacks/k8s/.kube/agyn-local-kubeconfig.yaml
         run: |
           kubectl -n argocd get applications.argoproj.io authorization -o yaml || true
           kubectl -n platform get deploy,rs,pods,svc -l app.kubernetes.io/name=authorization -o wide || true
