@@ -2082,9 +2082,9 @@ resource "argocd_application" "platform_db" {
   }
 
   timeouts {
-    create = "10m"
-    update = "10m"
-    delete = "10m"
+    create = "5m"
+    update = "5m"
+    delete = "5m"
   }
 }
 
@@ -2132,9 +2132,9 @@ resource "argocd_application" "threads_db" {
   }
 
   timeouts {
-    create = "10m"
-    update = "10m"
-    delete = "10m"
+    create = "5m"
+    update = "5m"
+    delete = "5m"
   }
 }
 
@@ -2182,8 +2182,8 @@ resource "argocd_application" "metering_db" {
   }
 
   timeouts {
-    create = "10m"
-    update = "10m"
+    create = "5m"
+    update = "5m"
     delete = "5m"
   }
 }
@@ -2232,8 +2232,8 @@ resource "argocd_application" "chat_db" {
   }
 
   timeouts {
-    create = "10m"
-    update = "10m"
+    create = "5m"
+    update = "5m"
     delete = "5m"
   }
 }
