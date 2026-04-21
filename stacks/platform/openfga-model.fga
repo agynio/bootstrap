@@ -1,0 +1,37 @@
+model
+  schema 1.1
+
+type identity
+
+type cluster
+  relations
+    define admin: [identity]
+    define writer: [identity]
+
+type organization
+  relations
+    define cluster: [cluster]
+    define member: [identity] or owner
+    define owner: [identity]
+    define can_invite: owner
+    define can_manage_members: owner
+    define can_view_threads: owner
+    define can_add_member: admin from cluster
+    define can_create_thread: member or thread_create
+    define thread_create: [identity]
+    define thread_write: [identity]
+    define participant_add: [identity]
+
+type thread
+  relations
+    define org: [organization]
+    define participant: [identity]
+    define can_read: participant or can_view_threads from org
+    define can_write: participant or thread_write from org
+    define can_add_participant: participant or participant_add from org
+
+type model
+  relations
+    define org: [organization]
+    define can_manage: owner from org
+    define can_use: member from org
