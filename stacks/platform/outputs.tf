@@ -51,12 +51,12 @@ output "platform_namespace" {
 
 output "openfga_store_id" {
   description = "OpenFGA store identifier for authorization"
-  value       = openfga_store.authorization.id
+  value       = module.openfga_authorization.store_id
 }
 
 output "openfga_model_id" {
   description = "OpenFGA model identifier for authorization"
-  value       = openfga_authorization_model.authorization.id
+  value       = module.openfga_authorization.model_id
 }
 
 output "cluster_admin_identity_id" {

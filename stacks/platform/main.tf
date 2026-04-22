@@ -836,11 +836,11 @@ locals {
       },
       {
         name  = "OPENFGA_STORE_ID"
-        value = openfga_store.authorization.id
+        value = module.openfga_authorization.store_id
       },
       {
         name  = "OPENFGA_MODEL_ID"
-        value = openfga_authorization_model.authorization.id
+        value = module.openfga_authorization.model_id
       }
     ]
     securityContext = {
@@ -1431,20 +1431,12 @@ locals {
   })
 }
 
-# NOTE: Keep the local OpenFGA model file in sync with
-# var.authorization_chart_version to ensure the provisioned model matches
-# the schema expected by the deployed Helm chart.
-data "openfga_authorization_model_document" "authorization" {
-  dsl = file("${path.module}/openfga-model.fga")
-}
-
-resource "openfga_store" "authorization" {
-  name = "agyn-platform"
-}
-
-resource "openfga_authorization_model" "authorization" {
-  store_id   = openfga_store.authorization.id
-  model_json = data.openfga_authorization_model_document.authorization.result
+# NOTE: The module ref (v0.5.1) must be updated in lockstep with
+# var.authorization_chart_version to ensure the provisioned FGA model
+# matches the model expected by the deployed Helm chart.
+module "openfga_authorization" {
+  source          = "github.com/agynio/authorization//terraform?ref=v0.5.1"
+  openfga_api_url = local.openfga_api_url_external
 }
 
 resource "random_password" "cluster_admin_token" {
@@ -1453,11 +1445,13 @@ resource "random_password" "cluster_admin_token" {
 }
 
 resource "openfga_relationship_tuple" "cluster_admin" {
-  store_id               = openfga_store.authorization.id
-  authorization_model_id = openfga_authorization_model.authorization.id
+  store_id               = module.openfga_authorization.store_id
+  authorization_model_id = module.openfga_authorization.model_id
   user                   = "identity:${local.cluster_admin_identity_id}"
   relation               = "admin"
   object                 = "cluster:global"
+
+  depends_on = [module.openfga_authorization]
 }
 
 resource "kubernetes_namespace" "platform" {
@@ -3165,7 +3159,7 @@ resource "argocd_application" "secrets" {
 resource "argocd_application" "authorization" {
   depends_on = [
     argocd_repository.ghcr,
-    openfga_authorization_model.authorization,
+    module.openfga_authorization,
   ]
   wait = true
   metadata {
