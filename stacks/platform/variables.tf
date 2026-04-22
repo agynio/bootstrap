@@ -39,13 +39,13 @@ variable "gateway_chart_version" {
 variable "agents_orchestrator_chart_version" {
   type        = string
   description = "Version of the agents-orchestrator Helm chart published to GHCR"
-  default     = "0.13.9"
+  default     = "0.13.10"
 }
 
 variable "threads_chart_version" {
   type        = string
   description = "Version of the threads Helm chart published to GHCR"
-  default     = "0.4.8"
+  default     = "0.4.9"
 }
 
 variable "metering_chart_version" {
@@ -135,7 +135,7 @@ variable "apps_chart_version" {
 variable "chat_app_chart_version" {
   type        = string
   description = "Version of the chat-app Helm chart published to GHCR"
-  default     = "0.4.4"
+  default     = "0.4.5"
 }
 
 variable "chat_app_image_tag" {
@@ -147,7 +147,7 @@ variable "chat_app_image_tag" {
 variable "console_app_chart_version" {
   type        = string
   description = "Version of the console-app Helm chart published to GHCR"
-  default     = "0.9.2"
+  default     = "0.9.3"
 }
 
 variable "console_app_image_tag" {

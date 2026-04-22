@@ -86,7 +86,7 @@ variable "reminders_db_pvc_size" {
 variable "telegram_connector_chart_version" {
   type        = string
   description = "Version of the telegram-connector Helm chart published to GHCR"
-  default     = "0.1.2"
+  default     = "0.1.3"
 }
 
 variable "telegram_connector_image_tag" {
