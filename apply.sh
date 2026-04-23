@@ -24,6 +24,7 @@ Environment variables:
   PORT    Override the ingress port (default: 2496)
   OIDC_ISSUER_URL     Override the OIDC issuer URL (default: https://mockauth.dev/r/301ebb13-15a8-48f4-baac-e3fa25be29fc/oidc)
   OIDC_CLIENT_ID      Override the OIDC client ID (default: client_MU95KU3gHQf5Ir7p)
+  TRACING_APP_OIDC_CLIENT_ID  Override the tracing-app OIDC client ID (default: client_tzqVFAYTvpkfUzy5)
   OIDC_CLIENT_SECRET  Override the OIDC client secret (default: XPKka2i9uzISrKZ95zxli8sY51BK4eTJ)
   ADMIN_OIDC_SUBJECT  Optional OIDC subject for the bootstrap admin user (default: admin@agyn.io)
   GHCR_USERNAME        Optional GHCR username for private OCI charts
@@ -135,6 +136,11 @@ else
   echo "OIDC client ID provided via OIDC_CLIENT_ID environment variable: ${oidc_client_id}"
 fi
 
+tracing_app_oidc_client_id="${TRACING_APP_OIDC_CLIENT_ID:-}"
+if [[ -n "${tracing_app_oidc_client_id}" ]]; then
+  echo "Tracing app OIDC client ID provided via TRACING_APP_OIDC_CLIENT_ID environment variable: ${tracing_app_oidc_client_id}"
+fi
+
 oidc_client_secret="${OIDC_CLIENT_SECRET:-}"
 if [[ -z "${oidc_client_secret}" ]]; then
   if [[ "${auto_approve}" == "true" ]]; then
@@ -184,6 +190,10 @@ run_stack() {
       -var "ghcr_username=${ghcr_username}"
       -var "ghcr_token=${ghcr_token}"
     )
+
+    if [[ -n "${tracing_app_oidc_client_id}" ]]; then
+      apply_cmd+=(-var "tracing_app_oidc_client_id=${tracing_app_oidc_client_id}")
+    fi
   fi
 
   if [[ "${stack}" == "apps" && -n "${admin_oidc_subject}" ]]; then
