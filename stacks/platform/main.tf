@@ -8,7 +8,7 @@ locals {
   resolved_chat_app_image_tag            = trimspace(var.chat_app_image_tag) != "" ? var.chat_app_image_tag : var.chat_app_chart_version
   resolved_console_app_image_tag         = trimspace(var.console_app_image_tag) != "" ? var.console_app_image_tag : var.console_app_chart_version
   resolved_tracing_app_image_tag         = trimspace(var.tracing_app_image_tag) != "" ? var.tracing_app_image_tag : var.tracing_app_chart_version
-  resolved_tracing_app_oidc_client_id    = trimspace(var.tracing_app_oidc_client_id) != "" ? var.tracing_app_oidc_client_id : var.console_app_oidc_client_id
+  resolved_tracing_app_oidc_client_id    = trimspace(var.tracing_app_oidc_client_id) != "" ? trimspace(var.tracing_app_oidc_client_id) : var.console_app_oidc_client_id
   resolved_files_image_tag               = trimspace(var.files_image_tag) != "" ? var.files_image_tag : var.files_chart_version
   resolved_media_proxy_image_tag         = trimspace(var.media_proxy_image_tag) != "" ? var.media_proxy_image_tag : var.media_proxy_chart_version
   resolved_llm_image_tag                 = trimspace(var.llm_image_tag) != "" ? var.llm_image_tag : format("v%s", var.llm_chart_version)
@@ -1361,7 +1361,7 @@ locals {
       },
       {
         name  = "OIDC_CLIENT_ID"
-        value = local.resolved_tracing_app_oidc_client_id
+        value = var.console_app_oidc_client_id
       },
       {
         name  = "OIDC_SCOPE"
@@ -1440,7 +1440,7 @@ locals {
       },
       {
         name  = "OIDC_CLIENT_ID"
-        value = var.console_app_oidc_client_id
+        value = local.resolved_tracing_app_oidc_client_id
       },
       {
         name  = "OIDC_SCOPE"
