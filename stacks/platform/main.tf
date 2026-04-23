@@ -1428,6 +1428,24 @@ locals {
         mountPath = "/etc/nginx/conf.d"
       }
     ]
+    env = [
+      {
+        name  = "API_BASE_URL"
+        value = "/api"
+      },
+      {
+        name  = "OIDC_AUTHORITY"
+        value = var.oidc_issuer_url
+      },
+      {
+        name  = "OIDC_CLIENT_ID"
+        value = var.console_app_oidc_client_id
+      },
+      {
+        name  = "OIDC_SCOPE"
+        value = "openid profile email offline_access"
+      }
+    ]
   })
 }
 
