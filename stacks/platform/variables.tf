@@ -176,8 +176,8 @@ variable "console_app_oidc_client_id" {
 
 variable "tracing_app_oidc_client_id" {
   type        = string
-  description = "OIDC client ID for the tracing-app (public client); leave empty to reuse console-app"
-  default     = ""
+  description = "OIDC client ID for the tracing-app (public client)"
+  default     = "client_tzqVFAYTvpkfUzy5"
 }
 
 variable "oidc_client_secret" {
