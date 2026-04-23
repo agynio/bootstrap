@@ -5,8 +5,9 @@ set -euo pipefail
 TOTAL_TIMEOUT=${TOTAL_TIMEOUT:-180}
 POLL_INTERVAL=${POLL_INTERVAL:-10}
 PLATFORM_NAMESPACE=${PLATFORM_NAMESPACE:-platform}
-DEFAULT_DOMAIN="agyn.dev"
-DEFAULT_PORT="2496"
+PORT_FORWARD_LOCAL_PORT=${PORT_FORWARD_LOCAL_PORT:-18080}
+PORT_FORWARD_READY_TIMEOUT=${PORT_FORWARD_READY_TIMEOUT:-30}
+PORT_FORWARD_LOG=${PORT_FORWARD_LOG:-/tmp/telegram-gateway-port-forward.log}
 EXPECTED_STATUS_HEADLINE="Misconfigured"
 BUF_SCHEMA="buf.build/agynio/api"
 
@@ -28,33 +29,67 @@ dump_diagnostics() {
   kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$PLATFORM_NAMESPACE" \
     get deploy,rs,pods -l app.kubernetes.io/name=telegram-connector -o wide || true
   kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$PLATFORM_NAMESPACE" \
-    logs deploy/telegram-connector --tail=200 || true
+    logs -l app.kubernetes.io/name=telegram-connector --tail=200 || true
   kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$PLATFORM_NAMESPACE" \
-    logs deploy/gateway --tail=200 || true
+    logs -l app.kubernetes.io/name=gateway --tail=200 || true
   kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$PLATFORM_NAMESPACE" \
-    logs deploy/apps --tail=200 || true
+    logs -l app.kubernetes.io/name=apps --tail=200 || true
   kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$PLATFORM_NAMESPACE" \
     get events --sort-by=.lastTimestamp | tail -n 80 || true
+  if [[ -f "$PORT_FORWARD_LOG" ]]; then
+    log "Port-forward log (tail)"
+    tail -n 200 "$PORT_FORWARD_LOG" || true
+  fi
+  cleanup_port_forward
 }
 
-base_url() {
-  local domain
-  local port
+start_port_forward() {
+  log "Starting gateway port-forward on localhost:${PORT_FORWARD_LOCAL_PORT}"
+  kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$PLATFORM_NAMESPACE" \
+    port-forward "svc/gateway-gateway" "${PORT_FORWARD_LOCAL_PORT}:8080" \
+    >"$PORT_FORWARD_LOG" 2>&1 &
+  PORT_FORWARD_PID=$!
+}
 
-  domain="${DOMAIN:-$DEFAULT_DOMAIN}"
-  port="${PORT:-$DEFAULT_PORT}"
+cleanup_port_forward() {
+  if [[ -n "${PORT_FORWARD_PID:-}" ]]; then
+    kill "$PORT_FORWARD_PID" 2>/dev/null || true
+    wait "$PORT_FORWARD_PID" 2>/dev/null || true
+  fi
+}
 
-  printf 'https://%s:%s/api/agynio.api.gateway.v1.AppsGateway' "$domain" "$port"
+wait_for_port_forward() {
+  local deadline
+
+  deadline=$((SECONDS + PORT_FORWARD_READY_TIMEOUT))
+  while (( SECONDS < deadline )); do
+    if (echo >/dev/tcp/127.0.0.1/"$PORT_FORWARD_LOCAL_PORT") >/dev/null 2>&1; then
+      return 0
+    fi
+    if [[ -n "${PORT_FORWARD_PID:-}" ]] && ! kill -0 "$PORT_FORWARD_PID" 2>/dev/null; then
+      log "Port-forward process exited early"
+      if [[ -f "$PORT_FORWARD_LOG" ]]; then
+        tail -n 200 "$PORT_FORWARD_LOG" || true
+      fi
+      return 1
+    fi
+    sleep 1
+  done
+  log "Timeout waiting for port-forward to start"
+  if [[ -f "$PORT_FORWARD_LOG" ]]; then
+    tail -n 200 "$PORT_FORWARD_LOG" || true
+  fi
+  return 1
 }
 
 buf_gateway_call() {
   local method=$1
   local payload=$2
 
-  buf curl --schema "$BUF_SCHEMA" -k \
+  buf curl --schema "$BUF_SCHEMA" \
     --header "Authorization: Bearer ${CLUSTER_ADMIN_TOKEN}" \
     --data "$payload" \
-    "${GATEWAY_BASE_URL}/${method}"
+    "${GATEWAY_BASE_URL}/agynio.api.gateway.v1.AppsGateway/${method}"
 }
 
 if ! CLUSTER_ADMIN_TOKEN=$(terraform -chdir="$REPO_ROOT/stacks/platform" output -raw cluster_admin_api_token); then
@@ -75,7 +110,19 @@ if [[ -z "$TELEGRAM_INSTALLATION_ID" || "$TELEGRAM_INSTALLATION_ID" == "null" ]]
   exit 1
 fi
 
-GATEWAY_BASE_URL=$(base_url)
+if [[ ! -f "$KUBECONFIG_PATH" ]]; then
+  log "Unable to locate kubeconfig at $KUBECONFIG_PATH"
+  exit 1
+fi
+
+start_port_forward
+trap cleanup_port_forward EXIT
+if ! wait_for_port_forward; then
+  dump_diagnostics
+  exit 1
+fi
+
+GATEWAY_BASE_URL="http://127.0.0.1:${PORT_FORWARD_LOCAL_PORT}"
 
 installation_request=$(jq -n --arg id "$TELEGRAM_INSTALLATION_ID" '{id:$id}')
 audit_request=$(jq -n --arg id "$TELEGRAM_INSTALLATION_ID" --argjson pageSize 50 '{installationId:$id, pageSize:$pageSize}')
