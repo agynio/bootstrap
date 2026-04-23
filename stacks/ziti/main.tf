@@ -255,10 +255,10 @@ resource "ziti_service_policy" "gateway_dial_apps" {
   serviceroles  = ["#app-services"]
 }
 
-resource "ziti_service_policy" "gateway_dial_runners" {
-  name          = "gateway-dial-runners"
+resource "ziti_service_policy" "runners_service_dial_runners" {
+  name          = "runners-service-dial-runners"
   type          = "Dial"
-  identityroles = ["#gateway-hosts"]
+  identityroles = ["#runners-service-hosts"]
   serviceroles  = ["#runner-services"]
 }
 
