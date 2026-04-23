@@ -174,6 +174,12 @@ variable "console_app_oidc_client_id" {
   default     = "client_4XUh4_1VfUzpfYkN"
 }
 
+variable "tracing_app_oidc_client_id" {
+  type        = string
+  description = "OIDC client ID for the tracing-app (public client)"
+  default     = "client_tzqVFAYTvpkfUzy5"
+}
+
 variable "oidc_client_secret" {
   type        = string
   description = "OIDC client secret (dev/QA only - production should use a K8s Secret)"
