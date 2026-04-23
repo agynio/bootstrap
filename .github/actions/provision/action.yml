@@ -1,0 +1,73 @@
+name: Provision bootstrap cluster
+description: Provision a k3d-based bootstrap cluster and export kubeconfig.
+inputs:
+  ref:
+    description: Bootstrap ref to provision from.
+    required: false
+    default: main
+outputs:
+  kubeconfig:
+    description: Absolute path to the generated kubeconfig file.
+    value: ${{ steps.kubeconfig.outputs.kubeconfig }}
+runs:
+  using: composite
+  steps:
+    - name: Reclaim disk space
+      shell: bash
+      run: |
+        set -euo pipefail
+        echo "Disk usage before cleanup:"
+        df -h
+        sudo rm -rf /usr/local/lib/android /usr/local/share/boost /opt/ghc /usr/share/dotnet /usr/share/swift
+        sudo apt-get clean
+        docker system prune -af
+        echo "Disk usage after cleanup:"
+        df -h
+
+    - name: Checkout bootstrap
+      uses: actions/checkout@v4
+      with:
+        repository: agynio/bootstrap
+        ref: ${{ inputs.ref }}
+        path: bootstrap
+
+    - name: Install kubectl
+      uses: azure/setup-kubectl@v4
+      with:
+        version: v1.34.3
+
+    - name: Install k3d
+      shell: bash
+      run: |
+        set -euo pipefail
+        curl -s https://raw.githubusercontent.com/k3d-io/k3d/v5.7.5/install.sh | TAG=v5.7.5 bash
+        k3d version
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: 1.6.6
+
+    - name: Apply bootstrap stacks
+      shell: bash
+      working-directory: bootstrap
+      run: ./apply.sh -y
+
+    - name: Export kubeconfig
+      id: kubeconfig
+      shell: bash
+      working-directory: bootstrap
+      run: |
+        set -euo pipefail
+        kubeconfig_path="$(pwd)/stacks/k8s/.kube/agyn-local-kubeconfig.yaml"
+        if [[ ! -f "${kubeconfig_path}" ]]; then
+          echo "Kubeconfig not found at ${kubeconfig_path}" >&2
+          exit 1
+        fi
+        echo "kubeconfig=${kubeconfig_path}" >> "$GITHUB_OUTPUT"
+        echo "KUBECONFIG=${kubeconfig_path}" >> "$GITHUB_ENV"
+
+    - name: Verify platform health
+      shell: bash
+      working-directory: bootstrap
+      run: ./.github/scripts/verify_platform_health.sh
