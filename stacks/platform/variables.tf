@@ -123,7 +123,7 @@ variable "identity_chart_version" {
 variable "runners_chart_version" {
   type        = string
   description = "Version of the runners Helm chart published to GHCR"
-  default     = "0.5.4"
+  default     = "0.5.5"
 }
 
 variable "apps_chart_version" {
