@@ -816,6 +816,10 @@ locals {
       {
         name  = "RUNNERS_ADDRESS"
         value = "runners:50051"
+      },
+      {
+        name  = "CLUSTER_ADMIN_IDENTITY_ID"
+        value = local.cluster_admin_identity_id
       }
     ]
   })
