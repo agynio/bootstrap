@@ -1450,11 +1450,11 @@ locals {
   })
 }
 
-# NOTE: The module ref (v0.5.1) must be updated in lockstep with
+# NOTE: The module ref (v0.5.2) must be updated in lockstep with
 # var.authorization_chart_version to ensure the provisioned FGA model
 # matches the model expected by the deployed Helm chart.
 module "openfga_authorization" {
-  source          = "github.com/agynio/authorization//terraform?ref=v0.5.1"
+  source          = "github.com/agynio/authorization//terraform?ref=v0.5.2"
   openfga_api_url = local.openfga_api_url_external
 }
 
