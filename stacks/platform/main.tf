@@ -3304,7 +3304,7 @@ resource "kubernetes_manifest" "identity_cluster_admin_seed" {
               "command" = ["/bin/sh", "-c"]
               "args" = [
                 <<-EOT
-                set -euo pipefail
+                set -eu
                 until psql -h identity-db -U identity -d identity -c "SELECT 1 FROM identities LIMIT 1" >/dev/null 2>&1; do
                   echo "waiting for identity migrations"
                   sleep 5
