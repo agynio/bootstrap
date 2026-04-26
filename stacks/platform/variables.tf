@@ -45,7 +45,7 @@ variable "agents_orchestrator_chart_version" {
 variable "threads_chart_version" {
   type        = string
   description = "Version of the threads Helm chart published to GHCR"
-  default     = "0.4.9"
+  default     = "0.4.10"
 }
 
 variable "metering_chart_version" {
@@ -57,7 +57,7 @@ variable "metering_chart_version" {
 variable "tracing_chart_version" {
   type        = string
   description = "Version of the tracing Helm chart published to GHCR"
-  default     = "0.3.3"
+  default     = "0.3.4"
 }
 
 variable "token_counting_chart_version" {
@@ -69,7 +69,7 @@ variable "token_counting_chart_version" {
 variable "notifications_chart_version" {
   type        = string
   description = "Version of the notifications Helm chart published to GHCR"
-  default     = "0.2.2"
+  default     = "0.2.5"
 }
 
 variable "notifications_redis_chart_version" {
@@ -135,7 +135,7 @@ variable "apps_chart_version" {
 variable "chat_app_chart_version" {
   type        = string
   description = "Version of the chat-app Helm chart published to GHCR"
-  default     = "0.4.12"
+  default     = "0.4.13"
 }
 
 variable "chat_app_image_tag" {
@@ -190,7 +190,7 @@ variable "oidc_client_secret" {
 variable "tracing_app_chart_version" {
   type        = string
   description = "Version of the tracing-app Helm chart published to GHCR"
-  default     = "0.2.5"
+  default     = "0.2.6"
 }
 
 variable "tracing_app_image_tag" {
@@ -238,7 +238,7 @@ variable "tracing_image_tag" {
 variable "chat_chart_version" {
   type        = string
   description = "Version of the chat Helm chart published to GHCR"
-  default     = "0.3.1"
+  default     = "0.3.3"
 }
 
 variable "chat_image_tag" {
