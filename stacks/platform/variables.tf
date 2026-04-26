@@ -629,7 +629,7 @@ variable "secrets_encryption_key" {
 variable "authorization_chart_version" {
   type        = string
   description = "Version of the authorization Helm chart published to GHCR"
-  default     = "0.5.1"
+  default     = "0.5.2"
 }
 
 variable "authorization_image_tag" {
