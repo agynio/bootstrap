@@ -3310,7 +3310,7 @@ resource "kubernetes_job_v1" "identity_cluster_admin_seed" {
               echo "waiting for identity migrations"
               sleep 5
             done
-            psql -h identity-db -U identity -d identity -v ON_ERROR_STOP=1 -c "INSERT INTO identities (identity_id, identity_type) VALUES ('${local.cluster_admin_identity_id}', ${local.cluster_admin_identity_type}) ON CONFLICT (identity_id) DO NOTHING;"
+            psql -h identity-db -U identity -d identity -v ON_ERROR_STOP=1 -c "INSERT INTO identities (identity_id, identity_type) VALUES ('${local.cluster_admin_identity_id}', ${local.cluster_admin_identity_type}) ON CONFLICT (identity_id) DO UPDATE SET identity_type = EXCLUDED.identity_type;"
             EOT
           ]
 
