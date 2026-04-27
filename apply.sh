@@ -551,6 +551,10 @@ if [[ "${gateway_ready}" -ne 1 ]]; then
   exit 1
 fi
 
+step_start "register:cluster-admin-identity"
+KUBECONFIG_PATH="${KUBECONFIG_PATH}" ./.github/scripts/register_cluster_admin_identity.sh
+step_end "register:cluster-admin-identity"
+
 step_start "stack:apps"
 run_stack "apps"
 step_end "stack:apps"

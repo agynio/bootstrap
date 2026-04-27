@@ -67,6 +67,25 @@ runs:
         echo "kubeconfig=${kubeconfig_path}" >> "$GITHUB_OUTPUT"
         echo "KUBECONFIG=${kubeconfig_path}" >> "$GITHUB_ENV"
 
+    - name: Set up Buf
+      uses: bufbuild/buf-setup-action@v1
+      with:
+        version: "1.66.1"
+        github_token: ${{ github.token }}
+
+    - name: Install grpcurl
+      shell: bash
+      run: |
+        set -euo pipefail
+        grpcurl_version="1.9.3"
+        curl -sSL "https://github.com/fullstorydev/grpcurl/releases/download/v${grpcurl_version}/grpcurl_${grpcurl_version}_linux_x86_64.tar.gz" \
+          | sudo tar -xz -C /usr/local/bin grpcurl
+
+    - name: Register cluster admin identity
+      shell: bash
+      working-directory: bootstrap
+      run: ./.github/scripts/register_cluster_admin_identity.sh
+
     - name: Verify platform health
       shell: bash
       working-directory: bootstrap
