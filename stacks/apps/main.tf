@@ -84,7 +84,7 @@ locals {
       },
       {
         name  = "ZITI_SERVICE_NAME"
-        value = "app-reminders"
+        value = agyn_app.reminders.ziti_service_id
       },
       {
         name  = "GATEWAY_SERVICE_NAME"
@@ -178,7 +178,7 @@ locals {
       },
       {
         name  = "ZITI_SERVICE_NAME"
-        value = "app-telegram"
+        value = agyn_app.telegram.ziti_service_id
       },
       {
         name  = "GATEWAY_SERVICE_NAME"
