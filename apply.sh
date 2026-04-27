@@ -487,7 +487,7 @@ run_stack "platform"
 step_end "stack:platform"
 
 echo "=== Waiting for platform ArgoCD applications to sync ==="
-for app in organizations identity-db identity gateway apps runners; do
+for app in organizations gateway apps runners; do
   echo "--- Waiting for ${app} ---"
   synced=0
   for i in $(seq 1 60); do

@@ -69,8 +69,6 @@ locals {
   # This is a synthetic identity used only during bootstrap;
   # it does not correspond to a user record in the Users DB.
   cluster_admin_identity_id = "a3c1e9d2-7f4b-5e1a-9c3d-2b8f6a4e7d10"
-  # Identity type mapping from agynio/identity (app = 5).
-  cluster_admin_identity_type = 5
 
   default_sync_options = [
     "CreateNamespace=true",
@@ -3274,64 +3272,6 @@ resource "argocd_application" "identity" {
       sync_options = local.default_sync_options
     }
   }
-}
-
-resource "kubernetes_job_v1" "identity_cluster_admin_seed" {
-  metadata {
-    name      = "identity-cluster-admin-seed"
-    namespace = kubernetes_namespace.platform.metadata[0].name
-    labels = {
-      app = "identity-cluster-admin-seed"
-    }
-  }
-
-  spec {
-    backoff_limit = 3
-
-    template {
-      metadata {
-        labels = {
-          app = "identity-cluster-admin-seed"
-        }
-      }
-
-      spec {
-        restart_policy = "OnFailure"
-
-        container {
-          name    = "seed"
-          image   = local.postgres_image
-          command = ["/bin/sh", "-c"]
-          args = [
-            <<-EOT
-            set -eu
-            # /bin/sh does not guarantee pipefail; no pipes used here.
-            until psql -h identity-db -U identity -d identity -c "SELECT 1 FROM identities LIMIT 1" >/dev/null 2>&1; do
-              echo "waiting for identity migrations"
-              sleep 5
-            done
-            psql -h identity-db -U identity -d identity -v ON_ERROR_STOP=1 -c "INSERT INTO identities (identity_id, identity_type) VALUES ('${local.cluster_admin_identity_id}', ${local.cluster_admin_identity_type}) ON CONFLICT (identity_id) DO UPDATE SET identity_type = EXCLUDED.identity_type;"
-            EOT
-          ]
-
-          env {
-            name  = "PGPASSWORD"
-            value = var.identity_db_password
-          }
-
-          env {
-            name  = "PGCONNECT_TIMEOUT"
-            value = "5"
-          }
-        }
-      }
-    }
-  }
-
-  depends_on = [
-    argocd_application.identity_db,
-    argocd_application.identity,
-  ]
 }
 
 resource "argocd_application" "token_counting" {
