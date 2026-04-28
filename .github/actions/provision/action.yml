@@ -48,20 +48,6 @@ runs:
       with:
         terraform_version: 1.6.6
 
-    - name: Set up Buf
-      uses: bufbuild/buf-setup-action@v1
-      with:
-        version: "1.66.1"
-        github_token: ${{ github.token }}
-
-    - name: Install grpcurl
-      shell: bash
-      run: |
-        set -euo pipefail
-        grpcurl_version="1.9.3"
-        curl -sSL "https://github.com/fullstorydev/grpcurl/releases/download/v${grpcurl_version}/grpcurl_${grpcurl_version}_linux_x86_64.tar.gz" \
-          | sudo tar -xz -C /usr/local/bin grpcurl
-
     - name: Apply bootstrap stacks
       shell: bash
       working-directory: bootstrap

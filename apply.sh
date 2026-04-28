@@ -54,7 +54,7 @@ if [[ $# -gt 0 ]]; then
   exit 1
 fi
 
-required_commands=(terraform kubectl buf grpcurl)
+required_commands=(terraform kubectl)
 for cmd in "${required_commands[@]}"; do
   if ! command -v "${cmd}" >/dev/null 2>&1; then
     echo "Error: required command not found: ${cmd}" >&2
@@ -550,10 +550,6 @@ if [[ "${gateway_ready}" -ne 1 ]]; then
   echo "ERROR: Gateway did not become ready at ${gateway_base_url}" >&2
   exit 1
 fi
-
-step_start "register:cluster-admin-identity"
-KUBECONFIG_PATH="${KUBECONFIG_PATH}" ./.github/scripts/register_cluster_admin_identity.sh
-step_end "register:cluster-admin-identity"
 
 step_start "stack:apps"
 run_stack "apps"
