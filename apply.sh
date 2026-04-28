@@ -54,7 +54,7 @@ if [[ $# -gt 0 ]]; then
   exit 1
 fi
 
-required_commands=(terraform kubectl)
+required_commands=(terraform kubectl buf grpcurl)
 for cmd in "${required_commands[@]}"; do
   if ! command -v "${cmd}" >/dev/null 2>&1; then
     echo "Error: required command not found: ${cmd}" >&2
@@ -487,7 +487,7 @@ run_stack "platform"
 step_end "stack:platform"
 
 echo "=== Waiting for platform ArgoCD applications to sync ==="
-for app in organizations gateway apps runners; do
+for app in identity organizations gateway apps runners; do
   echo "--- Waiting for ${app} ---"
   synced=0
   for i in $(seq 1 60); do
