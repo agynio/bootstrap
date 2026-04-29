@@ -111,13 +111,13 @@ variable "expose_chart_version" {
 variable "organizations_chart_version" {
   type        = string
   description = "Version of the organizations Helm chart published to GHCR"
-  default     = "0.4.2"
+  default     = "0.4.3"
 }
 
 variable "identity_chart_version" {
   type        = string
   description = "Version of the identity Helm chart published to GHCR"
-  default     = "0.2.0"
+  default     = "0.2.1"
 }
 
 variable "runners_chart_version" {
