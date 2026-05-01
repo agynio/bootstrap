@@ -39,7 +39,7 @@ variable "gateway_chart_version" {
 variable "agents_orchestrator_chart_version" {
   type        = string
   description = "Version of the agents-orchestrator Helm chart published to GHCR"
-  default     = "0.13.13"
+  default     = "0.13.14"
 }
 
 variable "threads_chart_version" {
@@ -69,7 +69,7 @@ variable "token_counting_chart_version" {
 variable "notifications_chart_version" {
   type        = string
   description = "Version of the notifications Helm chart published to GHCR"
-  default     = "0.2.5"
+  default     = "0.2.6"
 }
 
 variable "notifications_redis_chart_version" {
@@ -123,7 +123,7 @@ variable "identity_chart_version" {
 variable "runners_chart_version" {
   type        = string
   description = "Version of the runners Helm chart published to GHCR"
-  default     = "0.5.7"
+  default     = "0.5.9"
 }
 
 variable "apps_chart_version" {
@@ -238,7 +238,7 @@ variable "tracing_image_tag" {
 variable "chat_chart_version" {
   type        = string
   description = "Version of the chat Helm chart published to GHCR"
-  default     = "0.3.3"
+  default     = "0.3.4"
 }
 
 variable "chat_image_tag" {
