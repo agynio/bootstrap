@@ -69,7 +69,7 @@ variable "token_counting_chart_version" {
 variable "notifications_chart_version" {
   type        = string
   description = "Version of the notifications Helm chart published to GHCR"
-  default     = "0.2.6"
+  default     = "0.2.7"
 }
 
 variable "notifications_redis_chart_version" {
