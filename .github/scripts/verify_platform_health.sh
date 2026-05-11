@@ -17,7 +17,7 @@ REPO_ROOT=$(cd "$SCRIPT_DIR/../.." && pwd)
 readonly KUBECONFIG_PATH="$REPO_ROOT/stacks/k8s/.kube/agyn-local-kubeconfig.yaml"
 ZITI_MGMT_ENDPOINT=${ZITI_MGMT_ENDPOINT:-}
 ZITI_OVERLAY_SERVICES=(gateway)
-ZITI_OVERLAY_ROLE_CHECKS=("runner-services")
+ZITI_OVERLAY_ROLE_CHECKS=("runner-services" "app-services")
 
 if [[ ! -f "$KUBECONFIG_PATH" ]]; then
   printf 'Unable to locate kubeconfig at %s\n' "$KUBECONFIG_PATH" >&2
