@@ -1,5 +1,5 @@
 locals {
-  resolved_reminders_image_tag          = trimspace(var.reminders_image_tag) != "" ? var.reminders_image_tag : format("v%s", var.reminders_chart_version)
+  resolved_reminders_image_tag          = trimspace(var.reminders_image_tag) != "" ? var.reminders_image_tag : var.reminders_chart_version
   resolved_k8s_runner_image_tag         = trimspace(var.k8s_runner_image_tag) != "" ? var.k8s_runner_image_tag : var.k8s_runner_chart_version
   resolved_telegram_connector_image_tag = trimspace(var.telegram_connector_image_tag) != "" ? var.telegram_connector_image_tag : var.telegram_connector_chart_version
   admin_oidc_subject                    = trimspace(var.admin_oidc_subject)
