@@ -49,7 +49,7 @@ variable "postgres_chart_version" {
 variable "reminders_chart_version" {
   type        = string
   description = "Version of the reminders Helm chart published to GHCR"
-  default     = "0.2.4"
+  default     = "0.2.5"
 }
 
 variable "reminders_image_tag" {
