@@ -233,7 +233,7 @@ locals {
       {
         name = "CAPABILITY_IMPLEMENTATIONS"
         value = jsonencode({
-          docker = "rootless"
+          docker = "privileged"
         })
       },
       {
