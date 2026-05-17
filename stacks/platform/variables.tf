@@ -87,7 +87,7 @@ variable "postgres_chart_version" {
 variable "agents_chart_version" {
   type        = string
   description = "Version of the agents Helm chart published to GHCR"
-  default     = "0.7.3"
+  default     = "0.7.4"
 }
 
 variable "ziti_management_chart_version" {
@@ -147,7 +147,7 @@ variable "chat_app_image_tag" {
 variable "console_app_chart_version" {
   type        = string
   description = "Version of the console-app Helm chart published to GHCR"
-  default     = "0.10.7"
+  default     = "0.10.9"
 }
 
 variable "console_app_image_tag" {
@@ -629,7 +629,7 @@ variable "secrets_encryption_key" {
 variable "authorization_chart_version" {
   type        = string
   description = "Version of the authorization Helm chart published to GHCR"
-  default     = "0.5.2"
+  default     = "0.5.3"
 }
 
 variable "authorization_image_tag" {
