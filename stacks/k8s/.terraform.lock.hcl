@@ -7,6 +7,7 @@ provider "registry.terraform.io/agynio/k3d" {
   hashes = [
     "h1:7rRtyBqzmGsS8zzpLpFUmsEF6dI3j8EB+ka9PGDC5ww=",
     "h1:obPj2o7tS99lnM+ZbIrlWoxi0eUpcjnPoQK7SAYNjbY=",
+    "h1:zG3YHPySNClFKO4AyMuq17ALU75l0WeVGUx22CwV4ZM=",
     "zh:106474ecb58ca44940a3708016d885c3c1dc824ddcf9ca544a3272b9d2db2f4a",
     "zh:6caf22c0ec0c4a06289b7ed0c30355d060a34d63ed6170d692f0711ca555d88b",
     "zh:6e85c053e430c4efac45542f7ffa17ecd81fe714963d0733cdf5d04537d852db",
@@ -21,6 +22,7 @@ provider "registry.terraform.io/hashicorp/local" {
   constraints = "~> 2.5"
   hashes = [
     "h1:2RYa3j7m/0WmET2fqotY4CHxE1Hpk0fgn47/126l+Og=",
+    "h1:ZM8+dCHsSogRknZkPUeUMzHyY1UAZ0GWFJ24YP8v+AQ=",
     "h1:sSwlfp2etjCaE9hIF7bJBDjRIhDCVFglEOVyiCI7vgs=",
     "zh:261fec71bca13e0a7812dc0d8ae9af2b4326b24d9b2e9beab3d2400fab5c5f9a",
     "zh:308da3b5376a9ede815042deec5af1050ec96a5a5410a2206ae847d82070a23e",

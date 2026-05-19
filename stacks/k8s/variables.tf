@@ -8,12 +8,22 @@ variable "servers" {
   type        = number
   description = "Number of server nodes"
   default     = 1
+
+  validation {
+    condition     = var.servers >= 1
+    error_message = "Servers must be greater than or equal to 1."
+  }
 }
 
 variable "agents" {
   type        = number
   description = "Number of agent nodes"
-  default     = 2
+  default     = 0
+
+  validation {
+    condition     = var.agents >= 0
+    error_message = "Agents must be greater than or equal to 0."
+  }
 }
 
 variable "k3s_version" {

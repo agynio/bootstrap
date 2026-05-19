@@ -4,6 +4,8 @@ set -euo pipefail
 
 DEFAULT_DOMAIN="agyn.dev"
 DEFAULT_PORT="2496"
+DEFAULT_K3D_SERVERS="1"
+DEFAULT_K3D_AGENTS="0"
 DEFAULT_OIDC_ISSUER_URL="https://mockauth.dev/r/301ebb13-15a8-48f4-baac-e3fa25be29fc/oidc"
 DEFAULT_OIDC_CLIENT_ID="client_MU95KU3gHQf5Ir7p"
 DEFAULT_OIDC_CLIENT_SECRET="XPKka2i9uzISrKZ95zxli8sY51BK4eTJ"
@@ -22,6 +24,8 @@ Options:
 Environment variables:
   DOMAIN  Override the ingress domain (default: agyn.dev)
   PORT    Override the ingress port (default: 2496)
+  K3D_SERVERS  Override k3d server node count (default: 1)
+  K3D_AGENTS   Override k3d agent node count (default: 0)
   OIDC_ISSUER_URL     Override the OIDC issuer URL (default: https://mockauth.dev/r/301ebb13-15a8-48f4-baac-e3fa25be29fc/oidc)
   OIDC_CLIENT_ID      Override the OIDC client ID (default: client_MU95KU3gHQf5Ir7p)
   TRACING_APP_OIDC_CLIENT_ID  Override the tracing-app OIDC client ID (default: client_tzqVFAYTvpkfUzy5)
@@ -112,6 +116,40 @@ if (( port < 1 || port > 65535 )); then
   exit 1
 fi
 
+k3d_servers="${K3D_SERVERS:-${DEFAULT_K3D_SERVERS}}"
+if [[ -n "${K3D_SERVERS:-}" ]]; then
+  echo "K3D server node count provided via K3D_SERVERS environment variable: ${k3d_servers}"
+else
+  echo "K3D server node count defaulting to ${k3d_servers}."
+fi
+
+if ! [[ "${k3d_servers}" =~ ^[0-9]+$ ]]; then
+  echo "Error: K3D_SERVERS must be an integer." >&2
+  exit 1
+fi
+
+if (( k3d_servers < 1 )); then
+  echo "Error: K3D_SERVERS must be greater than or equal to 1." >&2
+  exit 1
+fi
+
+k3d_agents="${K3D_AGENTS:-${DEFAULT_K3D_AGENTS}}"
+if [[ -n "${K3D_AGENTS:-}" ]]; then
+  echo "K3D agent node count provided via K3D_AGENTS environment variable: ${k3d_agents}"
+else
+  echo "K3D agent node count defaulting to ${k3d_agents}."
+fi
+
+if ! [[ "${k3d_agents}" =~ ^[0-9]+$ ]]; then
+  echo "Error: K3D_AGENTS must be an integer." >&2
+  exit 1
+fi
+
+if (( k3d_agents < 0 )); then
+  echo "Error: K3D_AGENTS must be greater than or equal to 0." >&2
+  exit 1
+fi
+
 oidc_issuer_url="${OIDC_ISSUER_URL:-}"
 if [[ -z "${oidc_issuer_url}" ]]; then
   if [[ "${auto_approve}" == "true" ]]; then
@@ -161,7 +199,8 @@ fi
 ghcr_username="${GHCR_USERNAME:-}"
 ghcr_token="${GHCR_TOKEN:-}"
 
-printf '\nUsing domain: %s\nUsing port:   %s\n\n' "${domain}" "${port}"
+printf '\nUsing domain:      %s\nUsing port:        %s\nUsing k3d servers: %s\nUsing k3d agents:  %s\n\n' \
+  "${domain}" "${port}" "${k3d_servers}" "${k3d_agents}"
 
 run_stack() {
   local stack="$1"
@@ -179,7 +218,12 @@ run_stack() {
   local apply_cmd=(terraform -chdir="stacks/${stack}" apply)
 
   if [[ "${stack}" == "k8s" ]]; then
-    apply_cmd+=(-var "domain=${domain}" -var "port=${port}")
+    apply_cmd+=(
+      -var "domain=${domain}"
+      -var "port=${port}"
+      -var "servers=${k3d_servers}"
+      -var "agents=${k3d_agents}"
+    )
   fi
 
   if [[ "${stack}" == "platform" ]]; then

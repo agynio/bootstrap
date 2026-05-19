@@ -36,6 +36,9 @@ log() {
 
 dump_diagnostics() {
   log "Collecting diagnostics before exit"
+  kubectl --kubeconfig "$KUBECONFIG_PATH" get nodes -o wide || true
+  kubectl --kubeconfig "$KUBECONFIG_PATH" get nodes -o custom-columns='NAME:.metadata.name,TAINTS:.spec.taints' || true
+  kubectl --kubeconfig "$KUBECONFIG_PATH" get pods -A -o wide || true
   kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$PLATFORM_NAMESPACE" get pods -o wide || true
   kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$PLATFORM_NAMESPACE" describe pods || true
   kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$ARGO_NAMESPACE" get applications.argoproj.io -o yaml | grep -E "(name:|status:)" | sed -n '1,200p' || true

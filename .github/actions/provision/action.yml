@@ -5,6 +5,14 @@ inputs:
     description: Bootstrap ref to provision from.
     required: false
     default: main
+  servers:
+    description: Number of k3d server nodes to provision.
+    required: false
+    default: "1"
+  agents:
+    description: Number of k3d agent nodes to provision.
+    required: false
+    default: "0"
 outputs:
   kubeconfig:
     description: Absolute path to the generated kubeconfig file.
@@ -16,11 +24,15 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
+        echo "Docker usage before cleanup:"
+        docker system df
         echo "Disk usage before cleanup:"
         df -h
         sudo rm -rf /usr/local/lib/android /usr/local/share/boost /opt/ghc /usr/share/dotnet /usr/share/swift
         sudo apt-get clean
         docker system prune -af
+        echo "Docker usage after cleanup:"
+        docker system df
         echo "Disk usage after cleanup:"
         df -h
 
@@ -48,10 +60,42 @@ runs:
       with:
         terraform_version: 1.6.6
 
+    - name: Log pre-provision metrics
+      shell: bash
+      run: |
+        set -euo pipefail
+        echo "Docker usage before provisioning:"
+        docker system df
+        echo "Disk usage before provisioning:"
+        df -h
+
     - name: Apply bootstrap stacks
       shell: bash
       working-directory: bootstrap
+      env:
+        K3D_SERVERS: ${{ inputs.servers }}
+        K3D_AGENTS: ${{ inputs.agents }}
       run: ./apply.sh -y
+
+    - name: Log post-provision metrics
+      if: always()
+      shell: bash
+      working-directory: bootstrap
+      run: |
+        set -euo pipefail
+        kubeconfig_path="$(pwd)/stacks/k8s/.kube/agyn-local-kubeconfig.yaml"
+        echo "Docker usage after provisioning:"
+        docker system df
+        echo "Disk usage after provisioning:"
+        df -h
+        if [[ -f "${kubeconfig_path}" ]]; then
+          echo "Kubernetes nodes after provisioning:"
+          kubectl --kubeconfig "${kubeconfig_path}" get nodes -o wide || true
+          echo "Kubernetes pods after provisioning:"
+          kubectl --kubeconfig "${kubeconfig_path}" get pods -A -o wide || true
+        else
+          echo "Kubeconfig not found at ${kubeconfig_path}; skipping Kubernetes metrics."
+        fi
 
     - name: Export kubeconfig
       id: kubeconfig
@@ -66,6 +110,30 @@ runs:
         fi
         echo "kubeconfig=${kubeconfig_path}" >> "$GITHUB_OUTPUT"
         echo "KUBECONFIG=${kubeconfig_path}" >> "$GITHUB_ENV"
+
+    - name: Verify cluster node count
+      shell: bash
+      working-directory: bootstrap
+      env:
+        EXPECTED_K3D_SERVERS: ${{ inputs.servers }}
+        EXPECTED_K3D_AGENTS: ${{ inputs.agents }}
+      run: |
+        set -euo pipefail
+        if ! [[ "${EXPECTED_K3D_SERVERS}" =~ ^[0-9]+$ && "${EXPECTED_K3D_AGENTS}" =~ ^[0-9]+$ ]]; then
+          echo "Expected k3d server and agent counts must be integers." >&2
+          exit 1
+        fi
+        expected_nodes=$(( EXPECTED_K3D_SERVERS + EXPECTED_K3D_AGENTS ))
+        actual_nodes=$(kubectl --kubeconfig "$KUBECONFIG" get nodes --no-headers | wc -l | tr -d '[:space:]')
+        echo "Kubernetes nodes: expected=${expected_nodes} actual=${actual_nodes}"
+        echo "Kubernetes node details:"
+        kubectl --kubeconfig "$KUBECONFIG" get nodes -o wide
+        echo "Kubernetes node taints:"
+        kubectl --kubeconfig "$KUBECONFIG" get nodes -o custom-columns='NAME:.metadata.name,TAINTS:.spec.taints'
+        if [[ "${actual_nodes}" != "${expected_nodes}" ]]; then
+          echo "Expected ${expected_nodes} Kubernetes node(s), found ${actual_nodes}." >&2
+          exit 1
+        fi
 
     - name: Verify platform health
       shell: bash
