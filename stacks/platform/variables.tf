@@ -659,7 +659,7 @@ variable "media_proxy_image_tag" {
 variable "llm_proxy_chart_version" {
   type        = string
   description = "Version of the llm-proxy Helm chart published to GHCR"
-  default     = "0.12.4"
+  default     = "0.12.5"
 }
 
 variable "llm_proxy_image_tag" {
