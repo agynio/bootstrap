@@ -135,7 +135,7 @@ variable "apps_chart_version" {
 variable "chat_app_chart_version" {
   type        = string
   description = "Version of the chat-app Helm chart published to GHCR"
-  default     = "0.4.16"
+  default     = "0.4.17"
 }
 
 variable "chat_app_image_tag" {
@@ -482,7 +482,7 @@ variable "files_db_pvc_size" {
 variable "llm_chart_version" {
   type        = string
   description = "Version of the llm Helm chart published to GHCR"
-  default     = "0.4.3"
+  default     = "0.4.4"
 }
 
 variable "llm_image_tag" {
