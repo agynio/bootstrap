@@ -710,6 +710,7 @@ locals {
           value = ":50051"
         },
       ]
+      extraEnvVarsCM = "agyn-platform-openfga"
       securityContext = {
         runAsUser  = 100
         runAsGroup = 101
@@ -953,7 +954,7 @@ locals {
       replicaCount     = 1
       redis = {
         enabled         = true
-        externalAddress = var.notifications_redis_addr
+        externalAddress = "platform-notifications-redis-master.${var.platform_namespace}.svc.cluster.local:6379"
       }
       image = {
         tag = local.resolved_notifications_image_tag
@@ -984,7 +985,7 @@ locals {
         },
         {
           name  = "REDIS_ADDR"
-          value = var.notifications_redis_addr
+          value = "platform-notifications-redis-master.${var.platform_namespace}.svc.cluster.local:6379"
         },
         {
           name  = "REDIS_DB"
