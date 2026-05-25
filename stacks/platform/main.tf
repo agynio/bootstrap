@@ -954,7 +954,7 @@ locals {
       replicaCount     = 1
       redis = {
         enabled         = true
-        externalAddress = "platform-notifications-redis-master.${var.platform_namespace}.svc.cluster.local:6379"
+        externalAddress = "notifications-redis-master.${var.platform_namespace}.svc.cluster.local:6379"
       }
       image = {
         tag = local.resolved_notifications_image_tag
@@ -985,7 +985,7 @@ locals {
         },
         {
           name  = "REDIS_ADDR"
-          value = "platform-notifications-redis-master.${var.platform_namespace}.svc.cluster.local:6379"
+          value = "notifications-redis-master.${var.platform_namespace}.svc.cluster.local:6379"
         },
         {
           name  = "REDIS_DB"
