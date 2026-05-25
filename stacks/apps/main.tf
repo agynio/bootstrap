@@ -92,7 +92,7 @@ locals {
       },
       {
         name  = "GATEWAY_URL"
-        value = "http://gateway-gateway.platform.svc.cluster.local:8080"
+        value = "http://gateway.platform.svc.cluster.local:8080"
       },
       {
         name = "SERVICE_TOKEN"
@@ -174,7 +174,7 @@ locals {
       },
       {
         name  = "GATEWAY_URL"
-        value = "http://gateway-gateway.platform.svc.cluster.local:8080"
+        value = "http://gateway.platform.svc.cluster.local:8080"
       },
       {
         name  = "ZITI_SERVICE_NAME"
@@ -228,7 +228,7 @@ locals {
       },
       {
         name  = "GATEWAY_ADDRESS"
-        value = "gateway-gateway:8080"
+        value = "gateway:8080"
       },
       {
         name = "CAPABILITY_IMPLEMENTATIONS"
