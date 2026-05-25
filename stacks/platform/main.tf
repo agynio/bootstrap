@@ -2885,7 +2885,7 @@ resource "argocd_application" "platform" {
     argocd_application.registry_mirror,
     argocd_application.ncps,
   ]
-  wait = true
+  wait = false
 
   metadata {
     name      = "platform"
