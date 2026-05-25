@@ -542,7 +542,7 @@ locals {
 
   platform_values = yamlencode({
     validation = {
-      requireExistingSecrets = true
+      requireExistingSecrets = false
     }
     platform = {
       database = {
