@@ -443,6 +443,9 @@ locals {
     }
   })
 
+  platform_database_secret_name = "agyn-platform-database-urls"
+  files_s3_secret_name          = "agyn-files-s3"
+
   platform_database_urls = {
     "agents"              = format("postgresql://agents:%s@agents-db:5432/agents?sslmode=disable", var.agents_db_password)
     "agents-orchestrator" = format("postgresql://orchestrator:%s@agents-orchestrator-db:5432/orchestrator?sslmode=disable", var.agents_orchestrator_db_password)
@@ -547,7 +550,7 @@ locals {
     platform = {
       database = {
         mode                     = "external"
-        existingSecret           = "agyn-platform-database-urls"
+        existingSecret           = local.platform_database_secret_name
         existingSecretKeyPattern = "{{ .service }}"
       }
       oidc = {
@@ -561,7 +564,7 @@ locals {
       modelId = module.openfga_authorization.model_id
     }
     s3 = {
-      existingSecret = "agyn-files-s3"
+      existingSecret = local.files_s3_secret_name
       accessKeyKey   = "access-key"
       secretKeyKey   = "secret-key"
       endpoint       = "minio.minio.svc.cluster.local:9000"
@@ -1395,18 +1398,20 @@ resource "kubernetes_secret_v1" "secrets_encryption_key" {
 
 resource "kubernetes_secret_v1" "platform_database_urls" {
   metadata {
-    name      = "agyn-platform-database-urls"
+    name      = local.platform_database_secret_name
     namespace = kubernetes_namespace.platform.metadata[0].name
   }
 
   type = "Opaque"
 
   data = local.platform_database_urls
+
+  depends_on = [kubernetes_namespace.platform]
 }
 
 resource "kubernetes_secret_v1" "files_s3" {
   metadata {
-    name      = "agyn-files-s3"
+    name      = local.files_s3_secret_name
     namespace = kubernetes_namespace.platform.metadata[0].name
   }
 
@@ -1416,6 +1421,8 @@ resource "kubernetes_secret_v1" "files_s3" {
     access-key = var.minio_root_user
     secret-key = var.minio_root_password
   }
+
+  depends_on = [kubernetes_namespace.platform]
 }
 
 resource "kubernetes_secret_v1" "cluster_admin" {
@@ -2860,6 +2867,7 @@ resource "argocd_application" "ncps" {
 resource "argocd_application" "platform" {
   depends_on = [
     argocd_repository.ghcr,
+    kubernetes_namespace.platform,
     module.openfga_authorization,
     kubernetes_secret_v1.platform_database_urls,
     kubernetes_secret_v1.files_s3,
