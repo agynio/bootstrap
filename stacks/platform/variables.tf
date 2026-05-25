@@ -196,7 +196,7 @@ variable "tracing_app_chart_version" {
 variable "tracing_app_image_tag" {
   type        = string
   description = "Optional override for the tracing-app container image tag"
-  default     = ""
+  default     = "0.2.6"
 }
 
 variable "platform_namespace" {
