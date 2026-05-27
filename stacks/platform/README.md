@@ -6,7 +6,7 @@ Deploy platform workloads via Argo CD applications sourced from [agynio/platform
 
 - `stacks/k8s` and `stacks/system` applied so that Argo CD and Istio are running in the cluster.
 - Local `kubectl` access to the target cluster (the stack uses the kubeconfig defined by `kubeconfig_path`).
-- Persistent storage classes available for PostgreSQL and registry mirror PVCs (stateful components rely on dynamic provisioning).
+- Persistent storage classes available for PostgreSQL PVCs (stateful components rely on dynamic provisioning).
 
 > Apply `terraform -chdir=stacks/k8s apply` before this stack so the chosen `domain` and ingress `port` are available via `terraform_remote_state`. The apply prompts with defaults (`agyn.dev` / `2496`); override non-interactively via flags like `terraform -chdir=stacks/k8s apply -var='domain=example.dev' -var='port=8443'` or environment variables `TF_VAR_domain` / `TF_VAR_port`.
 
@@ -34,7 +34,7 @@ Each application chart enables a Kubernetes `Ingress` with `ingressClassName: is
 
 ### Chart source
 
-Platform charts are pulled from the GHCR OCI registry (`ghcr.io/agynio/charts`). Pin the release with `platform_chart_version`. The PostgreSQL Argo CD applications use the same registry and are pinned via `postgres_chart_version`. If you need private registry credentials, register the GHCR repo in Argo CD before applying the stack. The `registry-mirror` app is the exception: it still pulls the upstream git chart from `https://github.com/twuni/docker-registry.helm.git`.
+Platform charts are pulled from the GHCR OCI registry (`ghcr.io/agynio/charts`). Pin the release with `platform_chart_version`. The PostgreSQL Argo CD applications use the same registry and are pinned via `postgres_chart_version`. If you need private registry credentials, register the GHCR repo in Argo CD before applying the stack.
 
 ### Graph persistence
 
@@ -52,7 +52,6 @@ Verify persistence by:
 
 | Sync wave | Application        | Purpose                             | Notes |
 |-----------|--------------------|-------------------------------------|-------|
-| 1         | `registry-mirror`  | Twuni docker-registry proxy         | Proxies Docker Hub with persistent storage |
 | 5         | `platform-db`      | PostgreSQL for platform workloads   | Uses chart `oci://ghcr.io/agynio/charts/postgres-helm` with inline Helm values |
 | 18        | `k8s-runner`       | Kubernetes workspace runner         | Uses cluster-wide RBAC; TCP-only runner mode |
 | 20        | `platform-server`  | Core platform API                   | Depends on `platform-db` |

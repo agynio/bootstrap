@@ -1,11 +1,9 @@
 output "platform_app_names" {
   description = "Names of Argo CD applications managed by this stack"
   value = [
-    argocd_application.registry_mirror.metadata[0].name,
     argocd_application.platform_db.metadata[0].name,
     argocd_application.tracing_db.metadata[0].name,
     argocd_application.apps_db.metadata[0].name,
-    argocd_application.ncps.metadata[0].name,
     argocd_application.tracing.metadata[0].name,
     argocd_application.authorization.metadata[0].name,
     argocd_application.token_counting.metadata[0].name,
@@ -24,11 +22,9 @@ output "platform_app_names" {
 output "platform_app_ids" {
   description = "Identifiers returned by the Argo CD provider for the applications"
   value = [
-    argocd_application.registry_mirror.id,
     argocd_application.platform_db.id,
     argocd_application.tracing_db.id,
     argocd_application.apps_db.id,
-    argocd_application.ncps.id,
     argocd_application.tracing.id,
     argocd_application.authorization.id,
     argocd_application.token_counting.id,

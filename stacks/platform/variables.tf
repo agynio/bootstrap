@@ -588,11 +588,6 @@ variable "minio_bucket_name" {
   default     = "files"
 }
 
-variable "registry_mirror_pvc_size" {
-  type        = string
-  description = "Persistent volume claim size for the registry mirror"
-  default     = "5Gi"
-}
 
 variable "secrets_chart_version" {
   type        = string
