@@ -123,7 +123,7 @@ variable "identity_chart_version" {
 variable "runners_chart_version" {
   type        = string
   description = "Version of the runners Helm chart published to GHCR"
-  default     = "0.5.10"
+  default     = "0.5.11"
 }
 
 variable "apps_chart_version" {
@@ -624,7 +624,7 @@ variable "secrets_encryption_key" {
 variable "authorization_chart_version" {
   type        = string
   description = "Version of the authorization Helm chart published to GHCR"
-  default     = "0.5.3"
+  default     = "0.5.4"
 }
 
 variable "authorization_image_tag" {
