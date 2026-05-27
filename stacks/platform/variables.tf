@@ -30,6 +30,12 @@ variable "ghcr_token" {
   sensitive   = true
 }
 
+variable "platform_chart_version" {
+  type        = string
+  description = "Version of the agyn-platform umbrella Helm chart published to GHCR"
+  default     = "0.1.0"
+}
+
 variable "gateway_chart_version" {
   type        = string
   description = "Version of the gateway Helm chart published to GHCR"

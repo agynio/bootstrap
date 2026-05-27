@@ -71,3 +71,8 @@ runs:
       shell: bash
       working-directory: bootstrap
       run: ./.github/scripts/verify_platform_health.sh
+
+    - name: Disable platform autosync
+      shell: bash
+      working-directory: bootstrap
+      run: ./.github/scripts/disable_platform_autosync.sh
