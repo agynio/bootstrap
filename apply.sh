@@ -7,6 +7,7 @@ DEFAULT_PORT="2496"
 DEFAULT_OIDC_ISSUER_URL="https://mockauth.dev/r/301ebb13-15a8-48f4-baac-e3fa25be29fc/oidc"
 DEFAULT_OIDC_CLIENT_ID="client_MU95KU3gHQf5Ir7p"
 DEFAULT_OIDC_CLIENT_SECRET="XPKka2i9uzISrKZ95zxli8sY51BK4eTJ"
+DEFAULT_K3D_IMAGE_LOADBALANCER="ghcr.io/k3d-io/k3d-proxy@sha256:6466619f9f2b34273e927f96e5d606c485c5803aaa8033193793b5d8137aba9e"
 KUBECONFIG_PATH="stacks/k8s/.kube/agyn-local-kubeconfig.yaml"
 
 auto_approve="false"
@@ -29,6 +30,8 @@ Environment variables:
   ADMIN_OIDC_SUBJECT  Optional OIDC subject for the bootstrap admin user (default: admin@agyn.io)
   GHCR_USERNAME        Optional GHCR username for private OCI charts
   GHCR_TOKEN           Optional GHCR token for private OCI charts
+  K3D_IMAGE_LOADBALANCER  Override the k3d load balancer image
+                          (default: ghcr.io/k3d-io/k3d-proxy@sha256:6466619f9f2b34273e927f96e5d606c485c5803aaa8033193793b5d8137aba9e)
 EOF
 }
 
@@ -160,6 +163,9 @@ fi
 
 ghcr_username="${GHCR_USERNAME:-}"
 ghcr_token="${GHCR_TOKEN:-}"
+
+export K3D_IMAGE_LOADBALANCER="${K3D_IMAGE_LOADBALANCER:-${DEFAULT_K3D_IMAGE_LOADBALANCER}}"
+echo "Using k3d load balancer image: ${K3D_IMAGE_LOADBALANCER}"
 
 printf '\nUsing domain: %s\nUsing port:   %s\n\n' "${domain}" "${port}"
 
