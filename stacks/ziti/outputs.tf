@@ -24,3 +24,14 @@ output "ziti_management_enrollment_token" {
   description = "Enrollment JWT for the ziti-management identity"
   sensitive   = true
 }
+
+output "ziti_diagnostics_credentials" {
+  value = {
+    username = ziti_identity_updb.ziti_management_diagnostics.updb_username
+    password = random_password.ziti_management_diagnostics.result
+  }
+  description = "Username and password for the Ziti management diagnostics identity"
+  sensitive   = true
+
+  depends_on = [terraform_data.ziti_management_diagnostics_enrollment]
+}

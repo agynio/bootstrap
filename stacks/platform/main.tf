@@ -55,6 +55,7 @@ locals {
   identity_chart_name            = "agynio/charts/identity"
   runners_chart_name             = "agynio/charts/runners"
   apps_chart_name                = "agynio/charts/apps"
+  ziti_diagnostics_secret_name   = "ziti-management-diagnostics"
   istio_gateway_namespace        = data.terraform_remote_state.system.outputs.istio_gateway_namespace
   istio_gateway_tls_secret_name  = data.terraform_remote_state.system.outputs.wildcard_tls_gateway_secret_name
   openfga_api_url_external       = format("https://openfga.%s:%d", local.base_domain, local.ingress_port)
@@ -1357,6 +1358,53 @@ resource "kubernetes_secret_v1" "ziti_management_enrollment" {
 
   data = {
     enrollmentJwt = data.terraform_remote_state.ziti.outputs.ziti_management_enrollment_token
+  }
+}
+
+resource "kubernetes_secret_v1" "ziti_management_diagnostics" {
+  metadata {
+    name      = local.ziti_diagnostics_secret_name
+    namespace = kubernetes_namespace.platform.metadata[0].name
+  }
+
+  type = "Opaque"
+
+  data = {
+    username = data.terraform_remote_state.ziti.outputs.ziti_diagnostics_credentials.username
+    password = data.terraform_remote_state.ziti.outputs.ziti_diagnostics_credentials.password
+  }
+}
+
+resource "kubernetes_role_v1" "ziti_management_diagnostics_reader" {
+  metadata {
+    name      = "ziti-management-diagnostics-reader"
+    namespace = kubernetes_namespace.platform.metadata[0].name
+  }
+
+  rule {
+    api_groups     = [""]
+    resources      = ["secrets"]
+    resource_names = [kubernetes_secret_v1.ziti_management_diagnostics.metadata[0].name]
+    verbs          = ["get"]
+  }
+}
+
+resource "kubernetes_role_binding_v1" "ziti_management_diagnostics_reader" {
+  metadata {
+    name      = "ziti-management-diagnostics-reader"
+    namespace = kubernetes_namespace.platform.metadata[0].name
+  }
+
+  role_ref {
+    api_group = "rbac.authorization.k8s.io"
+    kind      = "Role"
+    name      = kubernetes_role_v1.ziti_management_diagnostics_reader.metadata[0].name
+  }
+
+  subject {
+    kind      = "ServiceAccount"
+    name      = "agents-orchestrator-e2e"
+    namespace = kubernetes_namespace.platform.metadata[0].name
   }
 }
 
