@@ -18,6 +18,19 @@ Use auto-apply mode to skip prompts and run Terraform with `-input=false -auto-a
 ./apply.sh -y
 ```
 
+`apply.sh` exports `K3D_IMAGE_LOADBALANCER` before Terraform runs so k3d uses a
+pinned load balancer image tag instead of resolving
+`ghcr.io/k3d-io/k3d-proxy:latest` at cluster creation time. The default is
+pinned for the installed k3d CLI version (`v5.7.5`):
+
+```sh
+ghcr.io/k3d-io/k3d-proxy:5.7.5
+```
+
+When upgrading k3d, update this tag to the proxy image published for the new k3d
+release. To test a different image locally or in CI, provide
+`K3D_IMAGE_LOADBALANCER` in the environment before running `apply.sh`.
+
 **Manual**
 
 ```sh
