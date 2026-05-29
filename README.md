@@ -67,3 +67,15 @@ Default domain and port: `agyn.dev` on `2496`.
 - Argo CD: https://argocd.agyn.dev:2496/
 - OpenFGA API: https://openfga.agyn.dev:2496/
 - OpenFGA Playground: https://openfga-playground.agyn.dev:2496/
+
+## DEV/E2E-only diagnostics credentials
+
+The `ziti-management-diagnostics` Ziti identity, Kubernetes secret, and RBAC are
+for local development and E2E diagnostics only. They intentionally expose a
+dedicated admin UPDB credential so tests can query Ziti management diagnostics.
+Production deployments must not create or publish these resources.
+
+Both the `stacks/ziti` and `stacks/platform` Terraform stacks guard the
+diagnostics resources behind `enable_ziti_management_diagnostics`, which
+defaults to `false`. Only enable it in DEV/E2E environments, and keep the value
+disabled for production plans and applies.

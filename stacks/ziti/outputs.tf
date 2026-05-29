@@ -26,11 +26,11 @@ output "ziti_management_enrollment_token" {
 }
 
 output "ziti_diagnostics_credentials" {
-  value = {
-    username = ziti_identity_updb.ziti_management_diagnostics.updb_username
-    password = random_password.ziti_management_diagnostics.result
-  }
-  description = "Username and password for the Ziti management diagnostics identity"
+  value = var.enable_ziti_management_diagnostics ? {
+    username = ziti_identity_updb.ziti_management_diagnostics[0].updb_username
+    password = random_password.ziti_management_diagnostics[0].result
+  } : null
+  description = "DEV/E2E-only username and password for ziti-management-diagnostics. Null when disabled; production must keep it disabled."
   sensitive   = true
 
   depends_on = [terraform_data.ziti_management_diagnostics_enrollment]

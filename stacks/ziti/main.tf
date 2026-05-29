@@ -109,11 +109,17 @@ resource "ziti_identity" "ziti_management" {
 }
 
 resource "random_password" "ziti_management_diagnostics" {
+  count = var.enable_ziti_management_diagnostics ? 1 : 0
+
   length  = 32
   special = false
 }
 
+# DEV/E2E ONLY: ziti-management-diagnostics is an admin UPDB identity used
+# solely by diagnostics tests. Production deployments must not enable this.
 resource "ziti_auth_policy" "ziti_management_diagnostics" {
+  count = var.enable_ziti_management_diagnostics ? 1 : 0
+
   name = "ziti-management-diagnostics"
 
   primary = {
@@ -141,11 +147,14 @@ resource "ziti_auth_policy" "ziti_management_diagnostics" {
   }
 }
 
+# DEV/E2E ONLY: this admin identity is for diagnostics tests and must not
+# exist in production. Keep enable_ziti_management_diagnostics=false for prod.
 resource "ziti_identity_updb" "ziti_management_diagnostics" {
   name           = "ziti-management-diagnostics"
+  count          = var.enable_ziti_management_diagnostics ? 1 : 0
   type           = "User"
   updb_username  = "ziti-management-diagnostics"
-  auth_policy_id = ziti_auth_policy.ziti_management_diagnostics.id
+  auth_policy_id = ziti_auth_policy.ziti_management_diagnostics[0].id
   # The current Terraform provider does not expose OpenZiti's permissions
   # field, so this identity must be an admin to access management endpoints.
   # E2E only stores its one-time login credential in the platform namespace.
@@ -154,22 +163,26 @@ resource "ziti_identity_updb" "ziti_management_diagnostics" {
 }
 
 locals {
-  ziti_management_diagnostics_enrollment_jwt_payload = split(".", ziti_identity_updb.ziti_management_diagnostics.enrollment_token)[1]
+  ziti_management_diagnostics_enrollment_jwt_payload = var.enable_ziti_management_diagnostics ? split(".", ziti_identity_updb.ziti_management_diagnostics[0].enrollment_token)[1] : ""
   ziti_management_diagnostics_enrollment_jwt_padding = substr("===", 0, (4 - length(local.ziti_management_diagnostics_enrollment_jwt_payload) % 4) % 4)
-  ziti_management_diagnostics_enrollment_token       = jsondecode(base64decode(format("%s%s", replace(replace(local.ziti_management_diagnostics_enrollment_jwt_payload, "-", "+"), "_", "/"), local.ziti_management_diagnostics_enrollment_jwt_padding))).jti
+  ziti_management_diagnostics_enrollment_token       = var.enable_ziti_management_diagnostics ? jsondecode(base64decode(format("%s%s", replace(replace(local.ziti_management_diagnostics_enrollment_jwt_payload, "-", "+"), "_", "/"), local.ziti_management_diagnostics_enrollment_jwt_padding))).jti : ""
 }
 
+# DEV/E2E ONLY: enroll the ziti-management-diagnostics identity so tests can
+# read the generated password from the platform namespace. Do not enable in prod.
 resource "terraform_data" "ziti_management_diagnostics_enrollment" {
+  count = var.enable_ziti_management_diagnostics ? 1 : 0
+
   input = {
     endpoint = format("https://ziti-mgmt.%s:%d/edge/client/v1", local.base_domain, local.ingress_port)
-    password = random_password.ziti_management_diagnostics.result
+    password = random_password.ziti_management_diagnostics[0].result
     token    = local.ziti_management_diagnostics_enrollment_token
-    username = ziti_identity_updb.ziti_management_diagnostics.updb_username
+    username = ziti_identity_updb.ziti_management_diagnostics[0].updb_username
   }
 
   triggers_replace = [
-    random_password.ziti_management_diagnostics.result,
-    ziti_identity_updb.ziti_management_diagnostics.id,
+    random_password.ziti_management_diagnostics[0].result,
+    ziti_identity_updb.ziti_management_diagnostics[0].id,
   ]
 
   provisioner "local-exec" {
