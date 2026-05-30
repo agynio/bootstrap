@@ -55,10 +55,13 @@ locals {
   identity_chart_name            = "agynio/charts/identity"
   runners_chart_name             = "agynio/charts/runners"
   apps_chart_name                = "agynio/charts/apps"
-  istio_gateway_namespace        = data.terraform_remote_state.system.outputs.istio_gateway_namespace
-  istio_gateway_tls_secret_name  = data.terraform_remote_state.system.outputs.wildcard_tls_gateway_secret_name
-  openfga_api_url_external       = format("https://openfga.%s:%d", local.base_domain, local.ingress_port)
-  openfga_api_url_internal       = format("http://openfga.%s.svc.cluster.local:8080", var.openfga_namespace)
+  # DEV/E2E ONLY: this secret name is used by diagnostics tests and must not
+  # be published in production deployments.
+  ziti_diagnostics_secret_name  = "ziti-diagnostics"
+  istio_gateway_namespace       = data.terraform_remote_state.system.outputs.istio_gateway_namespace
+  istio_gateway_tls_secret_name = data.terraform_remote_state.system.outputs.wildcard_tls_gateway_secret_name
+  openfga_api_url_external      = format("https://openfga.%s:%d", local.base_domain, local.ingress_port)
+  openfga_api_url_internal      = format("http://openfga.%s.svc.cluster.local:8080", var.openfga_namespace)
   # Deterministic v5 UUID for the cluster admin identity.
   # This is a synthetic identity used only during bootstrap;
   # it does not correspond to a user record in the Users DB.
@@ -1357,6 +1360,63 @@ resource "kubernetes_secret_v1" "ziti_management_enrollment" {
 
   data = {
     enrollmentJwt = data.terraform_remote_state.ziti.outputs.ziti_management_enrollment_token
+  }
+}
+
+# DEV/E2E ONLY: ziti-diagnostics contains admin UPDB credentials
+# for diagnostics tests. Keep enable_ziti_diagnostics=false in prod.
+resource "kubernetes_secret_v1" "ziti_diagnostics" {
+  count = var.enable_ziti_diagnostics ? 1 : 0
+
+  metadata {
+    name      = local.ziti_diagnostics_secret_name
+    namespace = kubernetes_namespace.platform.metadata[0].name
+  }
+
+  type = "Opaque"
+
+  data = {
+    username = data.terraform_remote_state.ziti.outputs.ziti_diagnostics_credentials.username
+    password = data.terraform_remote_state.ziti.outputs.ziti_diagnostics_credentials.password
+  }
+}
+
+resource "kubernetes_role_v1" "ziti_diagnostics_reader" {
+  count = var.enable_ziti_diagnostics ? 1 : 0
+
+  metadata {
+    name      = "ziti-diagnostics-reader"
+    namespace = kubernetes_namespace.platform.metadata[0].name
+  }
+
+  rule {
+    api_groups     = [""]
+    resources      = ["secrets"]
+    resource_names = [kubernetes_secret_v1.ziti_diagnostics[0].metadata[0].name]
+    verbs          = ["get"]
+  }
+}
+
+# DEV/E2E ONLY: grants agents-orchestrator-e2e access to the diagnostics
+# secret. Production deployments must not create this binding.
+resource "kubernetes_role_binding_v1" "ziti_diagnostics_reader" {
+  count = var.enable_ziti_diagnostics ? 1 : 0
+
+  metadata {
+    name      = "ziti-diagnostics-reader"
+    namespace = kubernetes_namespace.platform.metadata[0].name
+  }
+
+  role_ref {
+    api_group = "rbac.authorization.k8s.io"
+    kind      = "Role"
+    name      = kubernetes_role_v1.ziti_diagnostics_reader[0].metadata[0].name
+  }
+
+  subject {
+    kind      = "ServiceAccount"
+    name      = "agents-orchestrator-e2e"
+    namespace = kubernetes_namespace.platform.metadata[0].name
   }
 }
 

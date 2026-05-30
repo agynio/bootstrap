@@ -58,3 +58,13 @@ Verify persistence by:
 | 25        | `platform-ui`      | Platform web UI                     | Connects to `platform-server` |
 
 All chart versions, image tags, and critical secrets are pinned via Terraform variables for reproducibility.
+
+## DEV/E2E-only Ziti diagnostics secret
+
+`ziti-diagnostics` is reserved for development and reusable E2E diagnostics.
+When explicitly enabled, the platform stack publishes a Kubernetes secret with
+dedicated Ziti diagnostics credentials and grants the `agents-orchestrator-e2e`
+service account get-only access to that secret for failure diagnostics.
+
+Production deployments must leave `enable_ziti_diagnostics` at its
+default value of `false` so the secret and RBAC do not exist.
