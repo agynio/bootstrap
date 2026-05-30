@@ -57,7 +57,7 @@ locals {
   apps_chart_name                = "agynio/charts/apps"
   # DEV/E2E ONLY: this secret name is used by diagnostics tests and must not
   # be published in production deployments.
-  ziti_diagnostics_secret_name  = "ziti-management-diagnostics"
+  ziti_diagnostics_secret_name  = "ziti-diagnostics"
   istio_gateway_namespace       = data.terraform_remote_state.system.outputs.istio_gateway_namespace
   istio_gateway_tls_secret_name = data.terraform_remote_state.system.outputs.wildcard_tls_gateway_secret_name
   openfga_api_url_external      = format("https://openfga.%s:%d", local.base_domain, local.ingress_port)
@@ -1363,10 +1363,10 @@ resource "kubernetes_secret_v1" "ziti_management_enrollment" {
   }
 }
 
-# DEV/E2E ONLY: ziti-management-diagnostics contains admin UPDB credentials
-# for diagnostics tests. Keep enable_ziti_management_diagnostics=false in prod.
-resource "kubernetes_secret_v1" "ziti_management_diagnostics" {
-  count = var.enable_ziti_management_diagnostics ? 1 : 0
+# DEV/E2E ONLY: ziti-diagnostics contains admin UPDB credentials
+# for diagnostics tests. Keep enable_ziti_diagnostics=false in prod.
+resource "kubernetes_secret_v1" "ziti_diagnostics" {
+  count = var.enable_ziti_diagnostics ? 1 : 0
 
   metadata {
     name      = local.ziti_diagnostics_secret_name
@@ -1381,36 +1381,36 @@ resource "kubernetes_secret_v1" "ziti_management_diagnostics" {
   }
 }
 
-resource "kubernetes_role_v1" "ziti_management_diagnostics_reader" {
-  count = var.enable_ziti_management_diagnostics ? 1 : 0
+resource "kubernetes_role_v1" "ziti_diagnostics_reader" {
+  count = var.enable_ziti_diagnostics ? 1 : 0
 
   metadata {
-    name      = "ziti-management-diagnostics-reader"
+    name      = "ziti-diagnostics-reader"
     namespace = kubernetes_namespace.platform.metadata[0].name
   }
 
   rule {
     api_groups     = [""]
     resources      = ["secrets"]
-    resource_names = [kubernetes_secret_v1.ziti_management_diagnostics[0].metadata[0].name]
+    resource_names = [kubernetes_secret_v1.ziti_diagnostics[0].metadata[0].name]
     verbs          = ["get"]
   }
 }
 
 # DEV/E2E ONLY: grants agents-orchestrator-e2e access to the diagnostics
 # secret. Production deployments must not create this binding.
-resource "kubernetes_role_binding_v1" "ziti_management_diagnostics_reader" {
-  count = var.enable_ziti_management_diagnostics ? 1 : 0
+resource "kubernetes_role_binding_v1" "ziti_diagnostics_reader" {
+  count = var.enable_ziti_diagnostics ? 1 : 0
 
   metadata {
-    name      = "ziti-management-diagnostics-reader"
+    name      = "ziti-diagnostics-reader"
     namespace = kubernetes_namespace.platform.metadata[0].name
   }
 
   role_ref {
     api_group = "rbac.authorization.k8s.io"
     kind      = "Role"
-    name      = kubernetes_role_v1.ziti_management_diagnostics_reader[0].metadata[0].name
+    name      = kubernetes_role_v1.ziti_diagnostics_reader[0].metadata[0].name
   }
 
   subject {

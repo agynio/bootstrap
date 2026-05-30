@@ -16,8 +16,8 @@ variable "ziti_router_chart_version" {
   default     = "3.0.0-pre5"
 }
 
-variable "enable_ziti_management_diagnostics" {
+variable "enable_ziti_diagnostics" {
   type        = bool
-  description = "DEV/E2E-only: create the ziti-management-diagnostics admin identity and credentials. Production deployments must leave this false."
+  description = "DEV/E2E-only: create the ziti-diagnostics admin identity and credentials. Production deployments must leave this false."
   default     = false
 }

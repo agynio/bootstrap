@@ -518,9 +518,9 @@ variable "ziti_management_db_password" {
   sensitive   = true
 }
 
-variable "enable_ziti_management_diagnostics" {
+variable "enable_ziti_diagnostics" {
   type        = bool
-  description = "DEV/E2E-only: publish the ziti-management-diagnostics secret and RBAC. Production deployments must leave this false."
+  description = "DEV/E2E-only: publish the ziti-diagnostics secret and RBAC. Production deployments must leave this false."
   default     = false
 }
 
