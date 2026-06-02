@@ -8,6 +8,10 @@ DEFAULT_OIDC_ISSUER_URL="https://mockauth.dev/r/301ebb13-15a8-48f4-baac-e3fa25be
 DEFAULT_OIDC_CLIENT_ID="client_MU95KU3gHQf5Ir7p"
 DEFAULT_OIDC_CLIENT_SECRET="XPKka2i9uzISrKZ95zxli8sY51BK4eTJ"
 DEFAULT_K3D_PROXY_IMAGE="ghcr.io/k3d-io/k3d-proxy:5.7.5"
+DEFAULT_K3D_TOOLS_IMAGE="ghcr.io/k3d-io/k3d-tools:5.7.5"
+DEFAULT_K3S_IMAGE="rancher/k3s:v1.34.3-k3s1"
+DEFAULT_CLUSTER_NAME="agyn-local"
+DEFAULT_BOOTSTRAP_IMAGE_MANIFEST="image-cache/bootstrap-images.txt"
 KUBECONFIG_PATH="stacks/k8s/.kube/agyn-local-kubeconfig.yaml"
 
 auto_approve="false"
@@ -32,6 +36,8 @@ Environment variables:
   GHCR_TOKEN           Optional GHCR token for private OCI charts
   K3D_IMAGE_LOADBALANCER  Override the k3d load balancer image
                           (default: ghcr.io/k3d-io/k3d-proxy:5.7.5)
+  BOOTSTRAP_PRELOAD_IMAGES  Image preload mode: auto, always, or never (default: auto)
+  BOOTSTRAP_IMAGE_MANIFEST  Image manifest path (default: image-cache/bootstrap-images.txt)
 EOF
 }
 
@@ -167,7 +173,44 @@ ghcr_token="${GHCR_TOKEN:-}"
 export K3D_IMAGE_LOADBALANCER="${K3D_IMAGE_LOADBALANCER:-${DEFAULT_K3D_PROXY_IMAGE}}"
 echo "Using k3d load balancer image: ${K3D_IMAGE_LOADBALANCER}"
 
+bootstrap_preload_images="${BOOTSTRAP_PRELOAD_IMAGES:-auto}"
+bootstrap_image_manifest="${BOOTSTRAP_IMAGE_MANIFEST:-${DEFAULT_BOOTSTRAP_IMAGE_MANIFEST}}"
+case "${bootstrap_preload_images}" in
+  auto|always|never)
+    ;;
+  *)
+    echo "Error: BOOTSTRAP_PRELOAD_IMAGES must be one of: auto, always, never." >&2
+    exit 1
+    ;;
+esac
+echo "Image preload mode: ${bootstrap_preload_images}"
+echo "Image manifest: ${bootstrap_image_manifest}"
+
 printf '\nUsing domain: %s\nUsing port:   %s\n\n' "${domain}" "${port}"
+
+preload_images() {
+  ./scripts/preload-images.sh \
+    --mode "${bootstrap_preload_images}" \
+    --cluster "${DEFAULT_CLUSTER_NAME}" \
+    --manifest "${bootstrap_image_manifest}" \
+    "$@"
+}
+
+print_image_pull_diagnostics() {
+  if [[ ! -f "${KUBECONFIG_PATH}" ]]; then
+    return 0
+  fi
+
+  echo "--- Image pull related events ---"
+  kubectl --kubeconfig "${KUBECONFIG_PATH}" get events --all-namespaces --sort-by='.lastTimestamp' 2>/dev/null \
+    | grep -E 'Pulling|Pulled|Failed|ErrImagePull|ImagePullBackOff' \
+    | tail -100 || true
+
+  echo "--- Pending pod images ---"
+  kubectl --kubeconfig "${KUBECONFIG_PATH}" get pods --all-namespaces \
+    -o jsonpath='{range .items[?(@.status.phase=="Pending")]}{.metadata.namespace}{"/"}{.metadata.name}{"\t"}{range .spec.initContainers[*]}{.image}{" "}{end}{range .spec.containers[*]}{.image}{" "}{end}{"\n"}{end}' 2>/dev/null || true
+}
+
 
 run_stack() {
   local stack="$1"
@@ -383,9 +426,17 @@ print_timing_summary() {
 
 global_start="${SECONDS}"
 
+step_start "preload:k3d"
+preload_images --pull-only --images "${DEFAULT_K3S_IMAGE}" "${K3D_IMAGE_LOADBALANCER}" "${DEFAULT_K3D_TOOLS_IMAGE}"
+step_end "preload:k3d"
+
 step_start "stack:k8s"
 run_stack "k8s"
 step_end "stack:k8s"
+
+step_start "preload:cluster"
+preload_images
+step_end "preload:cluster"
 
 step_start "stack:system"
 run_stack "system"
@@ -437,6 +488,7 @@ for app in cert-manager trust-manager ziti-controller; do
     echo "--- ${app} namespace events ---"
     kubectl --kubeconfig "${KUBECONFIG_PATH}" \
       -n "${ns}" get events --sort-by='.lastTimestamp' 2>&1 | tail -30 || true
+    print_image_pull_diagnostics
     exit 1
   fi
 done
@@ -457,6 +509,7 @@ done
 
 if [[ "${management_ready}" -ne 1 ]]; then
   echo "ERROR: OpenZiti Management API did not become ready." >&2
+  print_image_pull_diagnostics
   exit 1
 fi
 
@@ -480,6 +533,7 @@ if [ "${ZITI_EXIT}" -ne 0 ]; then
   echo "--- Router events ---"
   kubectl --kubeconfig "${KUBECONFIG_PATH}" \
     -n ziti get events --sort-by='.lastTimestamp' --field-selector reason!=Pulled 2>&1 | tail -20 || true
+  print_image_pull_diagnostics
   exit "${ZITI_EXIT}"
 fi
 step_end "stack:ziti"
@@ -527,6 +581,7 @@ for app in identity organizations gateway apps runners; do
     echo "--- ${app} namespace events ---"
     kubectl --kubeconfig "${KUBECONFIG_PATH}" \
       -n "${ns}" get events --sort-by='.lastTimestamp' 2>&1 | tail -30 || true
+    print_image_pull_diagnostics
     exit 1
   fi
 done
@@ -554,6 +609,7 @@ done
 
 if [[ "${gateway_ready}" -ne 1 ]]; then
   echo "ERROR: Gateway did not become ready at ${gateway_base_url}" >&2
+  print_image_pull_diagnostics
   exit 1
 fi
 

@@ -80,3 +80,24 @@ Both the `stacks/ziti` and `stacks/platform` Terraform stacks guard the
 diagnostics resources behind `enable_ziti_diagnostics`, which
 defaults to `false`. Only enable it in DEV/E2E environments, and keep the value
 disabled for production plans and applies.
+
+## Image preload
+
+`apply.sh` can pre-pull bootstrap images into Docker and import manifest images
+into the k3d cluster to reduce warm-cache provisioning time and external image
+pull flakiness.
+
+Configure preloading with:
+
+```sh
+BOOTSTRAP_PRELOAD_IMAGES=auto|always|never ./apply.sh -y
+```
+
+Modes:
+
+- `auto` (default): warn and continue if preloading is unavailable or fails.
+- `always`: fail immediately if an image cannot be pulled or imported.
+- `never`: skip all image preload work.
+
+The manifest defaults to `image-cache/bootstrap-images.txt` and supports blank
+lines and `#` comments. Override it with `BOOTSTRAP_IMAGE_MANIFEST`.

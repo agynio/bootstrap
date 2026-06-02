@@ -48,6 +48,22 @@ runs:
       with:
         terraform_version: 1.6.6
 
+    - name: Restore Terraform plugin cache
+      uses: actions/cache@v4
+      with:
+        path: .terraform.d/plugin-cache
+        key: terraform-plugin-cache-${{ runner.os }}-${{ runner.arch }}-1.6.6-${{ hashFiles('bootstrap/stacks/*/.terraform.lock.hcl') }}
+        restore-keys: |
+          terraform-plugin-cache-${{ runner.os }}-${{ runner.arch }}-1.6.6-
+
+    - name: Configure Terraform plugin cache
+      shell: bash
+      working-directory: bootstrap
+      run: |
+        set -euo pipefail
+        mkdir -p "$GITHUB_WORKSPACE/.terraform.d/plugin-cache"
+        echo "TF_PLUGIN_CACHE_DIR=$GITHUB_WORKSPACE/.terraform.d/plugin-cache" >> "$GITHUB_ENV"
+
     - name: Apply bootstrap stacks
       shell: bash
       working-directory: bootstrap
