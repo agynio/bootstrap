@@ -206,13 +206,19 @@ run_preload() {
       cache_hits=$(( cache_hits + 1 ))
       echo "Image preload: cache hit ${image}"
     else
-      pull_image "${image}"
+      if ! pull_image "${image}"; then
+        echo "Error: failed to pull ${image}." >&2
+        return 1
+      fi
       pulls=$(( pulls + 1 ))
     fi
 
     if [[ "${pull_only}" == "false" ]]; then
       echo "Image preload: importing ${image}"
-      k3d image import "${image}" --cluster "${cluster_name}"
+      if ! k3d image import "${image}" --cluster "${cluster_name}"; then
+        echo "Error: failed to import ${image} into k3d cluster ${cluster_name}." >&2
+        return 1
+      fi
       imports=$(( imports + 1 ))
     fi
   done
