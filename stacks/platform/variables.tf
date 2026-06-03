@@ -57,7 +57,7 @@ variable "metering_chart_version" {
 variable "tracing_chart_version" {
   type        = string
   description = "Version of the tracing Helm chart published to GHCR"
-  default     = "0.3.4"
+  default     = "0.3.5"
 }
 
 variable "token_counting_chart_version" {
@@ -105,7 +105,7 @@ variable "users_chart_version" {
 variable "expose_chart_version" {
   type        = string
   description = "Version of the expose Helm chart published to GHCR"
-  default     = "0.1.6"
+  default     = "0.1.7"
 }
 
 variable "organizations_chart_version" {
