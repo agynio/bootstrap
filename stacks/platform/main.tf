@@ -1363,6 +1363,53 @@ resource "kubernetes_secret_v1" "ziti_management_enrollment" {
   }
 }
 
+resource "kubernetes_manifest" "agyn_selfsigned_cluster_issuer" {
+  manifest = {
+    "apiVersion" = "cert-manager.io/v1"
+    "kind"       = "ClusterIssuer"
+    "metadata" = {
+      "name" = "agyn-selfsigned"
+    }
+    "spec" = {
+      "selfSigned" = {}
+    }
+  }
+}
+
+resource "kubernetes_manifest" "egress_ca_certificate" {
+  manifest = {
+    "apiVersion" = "cert-manager.io/v1"
+    "kind"       = "Certificate"
+    "metadata" = {
+      "name"      = "egress-ca"
+      "namespace" = kubernetes_namespace.platform.metadata[0].name
+    }
+    "spec" = {
+      "isCA"        = true
+      "commonName"  = "Agyn Egress CA"
+      "secretName"  = "egress-ca"
+      "duration"    = "87600h"
+      "renewBefore" = "720h"
+      "privateKey" = {
+        "algorithm" = "ECDSA"
+        "size"      = 256
+      }
+      "issuerRef" = {
+        "name"  = kubernetes_manifest.agyn_selfsigned_cluster_issuer.manifest.metadata.name
+        "kind"  = "ClusterIssuer"
+        "group" = "cert-manager.io"
+      }
+    }
+  }
+
+  computed_fields = [
+    "metadata.annotations",
+    "metadata.labels",
+  ]
+
+  depends_on = [kubernetes_manifest.agyn_selfsigned_cluster_issuer]
+}
+
 # DEV/E2E ONLY: ziti-diagnostics contains admin UPDB credentials
 # for diagnostics tests. Keep enable_ziti_diagnostics=false in prod.
 resource "kubernetes_secret_v1" "ziti_diagnostics" {
