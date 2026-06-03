@@ -282,6 +282,13 @@ resource "ziti_service_policy" "llm_proxy_bind" {
   serviceroles  = [format("@%s", ziti_service.llm_proxy.id)]
 }
 
+resource "ziti_service_policy" "egress_gateway_bind" {
+  name          = "egress-gateway-bind"
+  type          = "Bind"
+  identityroles = ["#egress-gateway-hosts"]
+  serviceroles  = ["#egress-services"]
+}
+
 resource "ziti_service_policy" "agents_dial_llm_proxy" {
   name          = "agents-dial-llm-proxy"
   type          = "Dial"
