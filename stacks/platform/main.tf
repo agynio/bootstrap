@@ -1389,10 +1389,11 @@ resource "kubernetes_manifest" "egress_ca_certificate" {
       "commonName"  = "Agyn Egress CA"
       "secretName"  = "egress-ca"
       "duration"    = "87600h"
-      "renewBefore" = "720h"
+      "renewBefore" = "8760h"
       "privateKey" = {
-        "algorithm" = "ECDSA"
-        "size"      = 256
+        "algorithm"      = "ECDSA"
+        "rotationPolicy" = "Always"
+        "size"           = 256
       }
       "issuerRef" = {
         "name"  = kubernetes_manifest.agyn_selfsigned_cluster_issuer.manifest.metadata.name
