@@ -12,7 +12,10 @@ concurrency:
 jobs:
   full-apply:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      packages: read
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -22,6 +25,9 @@ jobs:
         uses: ./.github/actions/provision
         with:
           ref: ${{ github.sha }}
+
+      - name: Run full E2E suite
+        uses: agynio/e2e/.github/actions/run-tests@main
 
       - name: Dump authorization diagnostics
         if: failure()
