@@ -790,6 +790,10 @@ locals {
         value = "openziti/ziti-tunnel:2.0.0-pre8"
       },
       {
+        name  = "WORKLOAD_DNS_UPSTREAM"
+        value = "1.1.1.1"
+      },
+      {
         name  = "RUNNER_ADDRESS"
         value = "k8s-runner:50051"
       },
