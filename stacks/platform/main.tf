@@ -3970,7 +3970,8 @@ resource "argocd_application" "gateway" {
 
       helm {
         values = yamlencode({
-          replicaCount = 1
+          replicaCount     = 1
+          fullnameOverride = "gateway"
           image = {
             tag = local.resolved_gateway_image_tag
           }
@@ -4037,7 +4038,8 @@ resource "argocd_application" "llm_proxy" {
 
       helm {
         values = yamlencode({
-          replicaCount = 1
+          replicaCount     = 1
+          fullnameOverride = "llm-proxy"
           image = {
             tag = local.resolved_llm_proxy_image_tag
           }
