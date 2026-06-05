@@ -28,6 +28,8 @@ Environment variables:
   TRACING_APP_OIDC_CLIENT_ID  Override the tracing-app OIDC client ID (default: client_tzqVFAYTvpkfUzy5)
   OIDC_CLIENT_SECRET  Override the OIDC client secret (default: XPKka2i9uzISrKZ95zxli8sY51BK4eTJ)
   ADMIN_OIDC_SUBJECT  Optional OIDC subject for the bootstrap admin user (default: admin@agyn.io)
+  GHCR_USERNAME        Optional GHCR username for private OCI charts
+  GHCR_TOKEN           Optional GHCR token for private OCI charts
   K3D_IMAGE_LOADBALANCER  Override the k3d load balancer image
                           (default: ghcr.io/k3d-io/k3d-proxy:5.7.5)
 EOF
@@ -159,6 +161,9 @@ if [[ -n "${admin_oidc_subject}" ]]; then
   echo "Admin OIDC subject provided via ADMIN_OIDC_SUBJECT environment variable: ${admin_oidc_subject}"
 fi
 
+ghcr_username="${GHCR_USERNAME:-}"
+ghcr_token="${GHCR_TOKEN:-}"
+
 export K3D_IMAGE_LOADBALANCER="${K3D_IMAGE_LOADBALANCER:-${DEFAULT_K3D_PROXY_IMAGE}}"
 echo "Using k3d load balancer image: ${K3D_IMAGE_LOADBALANCER}"
 
@@ -188,6 +193,8 @@ run_stack() {
       -var "oidc_issuer_url=${oidc_issuer_url}"
       -var "oidc_client_id=${oidc_client_id}"
       -var "oidc_client_secret=${oidc_client_secret}"
+      -var "ghcr_username=${ghcr_username}"
+      -var "ghcr_token=${ghcr_token}"
     )
 
     if [[ -n "${tracing_app_oidc_client_id}" ]]; then

@@ -25,6 +25,9 @@ jobs:
         uses: ./.github/actions/provision
         with:
           ref: ${{ github.sha }}
+        env:
+          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
 
       - name: Run full E2E suite
         uses: agynio/e2e/.github/actions/run-tests@main
