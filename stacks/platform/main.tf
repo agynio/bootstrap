@@ -60,6 +60,8 @@ locals {
   ziti_diagnostics_secret_name  = "ziti-diagnostics"
   istio_gateway_namespace       = data.terraform_remote_state.system.outputs.istio_gateway_namespace
   istio_gateway_tls_secret_name = data.terraform_remote_state.system.outputs.wildcard_tls_gateway_secret_name
+  ziti_namespace                = data.terraform_remote_state.system.outputs.installed_namespaces[1]
+  workload_namespace            = "agyn-workloads"
   openfga_api_url_external      = format("https://openfga.%s:%d", local.base_domain, local.ingress_port)
   openfga_api_url_internal      = format("http://openfga.%s.svc.cluster.local:8080", var.openfga_namespace)
   # Deterministic v5 UUID for the cluster admin identity.
@@ -791,7 +793,7 @@ locals {
       },
       {
         name  = "WORKLOAD_DNS_UPSTREAM"
-        value = "1.1.1.1"
+        value = kubernetes_service_v1.ziti_workload_dns.spec[0].cluster_ip
       },
       {
         name  = "RUNNER_ADDRESS"

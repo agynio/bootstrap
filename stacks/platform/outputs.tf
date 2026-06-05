@@ -119,3 +119,8 @@ output "cluster_admin_api_token" {
   value       = random_password.cluster_admin_token.result
   sensitive   = true
 }
+
+output "ziti_workload_dns_service_ip" {
+  value       = kubernetes_service_v1.ziti_workload_dns.spec[0].cluster_ip
+  description = "ClusterIP for the dev/local workload-only Ziti DNS resolver"
+}
