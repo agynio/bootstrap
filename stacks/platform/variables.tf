@@ -659,7 +659,7 @@ variable "llm_proxy_image_tag" {
 variable "egress_chart_version" {
   type        = string
   description = "Version of the egress Helm chart published to GHCR"
-  default     = "0.1.0"
+  default     = "0.1.1"
 }
 
 variable "egress_image_tag" {
@@ -684,7 +684,7 @@ variable "egress_db_pvc_size" {
 variable "egress_gateway_chart_version" {
   type        = string
   description = "Version of the egress-gateway Helm chart published to GHCR"
-  default     = "0.1.0"
+  default     = "0.1.1"
 }
 
 variable "egress_gateway_image_tag" {
