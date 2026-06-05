@@ -1516,7 +1516,7 @@ resource "kubernetes_manifest" "virtualservice_chat_app" {
           "route" = [
             {
               "destination" = {
-                "host" = "gateway-gateway.platform.svc.cluster.local"
+                "host" = "gateway.platform.svc.cluster.local"
                 "port" = {
                   "number" = 8080
                 }
@@ -1535,7 +1535,7 @@ resource "kubernetes_manifest" "virtualservice_chat_app" {
           "route" = [
             {
               "destination" = {
-                "host" = "gateway-gateway.platform.svc.cluster.local"
+                "host" = "gateway.platform.svc.cluster.local"
                 "port" = {
                   "number" = 8080
                 }
@@ -1607,7 +1607,7 @@ resource "kubernetes_manifest" "virtualservice_console_app" {
           "route" = [
             {
               "destination" = {
-                "host" = "gateway-gateway.platform.svc.cluster.local"
+                "host" = "gateway.platform.svc.cluster.local"
                 "port" = {
                   "number" = 8080
                 }
@@ -1626,7 +1626,7 @@ resource "kubernetes_manifest" "virtualservice_console_app" {
           "route" = [
             {
               "destination" = {
-                "host" = "gateway-gateway.platform.svc.cluster.local"
+                "host" = "gateway.platform.svc.cluster.local"
                 "port" = {
                   "number" = 8080
                 }
@@ -1698,7 +1698,7 @@ resource "kubernetes_manifest" "virtualservice_tracing_app" {
           "route" = [
             {
               "destination" = {
-                "host" = "gateway-gateway.platform.svc.cluster.local"
+                "host" = "gateway.platform.svc.cluster.local"
                 "port" = {
                   "number" = 8080
                 }
@@ -1717,7 +1717,7 @@ resource "kubernetes_manifest" "virtualservice_tracing_app" {
           "route" = [
             {
               "destination" = {
-                "host" = "gateway-gateway.platform.svc.cluster.local"
+                "host" = "gateway.platform.svc.cluster.local"
                 "port" = {
                   "number" = 8080
                 }
@@ -1781,7 +1781,7 @@ resource "kubernetes_manifest" "virtualservice_gateway" {
           "route" = [
             {
               "destination" = {
-                "host" = "gateway-gateway.platform.svc.cluster.local"
+                "host" = "gateway.platform.svc.cluster.local"
                 "port" = {
                   "number" = 8080
                 }
@@ -1871,7 +1871,7 @@ resource "kubernetes_manifest" "virtualservice_llm_proxy" {
           "route" = [
             {
               "destination" = {
-                "host" = "llm-proxy-llm-proxy.platform.svc.cluster.local"
+                "host" = "llm-proxy.platform.svc.cluster.local"
                 "port" = {
                   "number" = 8080
                 }
@@ -3970,7 +3970,8 @@ resource "argocd_application" "gateway" {
 
       helm {
         values = yamlencode({
-          replicaCount = 1
+          replicaCount     = 1
+          fullnameOverride = "gateway"
           image = {
             tag = local.resolved_gateway_image_tag
           }
@@ -4037,7 +4038,8 @@ resource "argocd_application" "llm_proxy" {
 
       helm {
         values = yamlencode({
-          replicaCount = 1
+          replicaCount     = 1
+          fullnameOverride = "llm-proxy"
           image = {
             tag = local.resolved_llm_proxy_image_tag
           }
