@@ -17,19 +17,6 @@ variable "argocd_admin_password" {
   sensitive   = true
 }
 
-variable "ghcr_username" {
-  type        = string
-  description = "Optional GHCR username for private chart access"
-  default     = ""
-}
-
-variable "ghcr_token" {
-  type        = string
-  description = "Optional GHCR token for private chart access"
-  default     = ""
-  sensitive   = true
-}
-
 variable "gateway_chart_version" {
   type        = string
   description = "Version of the gateway Helm chart published to GHCR"
@@ -666,5 +653,42 @@ variable "llm_proxy_chart_version" {
 variable "llm_proxy_image_tag" {
   type        = string
   description = "Optional override for the llm-proxy image tag"
+  default     = ""
+}
+
+variable "egress_chart_version" {
+  type        = string
+  description = "Version of the egress Helm chart published to GHCR"
+  default     = "0.1.0"
+}
+
+variable "egress_image_tag" {
+  type        = string
+  description = "Optional override for the egress image tag"
+  default     = ""
+}
+
+variable "egress_db_password" {
+  type        = string
+  description = "Password for the egress PostgreSQL database user"
+  default     = "egress"
+  sensitive   = true
+}
+
+variable "egress_db_pvc_size" {
+  type        = string
+  description = "Persistent volume claim size for the egress PostgreSQL primary"
+  default     = "5Gi"
+}
+
+variable "egress_gateway_chart_version" {
+  type        = string
+  description = "Version of the egress-gateway Helm chart published to GHCR"
+  default     = "0.1.0"
+}
+
+variable "egress_gateway_image_tag" {
+  type        = string
+  description = "Optional override for the egress-gateway image tag"
   default     = ""
 }

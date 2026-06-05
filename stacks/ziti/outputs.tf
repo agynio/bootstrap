@@ -6,6 +6,7 @@ output "edge_router_id" {
 output "identity_ids" {
   value = {
     gateway         = ziti_identity.gateway.id
+    egress_gateway  = ziti_identity.egress_gateway.id
     ziti_management = ziti_identity.ziti_management.id
     orchestrator    = ziti_identity.orchestrator.id
   }
@@ -14,7 +15,8 @@ output "identity_ids" {
 
 output "service_ids" {
   value = {
-    gateway = ziti_service.gateway.id
+    gateway   = ziti_service.gateway.id
+    llm_proxy = ziti_service.llm_proxy.id
   }
   description = "Ziti service IDs"
 }
@@ -34,4 +36,10 @@ output "ziti_diagnostics_credentials" {
   sensitive   = true
 
   depends_on = [terraform_data.ziti_diagnostics_enrollment]
+}
+
+output "egress_gateway_enrollment_token" {
+  value       = ziti_identity.egress_gateway.enrollment_token
+  description = "Enrollment JWT for the egress-gateway identity"
+  sensitive   = true
 }

@@ -25,6 +25,8 @@ locals {
   resolved_identity_image_tag            = trimspace(var.identity_image_tag) != "" ? var.identity_image_tag : var.identity_chart_version
   resolved_runners_image_tag             = trimspace(var.runners_image_tag) != "" ? var.runners_image_tag : var.runners_chart_version
   resolved_apps_image_tag                = trimspace(var.apps_image_tag) != "" ? var.apps_image_tag : var.apps_chart_version
+  resolved_egress_image_tag              = trimspace(var.egress_image_tag) != "" ? var.egress_image_tag : var.egress_chart_version
+  resolved_egress_gateway_image_tag      = trimspace(var.egress_gateway_image_tag) != "" ? var.egress_gateway_image_tag : var.egress_gateway_chart_version
 
   postgres_image                 = "postgres:16.6-alpine"
   platform_chart_repo_host       = "ghcr.io"
@@ -55,6 +57,8 @@ locals {
   identity_chart_name            = "agynio/charts/identity"
   runners_chart_name             = "agynio/charts/runners"
   apps_chart_name                = "agynio/charts/apps"
+  egress_chart_name              = "agynio/charts/egress"
+  egress_gateway_chart_name      = "agynio/charts/egress-gateway"
   # DEV/E2E ONLY: this secret name is used by diagnostics tests and must not
   # be published in production deployments.
   ziti_diagnostics_secret_name  = "ziti-diagnostics"
@@ -216,6 +220,29 @@ locals {
       }
       liveness = {
         execCommand = ["pg_isready", "-U", "secrets", "-d", "secrets"]
+      }
+    }
+  })
+
+  egress_db_values = yamlencode({
+    fullnameOverride = "egress-db"
+    postgres = {
+      database = "egress"
+      username = "egress"
+      password = var.egress_db_password
+      pgdata   = "/var/lib/postgresql/data/pgdata"
+    }
+    persistence = {
+      size                    = var.egress_db_pvc_size
+      mountPath               = "/var/lib/postgresql/data"
+      volumeClaimTemplateName = "data"
+    }
+    probes = {
+      readiness = {
+        execCommand = ["pg_isready", "-U", "egress", "-d", "egress"]
+      }
+      liveness = {
+        execCommand = ["pg_isready", "-U", "egress", "-d", "egress"]
       }
     }
   })
@@ -563,6 +590,68 @@ locals {
       encryptionKeyFile       = "/etc/secrets-encryption/encryptionKey"
       encryptionKeySecretName = "secrets-encryption-key"
     }
+    egressRules = {
+      grpcTarget = "egress:50051"
+    }
+  })
+
+  egress_values = yamlencode({
+    replicaCount     = 1
+    fullnameOverride = "egress"
+    image = {
+      repository = "ghcr.io/agynio/egress"
+      tag        = local.resolved_egress_image_tag
+      pullPolicy = "IfNotPresent"
+    }
+    env = [
+      { name = "GRPC_ADDRESS", value = ":50051" },
+      { name = "DATABASE_URL", value = format("postgresql://egress:%s@egress-db:5432/egress?sslmode=disable", var.egress_db_password) },
+      { name = "ZITI_MANAGEMENT_ADDRESS", value = "ziti-management:50051" },
+      { name = "AUTHORIZATION_SERVICE_ADDRESS", value = "authorization:50051" },
+      { name = "SECRETS_SERVICE_ADDRESS", value = "secrets:50051" },
+      { name = "NOTIFICATIONS_ADDRESS", value = "notifications:50051" },
+      { name = "RECONCILIATION_INTERVAL", value = "30s" },
+    ]
+    resources = {
+      requests = { cpu = "50m", memory = "128Mi" }
+      limits   = { cpu = "500m", memory = "256Mi" }
+    }
+  })
+
+  egress_gateway_values = yamlencode({
+    replicaCount     = 1
+    fullnameOverride = "egress-gateway"
+    image = {
+      repository = "ghcr.io/agynio/egress-gateway"
+      tag        = local.resolved_egress_gateway_image_tag
+      pullPolicy = "IfNotPresent"
+    }
+    env = [
+      { name = "GRPC_ADDRESS", value = ":50051" },
+      { name = "EGRESS_ADDRESS", value = "egress:50051" },
+      { name = "SECRETS_SERVICE_ADDRESS", value = "secrets:50051" },
+      { name = "NOTIFICATIONS_ADDRESS", value = "notifications:50051" },
+      { name = "METERING_ADDRESS", value = "metering:50051" },
+      { name = "TRACING_ADDRESS", value = "tracing:50051" },
+      { name = "AGENTS_SERVICE_ADDRESS", value = "agents:50051" },
+      { name = "ZITI_MANAGEMENT_ADDRESS", value = "ziti-management:50051" },
+      { name = "EGRESS_CA_CERT_PATH", value = "/var/run/agyn/egress-ca/tls.crt" },
+      { name = "EGRESS_CA_KEY_PATH", value = "/var/run/agyn/egress-ca/tls.key" },
+      { name = "ZITI_ENROLLMENT_JWT_FILE", value = "/etc/ziti-enrollment/enrollmentJwt" },
+      { name = "ZITI_IDENTITY_NAME_RESOLVE", value = "true" },
+    ]
+    extraVolumeMounts = [
+      { name = "ziti-enrollment", mountPath = "/etc/ziti-enrollment", readOnly = true },
+      { name = "egress-ca", mountPath = "/var/run/agyn/egress-ca", readOnly = true },
+    ]
+    extraVolumes = [
+      { name = "ziti-enrollment", secret = { secretName = "egress-gateway-enrollment" } },
+      { name = "egress-ca", secret = { secretName = "egress-ca" } },
+    ]
+    resources = {
+      requests = { cpu = "100m", memory = "128Mi" }
+      limits   = { cpu = "1000m", memory = "512Mi" }
+    }
   })
 
   agents_values = yamlencode({
@@ -802,6 +891,10 @@ locals {
       {
         name  = "RUNNERS_ADDRESS"
         value = "runners:50051"
+      },
+      {
+        name  = "EGRESS_CA_NAMESPACE"
+        value = "agyn-workloads"
       }
     ]
   })
@@ -1366,6 +1459,19 @@ resource "kubernetes_secret_v1" "ziti_management_enrollment" {
 
   data = {
     enrollmentJwt = data.terraform_remote_state.ziti.outputs.ziti_management_enrollment_token
+  }
+}
+
+resource "kubernetes_secret_v1" "egress_gateway_enrollment" {
+  metadata {
+    name      = "egress-gateway-enrollment"
+    namespace = kubernetes_namespace.platform.metadata[0].name
+  }
+
+  type = "Opaque"
+
+  data = {
+    enrollmentJwt = data.terraform_remote_state.ziti.outputs.egress_gateway_enrollment_token
   }
 }
 
@@ -2022,8 +2128,6 @@ resource "argocd_repository" "ghcr" {
   repo       = "ghcr.io"
   type       = "helm"
   enable_oci = true
-  username   = trimspace(var.ghcr_username) != "" ? var.ghcr_username : null
-  password   = trimspace(var.ghcr_token) != "" ? var.ghcr_token : null
 }
 
 resource "argocd_application" "platform_db" {
@@ -2309,6 +2413,54 @@ resource "argocd_application" "secrets_db" {
     sync_policy {
       # DB apps always use automated sync with prune disabled for stateful safety,
       # independent of var.argocd_automated_sync_enabled.
+      automated {
+        prune       = false
+        self_heal   = true
+        allow_empty = false
+      }
+
+      sync_options = local.postgres_sync_options
+    }
+  }
+
+  timeouts {
+    create = "5m"
+    update = "5m"
+    delete = "5m"
+  }
+}
+
+resource "argocd_application" "egress_db" {
+  depends_on = [argocd_repository.ghcr]
+  wait       = true
+
+  metadata {
+    name      = "egress-db"
+    namespace = "argocd"
+    annotations = {
+      "argocd.argoproj.io/sync-wave" = "7"
+    }
+  }
+
+  spec {
+    project = "default"
+
+    source {
+      repo_url        = local.postgres_chart_repo_host
+      chart           = local.postgres_chart_name
+      target_revision = var.postgres_chart_version
+
+      helm {
+        values = local.egress_db_values
+      }
+    }
+
+    destination {
+      server    = var.destination_server
+      namespace = var.platform_namespace
+    }
+
+    sync_policy {
       automated {
         prune       = false
         self_heal   = true
@@ -3341,6 +3493,108 @@ resource "argocd_application" "apps" {
   }
 }
 
+resource "argocd_application" "egress" {
+  depends_on = [
+    argocd_repository.ghcr,
+    argocd_application.egress_db,
+    argocd_application.authorization,
+    argocd_application.ziti_management,
+    argocd_application.secrets,
+    argocd_application.notifications,
+  ]
+  metadata {
+    name      = "egress"
+    namespace = "argocd"
+    annotations = {
+      "argocd.argoproj.io/sync-wave" = "18"
+    }
+  }
+
+  spec {
+    project = "default"
+
+    source {
+      repo_url        = local.platform_chart_repo_host
+      chart           = local.egress_chart_name
+      target_revision = var.egress_chart_version
+
+      helm {
+        values = local.egress_values
+      }
+    }
+
+    destination {
+      server    = var.destination_server
+      namespace = var.platform_namespace
+    }
+
+    sync_policy {
+      dynamic "automated" {
+        for_each = var.argocd_automated_sync_enabled ? [1] : []
+        content {
+          prune       = var.argocd_prune_enabled
+          self_heal   = var.argocd_self_heal_enabled
+          allow_empty = false
+        }
+      }
+
+      sync_options = local.default_sync_options
+    }
+  }
+}
+
+resource "argocd_application" "egress_gateway" {
+  depends_on = [
+    argocd_repository.ghcr,
+    argocd_application.egress,
+    argocd_application.secrets,
+    argocd_application.metering,
+    argocd_application.tracing,
+    argocd_application.notifications,
+    kubernetes_secret_v1.egress_gateway_enrollment,
+    kubernetes_manifest.egress_ca_certificate,
+  ]
+  metadata {
+    name      = "egress-gateway"
+    namespace = "argocd"
+    annotations = {
+      "argocd.argoproj.io/sync-wave" = "19"
+    }
+  }
+
+  spec {
+    project = "default"
+
+    source {
+      repo_url        = local.platform_chart_repo_host
+      chart           = local.egress_gateway_chart_name
+      target_revision = var.egress_gateway_chart_version
+
+      helm {
+        values = local.egress_gateway_values
+      }
+    }
+
+    destination {
+      server    = var.destination_server
+      namespace = var.platform_namespace
+    }
+
+    sync_policy {
+      dynamic "automated" {
+        for_each = var.argocd_automated_sync_enabled ? [1] : []
+        content {
+          prune       = var.argocd_prune_enabled
+          self_heal   = var.argocd_self_heal_enabled
+          allow_empty = false
+        }
+      }
+
+      sync_options = local.default_sync_options
+    }
+  }
+}
+
 resource "argocd_application" "agents" {
   depends_on = [
     argocd_repository.ghcr,
@@ -3732,6 +3986,7 @@ resource "argocd_application" "agents_orchestrator" {
     argocd_application.agents,
     argocd_application.secrets,
     argocd_application.runners,
+    argocd_application.egress,
   ]
   metadata {
     name      = "agents-orchestrator"
@@ -3984,6 +4239,7 @@ resource "argocd_application" "gateway" {
             clusterAdminIdentityId  = local.cluster_admin_identity_id
             usersGrpcTarget         = "users:50051"
             organizationsGrpcTarget = "organizations:50051"
+            egressRulesGrpcTarget   = "egress:50051"
           }
           env = [
             {

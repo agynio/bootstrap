@@ -95,6 +95,12 @@ resource "ziti_service" "llm_proxy" {
   role_attributes = ["llm-proxy"]
 }
 
+resource "ziti_identity" "egress_gateway" {
+  name            = "egress-gateway"
+  type            = "Device"
+  role_attributes = ["egress-gateway-hosts"]
+}
+
 resource "ziti_identity" "gateway" {
   name            = "gateway"
   type            = "Device"
