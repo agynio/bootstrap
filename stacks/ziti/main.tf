@@ -5,6 +5,7 @@ locals {
   gateway_identity_secret_name      = "ziti-gateway-enrollment"
   management_identity_secret_name   = "ziti-management-enrollment"
   orchestrator_identity_secret_name = "ziti-orchestrator-enrollment"
+  egress_gateway_identity_json_file = abspath("${path.root}/../../local-certs/egress-gateway-identity.json")
 
   router_values = yamlencode({
     ctrl = {
@@ -93,6 +94,12 @@ resource "ziti_service" "llm_proxy" {
   name            = "llm-proxy"
   configs         = [ziti_intercept_v1_config.llm_proxy_intercept.id]
   role_attributes = ["llm-proxy"]
+}
+
+resource "ziti_identity" "egress_gateway" {
+  name            = "egress-gateway"
+  type            = "Device"
+  role_attributes = ["egress-gateway-hosts"]
 }
 
 resource "ziti_identity" "gateway" {
@@ -244,6 +251,35 @@ resource "kubernetes_secret_v1" "orchestrator_identity_enrollment" {
 
   data = {
     enrollmentJwt = ziti_identity.orchestrator.enrollment_token
+  }
+}
+
+resource "terraform_data" "egress_gateway_enrollment" {
+  input = {
+    endpoint = format("https://ziti-mgmt.%s:%d/edge/client/v1", local.base_domain, local.ingress_port)
+    file     = local.egress_gateway_identity_json_file
+    token    = ziti_identity.egress_gateway.enrollment_token
+  }
+
+  triggers_replace = [ziti_identity.egress_gateway.id]
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      set -euo pipefail
+      mkdir -p "$(dirname "$ZITI_IDENTITY_FILE")"
+      tmp="$(mktemp)"
+      curl -fsS -k -X POST "$ZITI_ENDPOINT/enroll?method=ott&token=$ZITI_TOKEN" -o "$tmp"
+      mv "$tmp" "$ZITI_IDENTITY_FILE"
+      chmod 0600 "$ZITI_IDENTITY_FILE"
+    EOT
+
+    interpreter = ["/bin/bash", "-c"]
+
+    environment = {
+      ZITI_ENDPOINT      = self.input.endpoint
+      ZITI_IDENTITY_FILE = self.input.file
+      ZITI_TOKEN         = self.input.token
+    }
   }
 }
 

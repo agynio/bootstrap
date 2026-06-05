@@ -6,6 +6,7 @@ output "edge_router_id" {
 output "identity_ids" {
   value = {
     gateway         = ziti_identity.gateway.id
+    egress_gateway  = ziti_identity.egress_gateway.id
     ziti_management = ziti_identity.ziti_management.id
     orchestrator    = ziti_identity.orchestrator.id
   }
@@ -14,7 +15,8 @@ output "identity_ids" {
 
 output "service_ids" {
   value = {
-    gateway = ziti_service.gateway.id
+    gateway   = ziti_service.gateway.id
+    llm_proxy = ziti_service.llm_proxy.id
   }
   description = "Ziti service IDs"
 }
@@ -34,4 +36,18 @@ output "ziti_diagnostics_credentials" {
   sensitive   = true
 
   depends_on = [terraform_data.ziti_diagnostics_enrollment]
+}
+
+data "local_file" "egress_gateway_identity" {
+  filename = local.egress_gateway_identity_json_file
+
+  depends_on = [terraform_data.egress_gateway_enrollment]
+}
+
+output "egress_gateway_identity_json" {
+  value       = data.local_file.egress_gateway_identity.content
+  description = "Enrolled OpenZiti identity JSON for egress-gateway. Bootstrap local environments store this in the platform egress-gateway-ziti-identity Secret. Rotate by replacing the ziti egress-gateway identity."
+  sensitive   = true
+
+  depends_on = [terraform_data.egress_gateway_enrollment]
 }
