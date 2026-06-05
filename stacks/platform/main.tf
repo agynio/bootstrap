@@ -59,6 +59,8 @@ locals {
   apps_chart_name                = "agynio/charts/apps"
   egress_chart_name              = "agynio/charts/egress"
   egress_gateway_chart_name      = "agynio/charts/egress-gateway"
+  ghcr_pull_secret_name          = "ghcr-pull"
+  ghcr_image_pull_secrets        = trimspace(var.ghcr_username) != "" && trimspace(var.ghcr_token) != "" ? [local.ghcr_pull_secret_name] : []
   # DEV/E2E ONLY: this secret name is used by diagnostics tests and must not
   # be published in production deployments.
   ziti_diagnostics_secret_name  = "ziti-diagnostics"
@@ -596,6 +598,9 @@ locals {
   egress_values = yamlencode({
     replicaCount     = 1
     fullnameOverride = "egress"
+    global = {
+      imagePullSecrets = local.ghcr_image_pull_secrets
+    }
     image = {
       repository = "ghcr.io/agynio/egress"
       tag        = local.resolved_egress_image_tag
@@ -619,6 +624,9 @@ locals {
   egress_gateway_values = yamlencode({
     replicaCount     = 1
     fullnameOverride = "egress-gateway"
+    global = {
+      imagePullSecrets = local.ghcr_image_pull_secrets
+    }
     image = {
       repository = "ghcr.io/agynio/egress-gateway"
       tag        = local.resolved_egress_gateway_image_tag
@@ -1470,6 +1478,29 @@ resource "kubernetes_secret_v1" "egress_gateway_enrollment" {
 
   data = {
     enrollmentJwt = data.terraform_remote_state.ziti.outputs.egress_gateway_enrollment_token
+  }
+}
+
+resource "kubernetes_secret_v1" "ghcr_pull" {
+  count = length(local.ghcr_image_pull_secrets) == 1 ? 1 : 0
+
+  metadata {
+    name      = local.ghcr_pull_secret_name
+    namespace = kubernetes_namespace.platform.metadata[0].name
+  }
+
+  type = "kubernetes.io/dockerconfigjson"
+
+  data = {
+    ".dockerconfigjson" = jsonencode({
+      auths = {
+        "ghcr.io" = {
+          username = var.ghcr_username
+          password = var.ghcr_token
+          auth     = base64encode(format("%s:%s", var.ghcr_username, var.ghcr_token))
+        }
+      }
+    })
   }
 }
 
@@ -3501,6 +3532,7 @@ resource "argocd_application" "egress" {
     argocd_application.ziti_management,
     argocd_application.secrets,
     argocd_application.notifications,
+    kubernetes_secret_v1.ghcr_pull,
   ]
   metadata {
     name      = "egress"
@@ -3552,6 +3584,7 @@ resource "argocd_application" "egress_gateway" {
     argocd_application.tracing,
     argocd_application.notifications,
     kubernetes_secret_v1.egress_gateway_enrollment,
+    kubernetes_secret_v1.ghcr_pull,
     kubernetes_manifest.egress_ca_certificate,
   ]
   metadata {
