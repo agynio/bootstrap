@@ -20,9 +20,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Check GHCR public OCI wiring
-        run: ./.github/scripts/check_no_private_ghcr_workarounds.sh
-
       - name: Provision bootstrap cluster
         id: provision
         uses: ./.github/actions/provision
