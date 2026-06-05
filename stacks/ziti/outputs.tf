@@ -38,16 +38,8 @@ output "ziti_diagnostics_credentials" {
   depends_on = [terraform_data.ziti_diagnostics_enrollment]
 }
 
-data "local_file" "egress_gateway_identity" {
-  filename = local.egress_gateway_identity_json_file
-
-  depends_on = [terraform_data.egress_gateway_enrollment]
-}
-
-output "egress_gateway_identity_json" {
-  value       = data.local_file.egress_gateway_identity.content
-  description = "Enrolled OpenZiti identity JSON for egress-gateway. Bootstrap local environments store this in the platform egress-gateway-ziti-identity Secret. Rotate by replacing the ziti egress-gateway identity."
+output "egress_gateway_enrollment_token" {
+  value       = ziti_identity.egress_gateway.enrollment_token
+  description = "Enrollment JWT for the egress-gateway identity"
   sensitive   = true
-
-  depends_on = [terraform_data.egress_gateway_enrollment]
 }
