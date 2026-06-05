@@ -10,21 +10,48 @@ resource "kubernetes_config_map_v1" "ziti_workload_dns" {
 
   data = {
     Corefile = <<-COREFILE
+      ziti.${local.base_domain}:53 {
+          errors
+          file /etc/coredns/ziti.db ziti.${local.base_domain}
+          cache 30
+          reload
+      }
+
+      ziti-router.${local.base_domain}:53 {
+          errors
+          file /etc/coredns/ziti-router.db ziti-router.${local.base_domain}
+          cache 30
+          reload
+      }
+
       .:53 {
           errors
           health
           ready
-          hosts {
-              ${data.kubernetes_service_v1.ziti_controller_client.spec[0].cluster_ip} ziti.${local.base_domain}
-              ${data.kubernetes_service_v1.ziti_router_edge.spec[0].cluster_ip} ziti-router.${local.base_domain}
-              fallthrough
-          }
           forward . 1.1.1.1
           cache 30
           loop
           reload
       }
     COREFILE
+
+    "ziti.db" = <<-ZONE
+      $ORIGIN ziti.${local.base_domain}.
+      $TTL 30
+      @ IN SOA ns.ziti.${local.base_domain}. hostmaster.${local.base_domain}. 1 7200 3600 1209600 30
+      @ IN NS ns.ziti.${local.base_domain}.
+      @ IN A ${data.kubernetes_service_v1.ziti_controller_client.spec[0].cluster_ip}
+      ns IN A ${data.kubernetes_service_v1.ziti_controller_client.spec[0].cluster_ip}
+    ZONE
+
+    "ziti-router.db" = <<-ZONE
+      $ORIGIN ziti-router.${local.base_domain}.
+      $TTL 30
+      @ IN SOA ns.ziti-router.${local.base_domain}. hostmaster.${local.base_domain}. 1 7200 3600 1209600 30
+      @ IN NS ns.ziti-router.${local.base_domain}.
+      @ IN A ${data.kubernetes_service_v1.ziti_router_edge.spec[0].cluster_ip}
+      ns IN A ${data.kubernetes_service_v1.ziti_router_edge.spec[0].cluster_ip}
+    ZONE
   }
 }
 
