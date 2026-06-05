@@ -2126,8 +2126,6 @@ resource "argocd_repository" "ghcr" {
   repo       = "ghcr.io"
   type       = "helm"
   enable_oci = true
-  username   = trimspace(var.ghcr_username) != "" ? var.ghcr_username : null
-  password   = trimspace(var.ghcr_token) != "" ? var.ghcr_token : null
 }
 
 resource "argocd_application" "platform_db" {
