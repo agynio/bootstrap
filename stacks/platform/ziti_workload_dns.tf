@@ -10,16 +10,16 @@ resource "kubernetes_config_map_v1" "ziti_workload_dns" {
 
   data = {
     Corefile = <<-COREFILE
-      ziti.${local.base_domain}:53 {
+      ziti.${local.base_domain}.:53 {
           errors
-          file /etc/coredns/ziti.db ziti.${local.base_domain}
+          file /etc/coredns/ziti.db ziti.${local.base_domain}.
           cache 30
           reload
       }
 
-      ziti-router.${local.base_domain}:53 {
+      ziti-router.${local.base_domain}.:53 {
           errors
-          file /etc/coredns/ziti-router.db ziti-router.${local.base_domain}
+          file /etc/coredns/ziti-router.db ziti-router.${local.base_domain}.
           cache 30
           reload
       }
