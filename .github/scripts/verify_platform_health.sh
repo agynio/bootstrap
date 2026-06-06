@@ -246,7 +246,7 @@ while (( SECONDS < deadline )); do
     | to_entries[] as $cfg
     | $cfg.value[] as $key
     | select(any($resources.items[]?; .metadata.name == $cfg.key and (.data[$key] // "") != "") | not)
-      | "\($cfg.key).\($key)")' <<<"$configmaps_json")
+      | "\($cfg.key).\($key)"' <<<"$configmaps_json")
 
   missing_secret_keys=$(jq -r --argjson required "$REQUIRED_SECRET_KEYS_JSON" '
     . as $resources
@@ -254,7 +254,7 @@ while (( SECONDS < deadline )); do
     | to_entries[] as $secret
     | $secret.value[] as $key
     | select(any($resources.items[]?; .metadata.name == $secret.key and (.data[$key] // "") != "") | not)
-      | "\($secret.key).\($key)")' <<<"$secrets_json")
+      | "\($secret.key).\($key)"' <<<"$secrets_json")
 
   sts_pending=$(jq -r '
     [.items[] as $sts |
