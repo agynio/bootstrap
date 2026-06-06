@@ -678,9 +678,12 @@ locals {
         },
         {
           name  = "EGRESS_CA_NAMESPACE"
-          value = "agyn-workloads"
+          value = var.platform_namespace
         },
       ]
+      egressCA = {
+        namespace = var.platform_namespace
+      }
     }
     threads = {
       fullnameOverride = "threads"
