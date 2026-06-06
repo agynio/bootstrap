@@ -63,8 +63,11 @@ platform event streams required by private Networks and Groups:
 - `AGYN_NETWORKS` on subject `agyn.networks.>`
 
 Set `nats_platform_streams_enabled=false` only if streams are managed outside
-bootstrap. Stream retention knobs follow the NATS API schema: age and duplicate
-window values are in nanoseconds, and size values are in bytes.
+bootstrap. The stream configuration Job is annotated as an Argo CD PostSync hook
+and Helm post-install/post-upgrade hook with before-hook-creation cleanup, so
+stream config changes delete and recreate the Job instead of attempting an
+immutable Job update. Stream retention knobs follow the NATS API schema: age and
+duplicate window values are in nanoseconds, and size values are in bytes.
 
 ### Graph persistence
 

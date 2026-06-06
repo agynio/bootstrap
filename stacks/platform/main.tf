@@ -1046,6 +1046,9 @@ locals {
         kind       = "ConfigMap"
         metadata = {
           name = "nats-platform-streams"
+          annotations = {
+            "argocd.argoproj.io/sync-wave" = "0"
+          }
           labels = {
             "app.kubernetes.io/name"       = "nats-platform-streams"
             "app.kubernetes.io/managed-by" = "terraform"
@@ -1111,6 +1114,14 @@ locals {
         kind       = "Job"
         metadata = {
           name = "nats-platform-streams"
+          annotations = {
+            "argocd.argoproj.io/hook"               = "PostSync"
+            "argocd.argoproj.io/hook-delete-policy" = "BeforeHookCreation,HookSucceeded"
+            "argocd.argoproj.io/sync-wave"          = "1"
+            "helm.sh/hook"                          = "post-install,post-upgrade"
+            "helm.sh/hook-delete-policy"            = "before-hook-creation,hook-succeeded"
+            "helm.sh/hook-weight"                   = "1"
+          }
           labels = {
             "app.kubernetes.io/name"       = "nats-platform-streams"
             "app.kubernetes.io/managed-by" = "terraform"
