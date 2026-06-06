@@ -36,6 +36,36 @@ Each application chart enables a Kubernetes `Ingress` with `ingressClassName: is
 
 Platform charts are pulled from the GHCR OCI registry (`ghcr.io/agynio/charts`). Pin the release with `platform_chart_version`. The PostgreSQL Argo CD applications use the same registry and are pinned via `postgres_chart_version`.
 
+### NATS JetStream event bus
+
+NATS JetStream is optional and disabled by default so existing local stacks keep
+their previous footprint. Enable it with the platform stack variable:
+
+```bash
+terraform -chdir=stacks/platform apply -var='nats_enabled=true'
+```
+
+When enabled, Terraform creates an Argo CD application named `nats` in the
+platform namespace using the upstream NATS Helm chart. The application enables
+JetStream file storage with a PVC (`nats_jetstream_file_store_pvc_size`,
+default `10Gi`) and a matching file store max size
+(`nats_jetstream_file_store_max_size`, default `10Gi`). The stable in-cluster
+endpoint is exposed as the `nats_endpoint` output and defaults to:
+
+```text
+nats://nats.platform.svc.cluster.local:4222
+```
+
+By default, the NATS application also runs a stream configuration job for the
+platform event streams required by private Networks and Groups:
+
+- `AGYN_GROUPS` on subject `agyn.groups.>`
+- `AGYN_NETWORKS` on subject `agyn.networks.>`
+
+Set `nats_platform_streams_enabled=false` only if streams are managed outside
+bootstrap. Stream retention knobs follow the NATS API schema: age and duplicate
+window values are in nanoseconds, and size values are in bytes.
+
 ### Graph persistence
 
 `platform-server` mounts `/shared` (sourced from the repository-root `./shared` directory created by the k3d stack) into `/mnt/graph` and sets `GRAPH_REPO_PATH=/mnt/graph/graph`. The graph repository is created under the host directory at `./shared/graph`, and swap artifacts land transiently under `./shared`.
