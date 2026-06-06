@@ -3158,6 +3158,11 @@ resource "argocd_application" "ncps" {
   }
 }
 
+resource "minio_s3_bucket" "files" {
+  bucket = var.minio_bucket_name
+  acl    = "private"
+}
+
 resource "argocd_application" "platform" {
   depends_on = [
     argocd_repository.ghcr,
@@ -3165,6 +3170,7 @@ resource "argocd_application" "platform" {
     module.openfga_authorization,
     kubernetes_secret_v1.platform_database_urls,
     kubernetes_secret_v1.files_s3,
+    minio_s3_bucket.files,
     kubernetes_secret_v1.cluster_admin,
     kubernetes_secret_v1.secrets_encryption_key,
     kubernetes_secret_v1.ziti_management_enrollment,
