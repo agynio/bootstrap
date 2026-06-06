@@ -32,13 +32,13 @@ variable "gateway_chart_version" {
 variable "agents_orchestrator_chart_version" {
   type        = string
   description = "Version of the agents-orchestrator Helm chart published to GHCR"
-  default     = "0.13.17"
+  default     = "0.13.18"
 }
 
 variable "threads_chart_version" {
   type        = string
   description = "Version of the threads Helm chart published to GHCR"
-  default     = "0.4.13"
+  default     = "0.4.15"
 }
 
 variable "metering_chart_version" {
@@ -56,13 +56,13 @@ variable "tracing_chart_version" {
 variable "token_counting_chart_version" {
   type        = string
   description = "Version of the token-counting Helm chart published to GHCR"
-  default     = "0.3.2"
+  default     = "0.3.3"
 }
 
 variable "notifications_chart_version" {
   type        = string
   description = "Version of the notifications Helm chart published to GHCR"
-  default     = "0.2.7"
+  default     = "0.2.8"
 }
 
 variable "notifications_redis_chart_version" {
@@ -80,55 +80,55 @@ variable "postgres_chart_version" {
 variable "agents_chart_version" {
   type        = string
   description = "Version of the agents Helm chart published to GHCR"
-  default     = "0.7.5"
+  default     = "0.7.6"
 }
 
 variable "ziti_management_chart_version" {
   type        = string
   description = "Version of the ziti-management Helm chart published to GHCR"
-  default     = "0.10.10"
+  default     = "0.10.12"
 }
 
 variable "users_chart_version" {
   type        = string
   description = "Version of the users Helm chart published to GHCR"
-  default     = "0.5.2"
+  default     = "0.5.3"
 }
 
 variable "expose_chart_version" {
   type        = string
   description = "Version of the expose Helm chart published to GHCR"
-  default     = "0.1.8"
+  default     = "0.1.9"
 }
 
 variable "organizations_chart_version" {
   type        = string
   description = "Version of the organizations Helm chart published to GHCR"
-  default     = "0.4.4"
+  default     = "0.4.5"
 }
 
 variable "identity_chart_version" {
   type        = string
   description = "Version of the identity Helm chart published to GHCR"
-  default     = "0.2.2"
+  default     = "0.2.3"
 }
 
 variable "runners_chart_version" {
   type        = string
   description = "Version of the runners Helm chart published to GHCR"
-  default     = "0.5.11"
+  default     = "0.5.12"
 }
 
 variable "apps_chart_version" {
   type        = string
   description = "Version of the apps Helm chart published to GHCR"
-  default     = "0.4.2"
+  default     = "0.4.3"
 }
 
 variable "chat_app_chart_version" {
   type        = string
   description = "Version of the chat-app Helm chart published to GHCR"
-  default     = "0.4.17"
+  default     = "0.4.18"
 }
 
 variable "chat_app_image_tag" {
@@ -183,7 +183,7 @@ variable "oidc_client_secret" {
 variable "tracing_app_chart_version" {
   type        = string
   description = "Version of the tracing-app Helm chart published to GHCR"
-  default     = "0.2.7"
+  default     = "0.3.1"
 }
 
 variable "tracing_app_image_tag" {
@@ -231,7 +231,7 @@ variable "tracing_image_tag" {
 variable "chat_chart_version" {
   type        = string
   description = "Version of the chat Helm chart published to GHCR"
-  default     = "0.3.4"
+  default     = "0.3.5"
 }
 
 variable "chat_image_tag" {
@@ -450,7 +450,7 @@ variable "tracing_db_pvc_size" {
 variable "files_chart_version" {
   type        = string
   description = "Version of the files Helm chart published to GHCR"
-  default     = "0.1.4"
+  default     = "0.1.6"
 }
 
 variable "files_image_tag" {
@@ -475,7 +475,7 @@ variable "files_db_pvc_size" {
 variable "llm_chart_version" {
   type        = string
   description = "Version of the llm Helm chart published to GHCR"
-  default     = "0.4.4"
+  default     = "0.4.5"
 }
 
 variable "llm_image_tag" {
@@ -622,7 +622,7 @@ variable "secrets_encryption_key" {
 variable "authorization_chart_version" {
   type        = string
   description = "Version of the authorization Helm chart published to GHCR"
-  default     = "0.5.3"
+  default     = "0.5.5"
 }
 
 variable "authorization_image_tag" {
@@ -640,7 +640,7 @@ variable "openfga_namespace" {
 variable "media_proxy_chart_version" {
   type        = string
   description = "Version of the media-proxy Helm chart published to GHCR"
-  default     = "0.1.5"
+  default     = "0.1.6"
 }
 
 variable "media_proxy_image_tag" {
@@ -652,7 +652,7 @@ variable "media_proxy_image_tag" {
 variable "llm_proxy_chart_version" {
   type        = string
   description = "Version of the llm-proxy Helm chart published to GHCR"
-  default     = "0.12.5"
+  default     = "0.12.6"
 }
 
 variable "llm_proxy_image_tag" {

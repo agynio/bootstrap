@@ -34,12 +34,28 @@ jobs:
         env:
           KUBECONFIG: ${{ steps.provision.outputs.kubeconfig }}
         run: |
+          if [[ -z "${KUBECONFIG}" ]]; then
+            KUBECONFIG="${GITHUB_WORKSPACE}/bootstrap/stacks/k8s/.kube/agyn-local-kubeconfig.yaml"
+            export KUBECONFIG
+          fi
+
+          if [[ ! -f "${KUBECONFIG}" ]]; then
+            echo "Kubeconfig not found at ${KUBECONFIG}" >&2
+            exit 0
+          fi
+
           kubectl -n argocd get applications.argoproj.io authorization -o yaml || true
+          kubectl -n argocd get applications.argoproj.io platform -o yaml || true
           kubectl -n platform get deploy,rs,pods,svc -l app.kubernetes.io/name=authorization -o wide || true
-          pods=$(kubectl -n platform get pods -l app.kubernetes.io/name=authorization -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' || true)
+          kubectl -n platform get deploy,rs,pods,svc -l app.kubernetes.io/name=runners -o wide || true
+          kubectl -n platform get deploy,rs,pods,svc -l app.kubernetes.io/name=ziti-management -o wide || true
+          pods=$(kubectl -n platform get pods -l 'app.kubernetes.io/name in (authorization,runners,ziti-management)' -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' || true)
           for pod in $pods; do
             echo "## describe $pod"
             kubectl -n platform describe pod "$pod" || true
           done
-          kubectl -n platform logs deploy/authorization --all-containers --tail=200 || true
+          for deploy in authorization runners ziti-management; do
+            kubectl -n platform logs "deploy/${deploy}" --all-containers --tail=200 || true
+            kubectl -n platform logs "deploy/${deploy}" --all-containers --previous --tail=200 || true
+          done
           kubectl -n platform get events --sort-by=.lastTimestamp | tail -n 80 || true

@@ -40,6 +40,8 @@ locals {
   postgres_chart_name            = "agynio/charts/postgres-helm"
   istio_gateway_namespace        = data.terraform_remote_state.system.outputs.istio_gateway_namespace
   istio_gateway_tls_secret_name  = data.terraform_remote_state.system.outputs.wildcard_tls_gateway_secret_name
+  ziti_namespace                 = data.terraform_remote_state.system.outputs.installed_namespaces[1]
+  workload_namespace             = "agyn-workloads"
   openfga_api_url_external       = format("https://openfga.%s:%d", local.base_domain, local.ingress_port)
   openfga_api_url_internal       = format("http://openfga.%s.svc.cluster.local:8080", var.openfga_namespace)
   # Deterministic v5 UUID for the cluster admin identity.
@@ -663,12 +665,20 @@ locals {
           value = "openziti/ziti-tunnel:2.0.0-pre8"
         },
         {
+          name  = "WORKLOAD_DNS_UPSTREAM"
+          value = kubernetes_service_v1.ziti_workload_dns.spec[0].cluster_ip
+        },
+        {
           name  = "RUNNER_ADDRESS"
           value = "k8s-runner:50051"
         },
         {
           name  = "RUNNERS_ADDRESS"
           value = "runners:50051"
+        },
+        {
+          name  = "EGRESS_CA_NAMESPACE"
+          value = "agyn-workloads"
         },
       ]
     }
@@ -760,10 +770,25 @@ locals {
       image = {
         tag = local.resolved_runners_image_tag
       }
-      env = [local.database_url_env_refs["runners"]]
+      env = [
+        {
+          name  = "GRPC_ADDR"
+          value = ":50051"
+        },
+        local.database_url_env_refs["runners"],
+        {
+          name  = "IDENTITY_ADDRESS"
+          value = "identity:50051"
+        },
+        {
+          name  = "AUTHORIZATION_ADDRESS"
+          value = "authorization:50051"
+        },
+      ]
     }
     "ziti-management" = {
-      fullnameOverride = "ziti-management"
+      fullnameOverride  = "ziti-management"
+      zitiControllerUrl = format("https://ziti-mgmt.%s:%d/edge/management/v1", local.base_domain, local.ingress_port)
       image = {
         tag = local.resolved_ziti_management_image_tag
       }
@@ -799,6 +824,10 @@ locals {
         },
       ]
       env = [
+        {
+          name  = "GRPC_ADDRESS"
+          value = ":50051"
+        },
         local.database_url_env_refs["ziti-management"],
         {
           name  = "ZITI_CONTROLLER_URL"
