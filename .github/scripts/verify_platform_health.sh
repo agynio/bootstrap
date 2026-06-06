@@ -24,7 +24,11 @@ if [[ ! -f "$KUBECONFIG_PATH" ]]; then
   exit 1
 fi
 
-REQUIRED_APPS_JSON='["cert-manager","trust-manager","ziti-controller","platform","registry-mirror","minio","openfga-db","openfga","platform-db","threads-db","metering-db","chat-db","tracing-db","secrets-db","egress-db","llm-db","agents-db","ziti-management-db","users-db","expose-db","organizations-db","agents-orchestrator-db","identity-db","runners-db","apps-db","reminders-db","reminders","telegram-connector-db","telegram-connector","k8s-runner"]'
+REQUIRED_APPS_JSON='["cert-manager","trust-manager","ziti-controller","platform","registry-mirror","minio","openfga-db","openfga","platform-db","threads-db","metering-db","metering","chat-db","tracing-db","secrets-db","egress-db","llm-db","agents-db","ziti-management-db","users-db","expose-db","organizations-db","agents-orchestrator-db","identity-db","runners-db","apps-db","reminders-db","reminders","telegram-connector-db","telegram-connector","k8s-runner"]'
+REQUIRED_DEPLOYMENTS_JSON='["agents","agents-orchestrator","apps","authorization","chat","chat-app","console-app","egress","egress-gateway","expose","files","gateway","identity","llm","llm-proxy","media-proxy","metering","notifications","organizations","reminders","runners","secrets","telegram-connector","threads","tracing","tracing-app","users","ziti-management"]'
+REQUIRED_SERVICES_JSON='["agents","apps","authorization","chat","chat-app","console-app","egress","egress-gateway","expose","files","gateway","identity","llm","llm-proxy","media-proxy","metering","notifications","organizations","reminders","runners","secrets","telegram-connector","threads","tracing","tracing-app","users","ziti-management"]'
+REQUIRED_CONFIGMAP_KEYS_JSON='{"agyn-platform-openfga":["OPENFGA_API_URL","OPENFGA_STORE_ID","OPENFGA_MODEL_ID"]}'
+REQUIRED_SECRET_KEYS_JSON='{"agyn-platform-database-urls":["agents","agents-orchestrator","apps","chat","egress","expose","files","identity","llm","metering","organizations","runners","secrets","threads","tracing","users","ziti-management"]}'
 
 deadline=$((SECONDS + TOTAL_TIMEOUT))
 pod_terminal_failures_streak=0
@@ -138,6 +142,9 @@ while (( SECONDS < deadline )); do
 
   jobs_json=$(kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$PLATFORM_NAMESPACE" get jobs -o json 2>/dev/null || echo '{"items": []}')
   deployments_json=$(kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$PLATFORM_NAMESPACE" get deployments -o json 2>/dev/null || echo '{"items": []}')
+  services_json=$(kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$PLATFORM_NAMESPACE" get services -o json 2>/dev/null || echo '{"items": []}')
+  configmaps_json=$(kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$PLATFORM_NAMESPACE" get configmaps -o json 2>/dev/null || echo '{"items": []}')
+  secrets_json=$(kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$PLATFORM_NAMESPACE" get secrets -o json 2>/dev/null || echo '{"items": []}')
   sts_json=$(kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$PLATFORM_NAMESPACE" get statefulsets -o json 2>/dev/null || echo '{"items": []}')
   pods_json=$(kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$PLATFORM_NAMESPACE" get pods -o json 2>/dev/null || echo '{"items": []}')
   apps_json=$(kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$ARGO_NAMESPACE" get applications.argoproj.io -o json 2>/dev/null || echo '{"items": []}')
@@ -225,6 +232,30 @@ while (( SECONDS < deadline )); do
       | "\($dep.metadata.name) (ready=\($dep.status.readyReplicas // 0)/\($desired), updated=\($dep.status.updatedReplicas // 0))"
     ] | .[]?' <<<"$deployments_json")
 
+  missing_deployments=$(jq -r --argjson required "$REQUIRED_DEPLOYMENTS_JSON" '
+    [$required[] as $name | select(any(.items[]?; .metadata.name == $name) | not) | $name]
+    | .[]?' <<<"$deployments_json")
+
+  missing_services=$(jq -r --argjson required "$REQUIRED_SERVICES_JSON" '
+    [$required[] as $name | select(any(.items[]?; .metadata.name == $name) | not) | $name]
+    | .[]?' <<<"$services_json")
+
+  missing_configmap_keys=$(jq -r --argjson required "$REQUIRED_CONFIGMAP_KEYS_JSON" '
+    . as $resources
+    | $required
+    | to_entries[] as $cfg
+    | $cfg.value[] as $key
+    | select(any($resources.items[]?; .metadata.name == $cfg.key and (.data[$key] // "") != "") | not)
+      | "\($cfg.key).\($key)")' <<<"$configmaps_json")
+
+  missing_secret_keys=$(jq -r --argjson required "$REQUIRED_SECRET_KEYS_JSON" '
+    . as $resources
+    | $required
+    | to_entries[] as $secret
+    | $secret.value[] as $key
+    | select(any($resources.items[]?; .metadata.name == $secret.key and (.data[$key] // "") != "") | not)
+      | "\($secret.key).\($key)")' <<<"$secrets_json")
+
   sts_pending=$(jq -r '
     [.items[] as $sts |
       ($sts.spec.replicas // 1) as $desired |
@@ -293,6 +324,18 @@ while (( SECONDS < deadline )); do
   fi
   if [[ -n "$deploy_pending" ]]; then
     outstanding+=("waiting for Deployments: $(join_lines "$deploy_pending")")
+  fi
+  if [[ -n "$missing_deployments" ]]; then
+    outstanding+=("waiting for platform Deployments: $(join_lines "$missing_deployments")")
+  fi
+  if [[ -n "$missing_services" ]]; then
+    outstanding+=("waiting for platform Services: $(join_lines "$missing_services")")
+  fi
+  if [[ -n "$missing_configmap_keys" ]]; then
+    outstanding+=("waiting for platform ConfigMap keys: $(join_lines "$missing_configmap_keys")")
+  fi
+  if [[ -n "$missing_secret_keys" ]]; then
+    outstanding+=("waiting for platform Secret keys: $(join_lines "$missing_secret_keys")")
   fi
   if [[ -n "$sts_pending" ]]; then
     outstanding+=("waiting for StatefulSets: $(join_lines "$sts_pending")")

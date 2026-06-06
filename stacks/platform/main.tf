@@ -2,6 +2,7 @@ locals {
   resolved_gateway_image_tag             = trimspace(var.gateway_image_tag) != "" ? var.gateway_image_tag : var.gateway_chart_version
   resolved_agents_orchestrator_image_tag = trimspace(var.agents_orchestrator_image_tag) != "" ? var.agents_orchestrator_image_tag : var.agents_orchestrator_chart_version
   resolved_threads_image_tag             = trimspace(var.threads_image_tag) != "" ? var.threads_image_tag : var.threads_chart_version
+  resolved_metering_image_tag            = trimspace(var.metering_image_tag) != "" ? var.metering_image_tag : var.metering_chart_version
   resolved_tracing_image_tag             = trimspace(var.tracing_image_tag) != "" ? var.tracing_image_tag : format("v%s", var.tracing_chart_version)
   resolved_chat_image_tag                = trimspace(var.chat_image_tag) != "" ? var.chat_image_tag : var.chat_chart_version
   resolved_chat_app_image_tag            = trimspace(var.chat_app_image_tag) != "" ? var.chat_app_image_tag : var.chat_app_chart_version
@@ -38,6 +39,7 @@ locals {
   platform_chart_name            = "agynio/charts/agyn-platform"
   postgres_chart_repo_host       = "ghcr.io"
   postgres_chart_name            = "agynio/charts/postgres-helm"
+  metering_chart_name            = "agynio/charts/metering"
   istio_gateway_namespace        = data.terraform_remote_state.system.outputs.istio_gateway_namespace
   istio_gateway_tls_secret_name  = data.terraform_remote_state.system.outputs.wildcard_tls_gateway_secret_name
   ziti_namespace                 = data.terraform_remote_state.system.outputs.installed_namespaces[1]
@@ -483,6 +485,7 @@ locals {
     "files"               = format("postgresql://files:%s@files-db:5432/files?sslmode=disable", var.files_db_password)
     "identity"            = format("postgresql://identity:%s@identity-db:5432/identity?sslmode=disable", var.identity_db_password)
     "llm"                 = format("postgresql://llm:%s@llm-db:5432/llm?sslmode=disable", var.llm_db_password)
+    "metering"            = format("postgresql://metering:%s@metering-db:5432/metering?sslmode=disable", var.metering_db_password)
     "organizations"       = format("postgresql://organizations:%s@organizations-db:5432/organizations?sslmode=disable", var.organizations_db_password)
     "runners"             = format("postgresql://runners:%s@runners-db:5432/runners?sslmode=disable", var.runners_db_password)
     "secrets"             = format("postgresql://secrets:%s@secrets-db:5432/secrets?sslmode=disable", var.secrets_db_password)
@@ -570,6 +573,27 @@ locals {
       },
     ]
   }
+
+  metering_values = yamlencode({
+    replicaCount     = 1
+    fullnameOverride = "metering"
+    image = {
+      repository = "ghcr.io/agynio/metering"
+      tag        = local.resolved_metering_image_tag
+      pullPolicy = "IfNotPresent"
+    }
+    env = [
+      {
+        name  = "GRPC_ADDRESS"
+        value = ":50051"
+      },
+      local.database_url_env_refs["metering"],
+      {
+        name  = "LOG_LEVEL"
+        value = "info"
+      },
+    ]
+  })
 
   platform_values = yamlencode({
     validation = {
@@ -1446,11 +1470,11 @@ locals {
   })
 }
 
-# NOTE: The module ref (v0.5.2) must be updated in lockstep with
+# NOTE: The module ref must be updated in lockstep with
 # var.authorization_chart_version to ensure the provisioned FGA model
 # matches the model expected by the deployed Helm chart.
 module "openfga_authorization" {
-  source          = "github.com/agynio/authorization//terraform?ref=v0.5.3"
+  source          = "github.com/agynio/authorization//terraform?ref=v0.5.5"
   openfga_api_url = local.openfga_api_url_external
 }
 
@@ -2300,6 +2324,54 @@ resource "argocd_application" "metering_db" {
   }
 }
 
+resource "argocd_application" "metering" {
+  depends_on = [
+    argocd_repository.ghcr,
+    argocd_application.metering_db,
+  ]
+  wait = true
+
+  metadata {
+    name      = "metering"
+    namespace = "argocd"
+    annotations = {
+      "argocd.argoproj.io/sync-wave" = "16"
+    }
+  }
+
+  spec {
+    project = "default"
+
+    source {
+      repo_url        = local.platform_chart_repo_host
+      chart           = local.metering_chart_name
+      target_revision = var.metering_chart_version
+
+      helm {
+        values = local.metering_values
+      }
+    }
+
+    destination {
+      server    = var.destination_server
+      namespace = var.platform_namespace
+    }
+
+    sync_policy {
+      dynamic "automated" {
+        for_each = var.argocd_automated_sync_enabled ? [1] : []
+        content {
+          prune       = var.argocd_prune_enabled
+          self_heal   = var.argocd_self_heal_enabled
+          allow_empty = false
+        }
+      }
+
+      sync_options = local.default_sync_options
+    }
+  }
+}
+
 resource "argocd_application" "chat_db" {
   depends_on = [argocd_repository.ghcr]
   wait       = true
@@ -3101,6 +3173,7 @@ resource "argocd_application" "platform" {
     argocd_application.platform_db,
     argocd_application.threads_db,
     argocd_application.metering_db,
+    argocd_application.metering,
     argocd_application.chat_db,
     argocd_application.tracing_db,
     argocd_application.secrets_db,
