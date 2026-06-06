@@ -47,6 +47,7 @@ locals {
   secrets_chart_name             = "agynio/charts/secrets"
   token_counting_chart_name      = "agynio/charts/token-counting"
   notifications_chart_name       = "agynio/charts/notifications"
+  nats_chart_name                = "nats"
   redis_chart_name               = "redis"
   agents_chart_name              = "agynio/charts/agents"
   ziti_management_chart_name     = "agynio/charts/ziti-management"
@@ -68,6 +69,7 @@ locals {
   workload_namespace            = "agyn-workloads"
   openfga_api_url_external      = format("https://openfga.%s:%d", local.base_domain, local.ingress_port)
   openfga_api_url_internal      = format("http://openfga.%s.svc.cluster.local:8080", var.openfga_namespace)
+  nats_endpoint                 = format("nats://nats.%s.svc.cluster.local:4222", var.platform_namespace)
   # Deterministic v5 UUID for the cluster admin identity.
   # This is a synthetic identity used only during bootstrap;
   # it does not correspond to a user record in the Users DB.
@@ -1004,6 +1006,183 @@ locals {
         value = "info"
       }
     ]
+  })
+
+  nats_values = yamlencode({
+    fullnameOverride = "nats"
+    config = {
+      jetstream = {
+        enabled = true
+        fileStore = {
+          enabled = true
+          pvc = {
+            enabled = true
+            size    = var.nats_jetstream_file_store_pvc_size
+          }
+          maxSize = var.nats_jetstream_file_store_max_size
+        }
+        memoryStore = {
+          enabled = false
+        }
+      }
+    }
+    service = {
+      enabled = true
+      ports = {
+        nats = {
+          enabled = true
+        }
+        monitor = {
+          enabled = false
+        }
+      }
+    }
+    natsBox = {
+      enabled = false
+    }
+    extraResources = [for resource in [
+      {
+        apiVersion = "v1"
+        kind       = "ConfigMap"
+        metadata = {
+          name = "nats-platform-streams"
+          annotations = {
+            "argocd.argoproj.io/sync-wave" = "0"
+          }
+          labels = {
+            "app.kubernetes.io/name"       = "nats-platform-streams"
+            "app.kubernetes.io/managed-by" = "terraform"
+          }
+        }
+        data = {
+          "AGYN_GROUPS.json" = jsonencode({
+            name                    = "AGYN_GROUPS"
+            subjects                = ["agyn.groups.>"]
+            retention               = "limits"
+            max_consumers           = -1
+            max_msgs                = -1
+            max_bytes               = var.nats_platform_stream_max_bytes
+            discard                 = "old"
+            max_age                 = var.nats_platform_stream_max_age
+            max_msgs_per_subject    = -1
+            max_msg_size            = -1
+            storage                 = "file"
+            num_replicas            = var.nats_platform_stream_replicas
+            duplicate_window        = var.nats_platform_stream_duplicate_window
+            sealed                  = false
+            deny_delete             = false
+            deny_purge              = false
+            allow_rollup_hdrs       = false
+            allow_direct            = false
+            mirror_direct           = false
+            discard_new_per_subject = false
+            allow_msg_ttl           = false
+            metadata = {
+              managed_by = "bootstrap"
+            }
+          })
+          "AGYN_NETWORKS.json" = jsonencode({
+            name                    = "AGYN_NETWORKS"
+            subjects                = ["agyn.networks.>"]
+            retention               = "limits"
+            max_consumers           = -1
+            max_msgs                = -1
+            max_bytes               = var.nats_platform_stream_max_bytes
+            discard                 = "old"
+            max_age                 = var.nats_platform_stream_max_age
+            max_msgs_per_subject    = -1
+            max_msg_size            = -1
+            storage                 = "file"
+            num_replicas            = var.nats_platform_stream_replicas
+            duplicate_window        = var.nats_platform_stream_duplicate_window
+            sealed                  = false
+            deny_delete             = false
+            deny_purge              = false
+            allow_rollup_hdrs       = false
+            allow_direct            = false
+            mirror_direct           = false
+            discard_new_per_subject = false
+            allow_msg_ttl           = false
+            metadata = {
+              managed_by = "bootstrap"
+            }
+          })
+        }
+      },
+      {
+        apiVersion = "batch/v1"
+        kind       = "Job"
+        metadata = {
+          name = "nats-platform-streams"
+          annotations = {
+            "argocd.argoproj.io/hook"               = "PostSync"
+            "argocd.argoproj.io/hook-delete-policy" = "BeforeHookCreation,HookSucceeded"
+            "argocd.argoproj.io/sync-wave"          = "1"
+            "helm.sh/hook"                          = "post-install,post-upgrade"
+            "helm.sh/hook-delete-policy"            = "before-hook-creation,hook-succeeded"
+            "helm.sh/hook-weight"                   = "1"
+          }
+          labels = {
+            "app.kubernetes.io/name"       = "nats-platform-streams"
+            "app.kubernetes.io/managed-by" = "terraform"
+          }
+        }
+        spec = {
+          backoffLimit = 6
+          template = {
+            metadata = {
+              labels = {
+                "app.kubernetes.io/name" = "nats-platform-streams"
+              }
+            }
+            spec = {
+              restartPolicy = "OnFailure"
+              containers = [
+                {
+                  name            = "configure-streams"
+                  image           = format("natsio/nats-box:%s", var.nats_box_image_tag)
+                  imagePullPolicy = "IfNotPresent"
+                  env = [
+                    {
+                      name  = "NATS_URL"
+                      value = local.nats_endpoint
+                    }
+                  ]
+                  command = ["/bin/sh", "-ec"]
+                  args = [<<-EOT
+                    for config in /etc/agyn/nats-streams/*.json; do
+                      stream="$(basename "$config" .json)"
+                      nats --server "$NATS_URL" \
+                        --timeout "${var.nats_platform_stream_wait_timeout}" \
+                        stream add --config "$config" --defaults || \
+                        nats --server "$NATS_URL" \
+                          --timeout "${var.nats_platform_stream_wait_timeout}" \
+                          stream edit "$stream" --config "$config" --force
+                    done
+                  EOT
+                  ]
+                  volumeMounts = [
+                    {
+                      name      = "stream-config"
+                      mountPath = "/etc/agyn/nats-streams"
+                      readOnly  = true
+                    }
+                  ]
+                }
+              ]
+              volumes = [
+                {
+                  name = "stream-config"
+                  configMap = {
+                    name = "nats-platform-streams"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    ] : resource if var.nats_platform_streams_enabled]
   })
 
   files_values = yamlencode({
@@ -2124,6 +2303,12 @@ resource "argocd_repository" "bitnami_repo" {
   repo = "https://charts.bitnami.com/bitnami"
   type = "helm"
 }
+
+resource "argocd_repository" "nats_repo" {
+  repo = "https://nats-io.github.io/k8s/helm/charts/"
+  type = "helm"
+}
+
 resource "argocd_repository" "ghcr" {
   repo       = "ghcr.io"
   type       = "helm"
@@ -3392,6 +3577,59 @@ resource "argocd_application" "notifications_redis" {
 
       sync_options = local.default_sync_options
     }
+  }
+}
+
+resource "argocd_application" "nats" {
+  count = var.nats_enabled ? 1 : 0
+
+  depends_on = [argocd_repository.nats_repo]
+  wait       = true
+
+  metadata {
+    name      = "nats"
+    namespace = "argocd"
+    annotations = {
+      "argocd.argoproj.io/sync-wave" = "16"
+    }
+  }
+
+  spec {
+    project = "default"
+
+    source {
+      repo_url        = "https://nats-io.github.io/k8s/helm/charts/"
+      chart           = local.nats_chart_name
+      target_revision = var.nats_chart_version
+
+      helm {
+        values = local.nats_values
+      }
+    }
+
+    destination {
+      server    = var.destination_server
+      namespace = var.platform_namespace
+    }
+
+    sync_policy {
+      dynamic "automated" {
+        for_each = var.argocd_automated_sync_enabled ? [1] : []
+        content {
+          prune       = var.argocd_prune_enabled
+          self_heal   = var.argocd_self_heal_enabled
+          allow_empty = false
+        }
+      }
+
+      sync_options = local.postgres_sync_options
+    }
+  }
+
+  timeouts {
+    create = "5m"
+    update = "5m"
+    delete = "5m"
   }
 }
 

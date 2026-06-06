@@ -65,6 +65,12 @@ variable "notifications_redis_chart_version" {
   default     = "25.3.2"
 }
 
+variable "nats_chart_version" {
+  type        = string
+  description = "Version of the upstream NATS Helm chart for JetStream"
+  default     = "2.14.0"
+}
+
 variable "postgres_chart_version" {
   type        = string
   description = "Version of the postgres-helm chart published to GHCR"
@@ -304,6 +310,66 @@ variable "notifications_redis_addr" {
   type        = string
   description = "Redis address used by the notifications service"
   default     = "notifications-redis-master.platform.svc.cluster.local:6379"
+}
+
+variable "nats_enabled" {
+  type        = bool
+  description = "Enable NATS JetStream deployment for durable platform events"
+  default     = false
+}
+
+variable "nats_jetstream_file_store_pvc_size" {
+  type        = string
+  description = "Persistent volume claim size for the NATS JetStream file store"
+  default     = "10Gi"
+}
+
+variable "nats_jetstream_file_store_max_size" {
+  type        = string
+  description = "Maximum NATS JetStream file store size"
+  default     = "10Gi"
+}
+
+variable "nats_platform_streams_enabled" {
+  type        = bool
+  description = "Create platform JetStream streams for Groups and Networks events"
+  default     = true
+}
+
+variable "nats_platform_stream_replicas" {
+  type        = number
+  description = "Replica count for platform JetStream streams"
+  default     = 1
+}
+
+variable "nats_platform_stream_max_bytes" {
+  type        = number
+  description = "Maximum bytes retained per platform JetStream stream"
+  default     = 1073741824
+}
+
+variable "nats_platform_stream_max_age" {
+  type        = number
+  description = "Maximum age retained per platform JetStream stream, in nanoseconds"
+  default     = 604800000000000
+}
+
+variable "nats_platform_stream_duplicate_window" {
+  type        = number
+  description = "Duplicate detection window for platform JetStream streams, in nanoseconds"
+  default     = 120000000000
+}
+
+variable "nats_platform_stream_wait_timeout" {
+  type        = string
+  description = "NATS CLI timeout for platform stream configuration"
+  default     = "120s"
+}
+
+variable "nats_box_image_tag" {
+  type        = string
+  description = "nats-box image tag used by the platform stream configuration job"
+  default     = "0.18.0"
 }
 
 variable "argocd_automated_sync_enabled" {
