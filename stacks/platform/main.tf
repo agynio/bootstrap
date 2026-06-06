@@ -2,7 +2,6 @@ locals {
   resolved_gateway_image_tag             = trimspace(var.gateway_image_tag) != "" ? var.gateway_image_tag : var.gateway_chart_version
   resolved_agents_orchestrator_image_tag = trimspace(var.agents_orchestrator_image_tag) != "" ? var.agents_orchestrator_image_tag : var.agents_orchestrator_chart_version
   resolved_threads_image_tag             = trimspace(var.threads_image_tag) != "" ? var.threads_image_tag : var.threads_chart_version
-  resolved_metering_image_tag            = trimspace(var.metering_image_tag) != "" ? var.metering_image_tag : var.metering_chart_version
   resolved_tracing_image_tag             = trimspace(var.tracing_image_tag) != "" ? var.tracing_image_tag : format("v%s", var.tracing_chart_version)
   resolved_chat_image_tag                = trimspace(var.chat_image_tag) != "" ? var.chat_image_tag : var.chat_chart_version
   resolved_chat_app_image_tag            = trimspace(var.chat_app_image_tag) != "" ? var.chat_app_image_tag : var.chat_app_chart_version
@@ -29,45 +28,20 @@ locals {
   resolved_egress_gateway_image_tag      = trimspace(var.egress_gateway_image_tag) != "" ? var.egress_gateway_image_tag : var.egress_gateway_chart_version
 
   postgres_image                 = "postgres:16.6-alpine"
+  registry_mirror_repo_url       = "https://github.com/twuni/docker-registry.helm.git"
+  registry_mirror_chart_path     = "."
+  registry_mirror_chart_revision = "v2.2.2"
+  ncps_chart_repo_host           = "ghcr.io"
+  ncps_chart_name                = "agynio/charts/ncps"
+  ncps_chart_revision            = "0.1.3"
   platform_chart_repo_host       = "ghcr.io"
+  platform_chart_name            = "agynio/charts/agyn-platform"
   postgres_chart_repo_host       = "ghcr.io"
   postgres_chart_name            = "agynio/charts/postgres-helm"
-  agents_orchestrator_chart_name = "agynio/charts/agents-orchestrator"
-  threads_chart_name             = "agynio/charts/threads"
-  metering_chart_name            = "agynio/charts/metering"
-  tracing_chart_name             = "agynio/charts/tracing"
-  chat_chart_name                = "agynio/charts/chat"
-  chat_app_chart_name            = "agynio/charts/chat-app"
-  console_app_chart_name         = "agynio/charts/console-app"
-  tracing_app_chart_name         = "agynio/charts/tracing-app"
-  files_chart_name               = "agynio/charts/files"
-  media_proxy_chart_name         = "agynio/charts/media-proxy"
-  llm_chart_name                 = "agynio/charts/llm"
-  llm_proxy_chart_name           = "agynio/charts/llm-proxy"
-  secrets_chart_name             = "agynio/charts/secrets"
-  token_counting_chart_name      = "agynio/charts/token-counting"
-  notifications_chart_name       = "agynio/charts/notifications"
-  redis_chart_name               = "redis"
-  agents_chart_name              = "agynio/charts/agents"
-  ziti_management_chart_name     = "agynio/charts/ziti-management"
-  users_chart_name               = "agynio/charts/users"
-  expose_chart_name              = "agynio/charts/expose"
-  organizations_chart_name       = "agynio/charts/organizations"
-  authorization_chart_name       = "agynio/charts/authorization"
-  identity_chart_name            = "agynio/charts/identity"
-  runners_chart_name             = "agynio/charts/runners"
-  apps_chart_name                = "agynio/charts/apps"
-  egress_chart_name              = "agynio/charts/egress"
-  egress_gateway_chart_name      = "agynio/charts/egress-gateway"
-  # DEV/E2E ONLY: this secret name is used by diagnostics tests and must not
-  # be published in production deployments.
-  ziti_diagnostics_secret_name  = "ziti-diagnostics"
-  istio_gateway_namespace       = data.terraform_remote_state.system.outputs.istio_gateway_namespace
-  istio_gateway_tls_secret_name = data.terraform_remote_state.system.outputs.wildcard_tls_gateway_secret_name
-  ziti_namespace                = data.terraform_remote_state.system.outputs.installed_namespaces[1]
-  workload_namespace            = "agyn-workloads"
-  openfga_api_url_external      = format("https://openfga.%s:%d", local.base_domain, local.ingress_port)
-  openfga_api_url_internal      = format("http://openfga.%s.svc.cluster.local:8080", var.openfga_namespace)
+  istio_gateway_namespace        = data.terraform_remote_state.system.outputs.istio_gateway_namespace
+  istio_gateway_tls_secret_name  = data.terraform_remote_state.system.outputs.wildcard_tls_gateway_secret_name
+  openfga_api_url_external       = format("https://openfga.%s:%d", local.base_domain, local.ingress_port)
+  openfga_api_url_internal       = format("http://openfga.%s.svc.cluster.local:8080", var.openfga_namespace)
   # Deterministic v5 UUID for the cluster admin identity.
   # This is a synthetic identity used only during bootstrap;
   # it does not correspond to a user record in the Users DB.
@@ -85,6 +59,23 @@ locals {
     "ApplyOutOfSyncOnly=true",
     "RespectIgnoreDifferences=true",
   ]
+
+  registry_mirror_values = yamlencode({
+    fullnameOverride = "registry-mirror"
+    image = {
+      repository = "public.ecr.aws/docker/library/registry"
+      tag        = "2"
+      pullPolicy = "IfNotPresent"
+    }
+    persistence = {
+      enabled = true
+      size    = var.registry_mirror_pvc_size
+    }
+    proxy = {
+      enabled   = true
+      remoteurl = "https://registry-1.docker.io"
+    }
+  })
 
   platform_db_values = yamlencode({
     fullnameOverride = "platform-db"
@@ -220,29 +211,6 @@ locals {
       }
       liveness = {
         execCommand = ["pg_isready", "-U", "secrets", "-d", "secrets"]
-      }
-    }
-  })
-
-  egress_db_values = yamlencode({
-    fullnameOverride = "egress-db"
-    postgres = {
-      database = "egress"
-      username = "egress"
-      password = var.egress_db_password
-      pgdata   = "/var/lib/postgresql/data/pgdata"
-    }
-    persistence = {
-      size                    = var.egress_db_pvc_size
-      mountPath               = "/var/lib/postgresql/data"
-      volumeClaimTemplateName = "data"
-    }
-    probes = {
-      readiness = {
-        execCommand = ["pg_isready", "-U", "egress", "-d", "egress"]
-      }
-      liveness = {
-        execCommand = ["pg_isready", "-U", "egress", "-d", "egress"]
       }
     }
   })
@@ -477,472 +445,41 @@ locals {
     }
   })
 
-  threads_values = yamlencode({
-    replicaCount     = 1
-    fullnameOverride = "threads"
-    service = {
-      ports = [
-        {
-          name       = "grpc"
-          port       = 50051
-          targetPort = "grpc"
-          protocol   = "TCP"
+  platform_database_secret_name = "agyn-platform-database-urls"
+  files_s3_secret_name          = "agyn-files-s3"
+
+  platform_database_urls = {
+    "egress"              = format("postgresql://egress:%s@egress-db:5432/egress?sslmode=disable", var.egress_db_password)
+    "agents"              = format("postgresql://agents:%s@agents-db:5432/agents?sslmode=disable", var.agents_db_password)
+    "agents-orchestrator" = format("postgresql://orchestrator:%s@agents-orchestrator-db:5432/orchestrator?sslmode=disable", var.agents_orchestrator_db_password)
+    "apps"                = format("postgresql://apps:%s@apps-db:5432/apps?sslmode=disable", var.apps_db_password)
+    "chat"                = format("postgresql://chat:%s@chat-db:5432/chat?sslmode=disable", var.chat_db_password)
+    "expose"              = format("postgresql://expose:%s@expose-db:5432/expose?sslmode=disable", var.expose_db_password)
+    "files"               = format("postgresql://files:%s@files-db:5432/files?sslmode=disable", var.files_db_password)
+    "identity"            = format("postgresql://identity:%s@identity-db:5432/identity?sslmode=disable", var.identity_db_password)
+    "llm"                 = format("postgresql://llm:%s@llm-db:5432/llm?sslmode=disable", var.llm_db_password)
+    "organizations"       = format("postgresql://organizations:%s@organizations-db:5432/organizations?sslmode=disable", var.organizations_db_password)
+    "runners"             = format("postgresql://runners:%s@runners-db:5432/runners?sslmode=disable", var.runners_db_password)
+    "secrets"             = format("postgresql://secrets:%s@secrets-db:5432/secrets?sslmode=disable", var.secrets_db_password)
+    "threads"             = format("postgresql://threads:%s@threads-db:5432/threads?sslmode=disable", var.threads_db_password)
+    "tracing"             = format("postgresql://tracing:%s@tracing-db:5432/tracing?sslmode=disable", var.tracing_db_password)
+    "users"               = format("postgresql://users:%s@users-db:5432/users?sslmode=disable", var.users_db_password)
+    "ziti-management"     = format("postgresql://ziti_management:%s@ziti-management-db:5432/ziti_management?sslmode=disable", var.ziti_management_db_password)
+  }
+
+  database_url_env_refs = {
+    for service in keys(local.platform_database_urls) : service => {
+      name = "DATABASE_URL"
+      valueFrom = {
+        secretKeyRef = {
+          name = "agyn-platform-database-urls"
+          key  = service
         }
-      ]
-    }
-    env = [
-      {
-        name  = "GRPC_ADDRESS"
-        value = ":50051"
-      },
-      {
-        name  = "DATABASE_URL"
-        value = format("postgresql://threads:%s@threads-db:5432/threads?sslmode=disable", var.threads_db_password)
-      },
-    ]
-    securityContext = {
-      runAsUser  = 100
-      runAsGroup = 101
-    }
-    image = {
-      repository = "ghcr.io/agynio/threads"
-      tag        = local.resolved_threads_image_tag
-      pullPolicy = "IfNotPresent"
-    }
-  })
-
-  metering_values = yamlencode({
-    replicaCount     = 1
-    fullnameOverride = "metering"
-    image = {
-      repository = "ghcr.io/agynio/metering"
-      tag        = local.resolved_metering_image_tag
-      pullPolicy = "IfNotPresent"
-    }
-    env = [
-      {
-        name  = "GRPC_ADDRESS"
-        value = ":50051"
-      },
-      {
-        name  = "DATABASE_URL"
-        value = format("postgresql://metering:%s@metering-db:5432/metering?sslmode=disable", var.metering_db_password)
-      },
-      {
-        name  = "LOG_LEVEL"
-        value = "info"
-      },
-    ]
-  })
-
-  tracing_values = yamlencode({
-    replicaCount     = 1
-    fullnameOverride = "tracing"
-    service = {
-      port = 50051
-    }
-    extraEnvVars = [
-      {
-        name  = "DATABASE_URL"
-        value = format("postgresql://tracing:%s@tracing-db:5432/tracing?sslmode=disable", var.tracing_db_password)
-      },
-      {
-        name  = "ZITI_ENABLED"
-        value = "true"
-      },
-    ]
-    image = {
-      repository = "ghcr.io/agynio/tracing"
-      tag        = local.resolved_tracing_image_tag
-      pullPolicy = "IfNotPresent"
-    }
-  })
-
-  chat_values = yamlencode({
-    fullnameOverride = "chat"
-    image = {
-      repository = "ghcr.io/agynio/chat"
-      tag        = local.resolved_chat_image_tag
-      pullPolicy = "IfNotPresent"
-    }
-    env = [
-      {
-        name  = "DATABASE_URL"
-        value = format("postgresql://chat:%s@chat-db:5432/chat?sslmode=disable", var.chat_db_password)
-      },
-    ]
-  })
-
-  secrets_values = yamlencode({
-    fullnameOverride = "secrets"
-    service = {
-      port = 50051
-    }
-    database = {
-      url = format("postgresql://secrets:%s@secrets-db:5432/secrets?sslmode=disable", var.secrets_db_password)
-    }
-    image = {
-      repository = "ghcr.io/agynio/secrets"
-      tag        = local.resolved_secrets_image_tag
-      pullPolicy = "IfNotPresent"
-    }
-    secrets = {
-      encryptionKeyFile       = "/etc/secrets-encryption/encryptionKey"
-      encryptionKeySecretName = "secrets-encryption-key"
-    }
-    egressRules = {
-      grpcTarget = "egress:50051"
-    }
-  })
-
-  egress_values = yamlencode({
-    replicaCount     = 1
-    fullnameOverride = "egress"
-    image = {
-      repository = "ghcr.io/agynio/egress"
-      tag        = local.resolved_egress_image_tag
-      pullPolicy = "IfNotPresent"
-    }
-    env = [
-      { name = "GRPC_ADDRESS", value = ":50051" },
-      { name = "DATABASE_URL", value = format("postgresql://egress:%s@egress-db:5432/egress?sslmode=disable", var.egress_db_password) },
-      { name = "ZITI_MANAGEMENT_ADDRESS", value = "ziti-management:50051" },
-      { name = "AUTHORIZATION_SERVICE_ADDRESS", value = "authorization:50051" },
-      { name = "SECRETS_SERVICE_ADDRESS", value = "secrets:50051" },
-      { name = "NOTIFICATIONS_ADDRESS", value = "notifications:50051" },
-      { name = "RECONCILIATION_INTERVAL", value = "30s" },
-    ]
-    resources = {
-      requests = { cpu = "50m", memory = "128Mi" }
-      limits   = { cpu = "500m", memory = "256Mi" }
-    }
-  })
-
-  egress_gateway_values = yamlencode({
-    replicaCount     = 1
-    fullnameOverride = "egress-gateway"
-    image = {
-      repository = "ghcr.io/agynio/egress-gateway"
-      tag        = local.resolved_egress_gateway_image_tag
-      pullPolicy = "IfNotPresent"
-    }
-    env = [
-      { name = "GRPC_ADDRESS", value = ":50051" },
-      { name = "EGRESS_ADDRESS", value = "egress:50051" },
-      { name = "SECRETS_SERVICE_ADDRESS", value = "secrets:50051" },
-      { name = "NOTIFICATIONS_ADDRESS", value = "notifications:50051" },
-      { name = "METERING_ADDRESS", value = "metering:50051" },
-      { name = "TRACING_ADDRESS", value = "tracing:50051" },
-      { name = "AGENTS_SERVICE_ADDRESS", value = "agents:50051" },
-      { name = "ZITI_MANAGEMENT_ADDRESS", value = "ziti-management:50051" },
-      { name = "EGRESS_CA_CERT_PATH", value = "/var/run/agyn/egress-ca/tls.crt" },
-      { name = "EGRESS_CA_KEY_PATH", value = "/var/run/agyn/egress-ca/tls.key" },
-      { name = "ZITI_ENROLLMENT_JWT_FILE", value = "/etc/ziti-enrollment/enrollmentJwt" },
-      { name = "ZITI_IDENTITY_NAME_RESOLVE", value = "true" },
-    ]
-    extraVolumeMounts = [
-      { name = "ziti-enrollment", mountPath = "/etc/ziti-enrollment", readOnly = true },
-      { name = "egress-ca", mountPath = "/var/run/agyn/egress-ca", readOnly = true },
-    ]
-    extraVolumes = [
-      { name = "ziti-enrollment", secret = { secretName = "egress-gateway-enrollment" } },
-      { name = "egress-ca", secret = { secretName = "egress-ca" } },
-    ]
-    resources = {
-      requests = { cpu = "100m", memory = "128Mi" }
-      limits   = { cpu = "1000m", memory = "512Mi" }
-    }
-  })
-
-  agents_values = yamlencode({
-    fullnameOverride = "agents"
-    image = {
-      repository = "ghcr.io/agynio/agents"
-      tag        = local.resolved_agents_image_tag
-      pullPolicy = "IfNotPresent"
-    }
-    env = [
-      {
-        name  = "DATABASE_URL"
-        value = format("postgresql://agents:%s@agents-db:5432/agents?sslmode=disable", var.agents_db_password)
-      },
-    ]
-  })
-
-  ziti_management_values = yamlencode({
-    fullnameOverride = "ziti-management"
-    image = {
-      repository = "ghcr.io/agynio/ziti-management"
-      tag        = local.resolved_ziti_management_image_tag
-      pullPolicy = "IfNotPresent"
-    }
-    updateStrategy = {
-      type = "Recreate"
-    }
-    securityContext = {
-      enabled                  = true
-      runAsNonRoot             = true
-      runAsUser                = 100
-      runAsGroup               = 101
-      readOnlyRootFilesystem   = true
-      allowPrivilegeEscalation = false
-      capabilities = {
-        drop = ["ALL"]
-      }
-      seccompProfile = {
-        type = "RuntimeDefault"
       }
     }
-    persistence = {
-      enabled    = true
-      accessMode = "ReadWriteOnce"
-      size       = "10Mi"
-    }
-    configMounts = [
-      {
-        name       = "ziti-enrollment"
-        sourceName = "ziti-management-enrollment"
-        type       = "secret"
-        mountPath  = "/etc/ziti-enrollment"
-        readOnly   = true
-      },
-    ]
-    env = [
-      {
-        name  = "DATABASE_URL"
-        value = format("postgresql://ziti_management:%s@ziti-management-db:5432/ziti_management?sslmode=disable", var.ziti_management_db_password)
-      },
-      {
-        name  = "ZITI_CONTROLLER_URL"
-        value = format("https://ziti-mgmt.%s:%d/edge/management/v1", local.base_domain, local.ingress_port)
-      },
-      {
-        name  = "ZITI_CERT_FILE"
-        value = "/var/lib/ziti/tls.crt"
-      },
-      {
-        name  = "ZITI_KEY_FILE"
-        value = "/var/lib/ziti/tls.key"
-      },
-      {
-        name  = "ZITI_CA_FILE"
-        value = "/var/lib/ziti/ca.crt"
-      },
-      {
-        name  = "ZITI_ENROLLMENT_JWT_FILE"
-        value = "/etc/ziti-enrollment/enrollmentJwt"
-      },
-      {
-        name  = "ZITI_IDENTITY_NAME_RESOLVE"
-        value = "true"
-      },
-    ]
-  })
+  }
 
-  users_values = yamlencode({
-    fullnameOverride = "users"
-    image = {
-      repository = "ghcr.io/agynio/users"
-      tag        = local.resolved_users_image_tag
-      pullPolicy = "IfNotPresent"
-    }
-    env = [
-      {
-        name  = "DATABASE_URL"
-        value = format("postgresql://users:%s@users-db:5432/users?sslmode=disable", var.users_db_password)
-      },
-    ]
-  })
-
-  expose_values = yamlencode({
-    fullnameOverride = "expose"
-    image = {
-      repository = "ghcr.io/agynio/expose"
-      tag        = local.resolved_expose_image_tag
-      pullPolicy = "IfNotPresent"
-    }
-    env = [
-      {
-        name  = "DATABASE_URL"
-        value = format("postgresql://expose:%s@expose-db:5432/expose?sslmode=disable", var.expose_db_password)
-      },
-      {
-        name  = "ZITI_MANAGEMENT_ADDRESS"
-        value = "ziti-management:50051"
-      },
-      {
-        name  = "RUNNERS_ADDRESS"
-        value = "runners:50051"
-      },
-      {
-        name  = "NOTIFICATIONS_ADDRESS"
-        value = "notifications:50051"
-      },
-      {
-        name  = "RECONCILIATION_INTERVAL"
-        value = "30s"
-      },
-    ]
-  })
-
-  organizations_values = yamlencode({
-    fullnameOverride = "organizations"
-    image = {
-      repository = "ghcr.io/agynio/organizations"
-      tag        = local.resolved_organizations_image_tag
-      pullPolicy = "IfNotPresent"
-    }
-    env = [
-      {
-        name  = "DATABASE_URL"
-        value = format("postgresql://organizations:%s@organizations-db:5432/organizations?sslmode=disable", var.organizations_db_password)
-      },
-    ]
-  })
-
-  identity_values = yamlencode({
-    replicaCount     = 1
-    fullnameOverride = "identity"
-    image = {
-      repository = "ghcr.io/agynio/identity"
-      tag        = local.resolved_identity_image_tag
-      pullPolicy = "IfNotPresent"
-    }
-    env = [
-      {
-        name  = "DATABASE_URL"
-        value = format("postgresql://identity:%s@identity-db:5432/identity?sslmode=disable", var.identity_db_password)
-      },
-    ]
-  })
-
-  runners_values = yamlencode({
-    replicaCount     = 1
-    fullnameOverride = "runners"
-    image = {
-      repository = "ghcr.io/agynio/runners"
-      tag        = local.resolved_runners_image_tag
-      pullPolicy = "IfNotPresent"
-    }
-    env = [
-      {
-        name  = "DATABASE_URL"
-        value = format("postgresql://runners:%s@runners-db:5432/runners?sslmode=disable", var.runners_db_password)
-      },
-    ]
-  })
-
-  apps_values = yamlencode({
-    replicaCount     = 1
-    fullnameOverride = "apps"
-    image = {
-      repository = "ghcr.io/agynio/apps"
-      tag        = local.resolved_apps_image_tag
-      pullPolicy = "IfNotPresent"
-    }
-    env = [
-      {
-        name  = "DATABASE_URL"
-        value = format("postgresql://apps:%s@apps-db:5432/apps?sslmode=disable", var.apps_db_password)
-      },
-    ]
-  })
-
-  agents_orchestrator_values = yamlencode({
-    replicaCount     = 1
-    fullnameOverride = "agents-orchestrator"
-    service = {
-      enabled = false
-    }
-    image = {
-      repository = "ghcr.io/agynio/agents-orchestrator"
-      tag        = local.resolved_agents_orchestrator_image_tag
-      pullPolicy = "IfNotPresent"
-    }
-    env = [
-      {
-        name  = "DATABASE_URL"
-        value = format("postgresql://orchestrator:%s@agents-orchestrator-db:5432/orchestrator?sslmode=disable", var.agents_orchestrator_db_password)
-      },
-      {
-        name  = "POLL_INTERVAL"
-        value = "5s"
-      },
-      {
-        name  = "IDLE_TIMEOUT"
-        value = "30s"
-      },
-      {
-        name  = "ZITI_ENABLED"
-        value = "true"
-      },
-      {
-        name  = "ZITI_SIDECAR_IMAGE"
-        value = "openziti/ziti-tunnel:2.0.0-pre8"
-      },
-      {
-        name  = "WORKLOAD_DNS_UPSTREAM"
-        value = kubernetes_service_v1.ziti_workload_dns.spec[0].cluster_ip
-      },
-      {
-        name  = "RUNNER_ADDRESS"
-        value = "k8s-runner:50051"
-      },
-      {
-        name  = "RUNNERS_ADDRESS"
-        value = "runners:50051"
-      },
-      {
-        name  = "EGRESS_CA_NAMESPACE"
-        value = "agyn-workloads"
-      }
-    ]
-  })
-
-  authorization_values = yamlencode({
-    fullnameOverride = "authorization"
-    image = {
-      repository = "ghcr.io/agynio/authorization"
-      tag        = local.resolved_authorization_image_tag
-    }
-    env = [
-      {
-        name  = "GRPC_ADDRESS"
-        value = ":50051"
-      },
-      {
-        name  = "OPENFGA_API_URL"
-        value = local.openfga_api_url_internal
-      },
-      {
-        name  = "OPENFGA_STORE_ID"
-        value = module.openfga_authorization.store_id
-      },
-      {
-        name  = "OPENFGA_MODEL_ID"
-        value = module.openfga_authorization.model_id
-      }
-    ]
-    securityContext = {
-      runAsUser  = 100
-      runAsGroup = 101
-    }
-  })
-
-  token_counting_values = yamlencode({
-    replicaCount     = 1
-    fullnameOverride = "token-counting"
-    service = {
-      port = 50051
-    }
-    image = {
-      repository = "ghcr.io/agynio/token-counting"
-      tag        = local.resolved_token_counting_image_tag
-      pullPolicy = "IfNotPresent"
-    }
-  })
-
-  redis_values = yamlencode({
+  notifications_redis_values = {
     fullnameOverride = "notifications-redis"
     architecture     = "standalone"
     auth = {
@@ -953,462 +490,904 @@ locals {
         enabled = false
       }
     }
-  })
+  }
 
-  notifications_values = yamlencode({
-    replicaCount     = 1
-    fullnameOverride = "notifications"
-    image = {
-      repository = "ghcr.io/agynio/notifications"
-      tag        = local.resolved_notifications_image_tag
-      pullPolicy = "IfNotPresent"
-    }
-    containerPorts = [
+  web_app_service_values = {
+    type = "ClusterIP"
+    ports = [
       {
-        name          = "grpc"
-        containerPort = 50051
-        protocol      = "TCP"
+        name       = "http"
+        port       = 3000
+        targetPort = "http"
+        protocol   = "TCP"
       }
     ]
-    service = {
-      enabled = true
-      type    = "ClusterIP"
-      ports = [
-        {
-          name       = "grpc"
-          port       = 50051
-          targetPort = "grpc"
-          protocol   = "TCP"
-        }
-      ]
-    }
-    env = [
+  }
+
+  web_app_extra_volumes = {
+    for app_name in ["chat-app", "console-app", "tracing-app"] : app_name => [
       {
-        name  = "GRPC_ADDR"
-        value = "0.0.0.0:50051"
+        name     = "${app_name}-cache"
+        emptyDir = {}
       },
       {
-        name  = "REDIS_ADDR"
-        value = var.notifications_redis_addr
+        name     = "${app_name}-run"
+        emptyDir = {}
       },
       {
-        name  = "REDIS_DB"
-        value = "0"
+        name     = "${app_name}-tmp"
+        emptyDir = {}
       },
       {
-        name  = "REDIS_CHANNEL"
-        value = "notifications.v1"
+        name     = "${app_name}-conf"
+        emptyDir = {}
+      },
+    ]
+  }
+
+  web_app_extra_volume_mounts = {
+    for app_name in ["chat-app", "console-app", "tracing-app"] : app_name => [
+      {
+        name      = "${app_name}-cache"
+        mountPath = "/var/cache/nginx"
       },
       {
-        name  = "LOG_LEVEL"
-        value = "info"
-      }
-    ]
-  })
-
-  files_values = yamlencode({
-    replicaCount     = 1
-    fullnameOverride = "files"
-    image = {
-      repository = "ghcr.io/agynio/files"
-      tag        = local.resolved_files_image_tag
-      pullPolicy = "IfNotPresent"
-    }
-    securityContext = {
-      enabled                  = true
-      runAsNonRoot             = true
-      runAsUser                = 65532
-      runAsGroup               = 65532
-      readOnlyRootFilesystem   = true
-      allowPrivilegeEscalation = false
-      capabilities = {
-        drop = ["ALL"]
-      }
-      seccompProfile = {
-        type = "RuntimeDefault"
-      }
-    }
-    containerPorts = [
+        name      = "${app_name}-run"
+        mountPath = "/var/run"
+      },
       {
-        name          = "grpc"
-        containerPort = 50051
-        protocol      = "TCP"
-      }
+        name      = "${app_name}-tmp"
+        mountPath = "/tmp"
+      },
+      {
+        name      = "${app_name}-conf"
+        mountPath = "/etc/nginx/conf.d"
+      },
     ]
-    service = {
-      enabled = true
-      type    = "ClusterIP"
-      ports = [
+  }
+
+  platform_values = yamlencode({
+    validation = {
+      requireExistingSecrets = false
+    }
+    platform = {
+      database = {
+        mode                     = "external"
+        existingSecret           = local.platform_database_secret_name
+        existingSecretKeyPattern = "{{ .service }}"
+      }
+      oidc = {
+        issuerUrl = var.oidc_issuer_url
+        clientId  = var.oidc_client_id
+      }
+    }
+    openfga = {
+      apiUrl  = local.openfga_api_url_internal
+      storeId = module.openfga_authorization.store_id
+      modelId = module.openfga_authorization.model_id
+    }
+    s3 = {
+      existingSecret = local.files_s3_secret_name
+      accessKeyKey   = "access-key"
+      secretKeyKey   = "secret-key"
+      endpoint       = "minio.minio.svc.cluster.local:9000"
+      bucket         = var.minio_bucket_name
+      region         = "us-east-1"
+      useSSL         = false
+      forcePathStyle = false
+    }
+    gateway = {
+      fullnameOverride = "gateway"
+      replicaCount     = 1
+      image = {
+        tag = local.resolved_gateway_image_tag
+      }
+      gateway = {
+        oidcIssuerUrl           = var.oidc_issuer_url
+        oidcClientId            = var.oidc_client_id
+        clusterAdminIdentityId  = local.cluster_admin_identity_id
+        usersGrpcTarget         = "users:50051"
+        organizationsGrpcTarget = "organizations:50051"
+        egressRulesGrpcTarget   = "egress:50051"
+      }
+      env = [
         {
-          name       = "grpc"
-          port       = 50051
-          targetPort = "grpc"
-          protocol   = "TCP"
-        }
+          name  = "ZITI_ENABLED"
+          value = "true"
+        },
+        {
+          name = "CLUSTER_ADMIN_TOKEN"
+          valueFrom = {
+            secretKeyRef = {
+              name = "agyn-cluster-admin"
+              key  = "token"
+            }
+          }
+        },
       ]
     }
-    livenessProbe = {
-      enabled = true
-      grpc = {
-        port = 50051
+    agents = {
+      fullnameOverride = "agents"
+      image = {
+        tag = local.resolved_agents_image_tag
       }
+      env = [local.database_url_env_refs["agents"]]
     }
-    readinessProbe = {
-      enabled = true
-      grpc = {
-        port = 50051
+    "agents-orchestrator" = {
+      fullnameOverride = "agents-orchestrator"
+      service = {
+        enabled = false
       }
-    }
-    files = {
-      databaseUrl = {
-        value = format("postgresql://files:%s@files-db:5432/files?sslmode=disable", var.files_db_password)
+      image = {
+        tag = local.resolved_agents_orchestrator_image_tag
       }
-      urlExpiry = "1h"
-      s3 = {
-        endpoint = "minio.minio.svc.cluster.local:9000"
-        bucket   = var.minio_bucket_name
-        region   = "us-east-1"
-        useSSL   = false
-        accessKey = {
-          value = var.minio_root_user
-        }
-        secretKey = {
-          value = var.minio_root_password
-        }
-      }
-    }
-  })
-
-  media_proxy_values = yamlencode({
-    replicaCount     = 1
-    fullnameOverride = "media-proxy"
-    image = {
-      repository = "ghcr.io/agynio/media-proxy"
-      tag        = local.resolved_media_proxy_image_tag
-      pullPolicy = "IfNotPresent"
-    }
-    containerPorts = [
-      {
-        name          = "http"
-        containerPort = 8080
-        protocol      = "TCP"
-      }
-    ]
-    service = {
-      enabled = true
-      type    = "ClusterIP"
-      ports = [
+      env = [
+        local.database_url_env_refs["agents-orchestrator"],
         {
-          name       = "http"
-          port       = 8080
-          targetPort = "http"
-          protocol   = "TCP"
-        }
+          name  = "POLL_INTERVAL"
+          value = "5s"
+        },
+        {
+          name  = "IDLE_TIMEOUT"
+          value = "30s"
+        },
+        {
+          name  = "ZITI_ENABLED"
+          value = "true"
+        },
+        {
+          name  = "ZITI_SIDECAR_IMAGE"
+          value = "openziti/ziti-tunnel:2.0.0-pre8"
+        },
+        {
+          name  = "RUNNER_ADDRESS"
+          value = "k8s-runner:50051"
+        },
+        {
+          name  = "RUNNERS_ADDRESS"
+          value = "runners:50051"
+        },
       ]
     }
-    mediaProxy = {
-      listenAddr        = ":8080"
-      oidcIssuerUrl     = var.oidc_issuer_url
-      oidcClientId      = var.oidc_client_id
-      usersGrpcTarget   = "users:50051"
-      filesGrpcTarget   = "files:50051"
-      corsAllowedOrigin = format("https://chat.%s:%d", local.base_domain, local.ingress_port)
-    }
-  })
-
-  llm_values = yamlencode({
-    fullnameOverride = "llm"
-    image = {
-      repository = "ghcr.io/agynio/llm"
-      tag        = local.resolved_llm_image_tag
-      pullPolicy = "IfNotPresent"
-    }
-    securityContext = {
-      enabled                  = true
-      runAsNonRoot             = true
-      runAsUser                = 65532
-      runAsGroup               = 65532
-      readOnlyRootFilesystem   = true
-      allowPrivilegeEscalation = false
-      capabilities = {
-        drop = ["ALL"]
+    threads = {
+      fullnameOverride = "threads"
+      replicaCount     = 1
+      service = {
+        ports = [
+          {
+            name       = "grpc"
+            port       = 50051
+            targetPort = "grpc"
+            protocol   = "TCP"
+          }
+        ]
       }
-      seccompProfile = {
-        type = "RuntimeDefault"
-      }
-    }
-    containerPorts = [
-      {
-        name          = "grpc"
-        containerPort = 50051
-        protocol      = "TCP"
-      }
-    ]
-    service = {
-      enabled = true
-      type    = "ClusterIP"
-      ports = [
+      env = [
         {
-          name       = "grpc"
-          port       = 50051
-          targetPort = "grpc"
-          protocol   = "TCP"
+          name  = "GRPC_ADDRESS"
+          value = ":50051"
+        },
+        local.database_url_env_refs["threads"],
+      ]
+      securityContext = {
+        runAsUser  = 100
+        runAsGroup = 101
+      }
+      image = {
+        tag = local.resolved_threads_image_tag
+      }
+    }
+    chat = {
+      fullnameOverride = "chat"
+      image = {
+        tag = local.resolved_chat_image_tag
+      }
+      env = [local.database_url_env_refs["chat"]]
+    }
+    users = {
+      fullnameOverride = "users"
+      image = {
+        tag = local.resolved_users_image_tag
+      }
+      env = [local.database_url_env_refs["users"]]
+    }
+    organizations = {
+      fullnameOverride = "organizations"
+      image = {
+        tag = local.resolved_organizations_image_tag
+      }
+      env = [local.database_url_env_refs["organizations"]]
+    }
+    identity = {
+      fullnameOverride = "identity"
+      replicaCount     = 1
+      image = {
+        tag = local.resolved_identity_image_tag
+      }
+      env = [local.database_url_env_refs["identity"]]
+    }
+    authorization = {
+      fullnameOverride = "authorization"
+      image = {
+        tag = local.resolved_authorization_image_tag
+      }
+      env = [
+        {
+          name  = "GRPC_ADDRESS"
+          value = ":50051"
+        },
+      ]
+      extraEnvVarsCM = "agyn-platform-openfga"
+      securityContext = {
+        runAsUser  = 100
+        runAsGroup = 101
+      }
+    }
+    apps = {
+      fullnameOverride = "apps"
+      replicaCount     = 1
+      image = {
+        tag = local.resolved_apps_image_tag
+      }
+      env = [local.database_url_env_refs["apps"]]
+    }
+    runners = {
+      fullnameOverride = "runners"
+      replicaCount     = 1
+      image = {
+        tag = local.resolved_runners_image_tag
+      }
+      env = [local.database_url_env_refs["runners"]]
+    }
+    "ziti-management" = {
+      fullnameOverride = "ziti-management"
+      image = {
+        tag = local.resolved_ziti_management_image_tag
+      }
+      updateStrategy = {
+        type = "Recreate"
+      }
+      securityContext = {
+        enabled                  = true
+        runAsNonRoot             = true
+        runAsUser                = 100
+        runAsGroup               = 101
+        readOnlyRootFilesystem   = true
+        allowPrivilegeEscalation = false
+        capabilities = {
+          drop = ["ALL"]
         }
+        seccompProfile = {
+          type = "RuntimeDefault"
+        }
+      }
+      persistence = {
+        enabled    = true
+        accessMode = "ReadWriteOnce"
+        size       = "10Mi"
+      }
+      configMounts = [
+        {
+          name       = "ziti-enrollment"
+          sourceName = "ziti-management-enrollment"
+          type       = "secret"
+          mountPath  = "/etc/ziti-enrollment"
+          readOnly   = true
+        },
+      ]
+      env = [
+        local.database_url_env_refs["ziti-management"],
+        {
+          name  = "ZITI_CONTROLLER_URL"
+          value = format("https://ziti-mgmt.%s:%d/edge/management/v1", local.base_domain, local.ingress_port)
+        },
+        {
+          name  = "ZITI_CERT_FILE"
+          value = "/var/lib/ziti/tls.crt"
+        },
+        {
+          name  = "ZITI_KEY_FILE"
+          value = "/var/lib/ziti/tls.key"
+        },
+        {
+          name  = "ZITI_CA_FILE"
+          value = "/var/lib/ziti/ca.crt"
+        },
+        {
+          name  = "ZITI_ENROLLMENT_JWT_FILE"
+          value = "/etc/ziti-enrollment/enrollmentJwt"
+        },
+        {
+          name  = "ZITI_IDENTITY_NAME_RESOLVE"
+          value = "true"
+        },
       ]
     }
-    livenessProbe = {
-      enabled = true
-      grpc = {
-        port = 50051
+    expose = {
+      fullnameOverride = "expose"
+      image = {
+        tag = local.resolved_expose_image_tag
+      }
+      env = [
+        local.database_url_env_refs["expose"],
+        {
+          name  = "ZITI_MANAGEMENT_ADDRESS"
+          value = "ziti-management:50051"
+        },
+        {
+          name  = "RUNNERS_ADDRESS"
+          value = "runners:50051"
+        },
+        {
+          name  = "NOTIFICATIONS_ADDRESS"
+          value = "notifications:50051"
+        },
+        {
+          name  = "RECONCILIATION_INTERVAL"
+          value = "30s"
+        },
+      ]
+    }
+    egress = {
+      fullnameOverride = "egress"
+      image = {
+        tag = local.resolved_egress_image_tag
+      }
+      env = [
+        { name = "GRPC_ADDRESS", value = ":50051" },
+        local.database_url_env_refs["egress"],
+        { name = "ZITI_MANAGEMENT_ADDRESS", value = "ziti-management:50051" },
+        { name = "AUTHORIZATION_SERVICE_ADDRESS", value = "authorization:50051" },
+        { name = "SECRETS_SERVICE_ADDRESS", value = "secrets:50051" },
+        { name = "NOTIFICATIONS_ADDRESS", value = "notifications:50051" },
+        { name = "RECONCILIATION_INTERVAL", value = "30s" },
+      ]
+      resources = {
+        requests = { cpu = "50m", memory = "128Mi" }
+        limits   = { cpu = "500m", memory = "256Mi" }
       }
     }
-    readinessProbe = {
-      enabled = true
-      grpc = {
+    "egress-gateway" = {
+      fullnameOverride = "egress-gateway"
+      image = {
+        tag = local.resolved_egress_gateway_image_tag
+      }
+      env = [
+        { name = "GRPC_ADDRESS", value = ":50051" },
+        { name = "EGRESS_ADDRESS", value = "egress:50051" },
+        { name = "SECRETS_SERVICE_ADDRESS", value = "secrets:50051" },
+        { name = "NOTIFICATIONS_ADDRESS", value = "notifications:50051" },
+        { name = "METERING_ADDRESS", value = "metering:50051" },
+        { name = "TRACING_ADDRESS", value = "tracing:50051" },
+        { name = "AGENTS_SERVICE_ADDRESS", value = "agents:50051" },
+        { name = "ZITI_MANAGEMENT_ADDRESS", value = "ziti-management:50051" },
+        { name = "EGRESS_CA_CERT_PATH", value = "/var/run/agyn/egress-ca/tls.crt" },
+        { name = "EGRESS_CA_KEY_PATH", value = "/var/run/agyn/egress-ca/tls.key" },
+        { name = "ZITI_ENROLLMENT_JWT_FILE", value = "/etc/ziti-enrollment/enrollmentJwt" },
+        { name = "ZITI_IDENTITY_NAME_RESOLVE", value = "true" },
+      ]
+      extraVolumeMounts = [
+        { name = "ziti-enrollment", mountPath = "/etc/ziti-enrollment", readOnly = true },
+        { name = "egress-ca", mountPath = "/var/run/agyn/egress-ca", readOnly = true },
+      ]
+      extraVolumes = [
+        { name = "ziti-enrollment", secret = { secretName = "egress-gateway-enrollment" } },
+        { name = "egress-ca", secret = { secretName = "egress-ca" } },
+      ]
+      resources = {
+        requests = { cpu = "100m", memory = "128Mi" }
+        limits   = { cpu = "1000m", memory = "512Mi" }
+      }
+    }
+    secrets = {
+      fullnameOverride = "secrets"
+      service = {
         port = 50051
+      }
+      database = {
+        existingSecret = {
+          name = "agyn-platform-database-urls"
+          key  = "secrets"
+        }
+      }
+      image = {
+        tag = local.resolved_secrets_image_tag
+      }
+      secrets = {
+        encryptionKeyFile       = "/etc/secrets-encryption/encryptionKey"
+        encryptionKeySecretName = "secrets-encryption-key"
+      }
+      egressRules = {
+        grpcTarget = "egress:50051"
       }
     }
     llm = {
-      databaseUrl = {
-        value = format("postgresql://llm:%s@llm-db:5432/llm?sslmode=disable", var.llm_db_password)
+      fullnameOverride = "llm"
+      image = {
+        tag = local.resolved_llm_image_tag
       }
-    }
-  })
-  chat_app_values = yamlencode({
-    replicaCount     = 1
-    fullnameOverride = "chat-app"
-    image = {
-      repository = "ghcr.io/agynio/chat-app"
-      tag        = local.resolved_chat_app_image_tag
-      pullPolicy = "IfNotPresent"
-    }
-    service = {
-      type = "ClusterIP"
-      ports = [
+      securityContext = {
+        enabled                  = true
+        runAsNonRoot             = true
+        runAsUser                = 65532
+        runAsGroup               = 65532
+        readOnlyRootFilesystem   = true
+        allowPrivilegeEscalation = false
+        capabilities = {
+          drop = ["ALL"]
+        }
+        seccompProfile = {
+          type = "RuntimeDefault"
+        }
+      }
+      containerPorts = [
         {
-          name       = "http"
-          port       = 3000
-          targetPort = "http"
-          protocol   = "TCP"
+          name          = "grpc"
+          containerPort = 50051
+          protocol      = "TCP"
         }
       ]
+      service = {
+        enabled = true
+        type    = "ClusterIP"
+        ports = [
+          {
+            name       = "grpc"
+            port       = 50051
+            targetPort = "grpc"
+            protocol   = "TCP"
+          }
+        ]
+      }
+      livenessProbe = {
+        enabled = true
+        grpc = {
+          port = 50051
+        }
+      }
+      readinessProbe = {
+        enabled = true
+        grpc = {
+          port = 50051
+        }
+      }
+      llm = {
+        databaseUrl = {
+          existingSecret    = "agyn-platform-database-urls"
+          existingSecretKey = "llm"
+        }
+      }
     }
-    extraVolumes = [
-      {
-        name     = "chat-app-cache"
-        emptyDir = {}
-      },
-      {
-        name     = "chat-app-run"
-        emptyDir = {}
-      },
-      {
-        name     = "chat-app-tmp"
-        emptyDir = {}
-      },
-      {
-        name     = "chat-app-conf"
-        emptyDir = {}
+    "llm-proxy" = {
+      fullnameOverride = "llm-proxy"
+      image = {
+        tag = local.resolved_llm_proxy_image_tag
       }
-    ]
-    extraVolumeMounts = [
-      {
-        name      = "chat-app-cache"
-        mountPath = "/var/cache/nginx"
-      },
-      {
-        name      = "chat-app-run"
-        mountPath = "/var/run"
-      },
-      {
-        name      = "chat-app-tmp"
-        mountPath = "/tmp"
-      },
-      {
-        name      = "chat-app-conf"
-        mountPath = "/etc/nginx/conf.d"
+      securityContext = {
+        enabled                  = true
+        runAsNonRoot             = true
+        runAsUser                = 65532
+        runAsGroup               = 65532
+        readOnlyRootFilesystem   = true
+        allowPrivilegeEscalation = false
+        capabilities = {
+          drop = ["ALL"]
+        }
+        seccompProfile = {
+          type = "RuntimeDefault"
+        }
       }
+      env = [
+        {
+          name  = "ZITI_ENABLED"
+          value = "true"
+        },
+      ]
+    }
+    "token-counting" = {
+      fullnameOverride = "token-counting"
+      service = {
+        port = 50051
+      }
+      image = {
+        tag = local.resolved_token_counting_image_tag
+      }
+    }
+    tracing = {
+      fullnameOverride = "tracing"
+      replicaCount     = 1
+      service = {
+        port = 50051
+      }
+      extraEnvVars = [
+        local.database_url_env_refs["tracing"],
+        {
+          name  = "ZITI_ENABLED"
+          value = "true"
+        },
+      ]
+      image = {
+        tag = local.resolved_tracing_image_tag
+      }
+    }
+    notifications = {
+      fullnameOverride = "notifications"
+      replicaCount     = 1
+      redis = {
+        enabled         = true
+        externalAddress = "notifications-redis-master.${var.platform_namespace}.svc.cluster.local:6379"
+      }
+      image = {
+        tag = local.resolved_notifications_image_tag
+      }
+      containerPorts = [
+        {
+          name          = "grpc"
+          containerPort = 50051
+          protocol      = "TCP"
+        }
+      ]
+      service = {
+        enabled = true
+        type    = "ClusterIP"
+        ports = [
+          {
+            name       = "grpc"
+            port       = 50051
+            targetPort = "grpc"
+            protocol   = "TCP"
+          }
+        ]
+      }
+      env = [
+        {
+          name  = "GRPC_ADDR"
+          value = "0.0.0.0:50051"
+        },
+        {
+          name  = "REDIS_ADDR"
+          value = "notifications-redis-master.${var.platform_namespace}.svc.cluster.local:6379"
+        },
+        {
+          name  = "REDIS_DB"
+          value = "0"
+        },
+        {
+          name  = "REDIS_CHANNEL"
+          value = "notifications.v1"
+        },
+        {
+          name  = "LOG_LEVEL"
+          value = "info"
+        },
+      ]
+    }
+    "notifications-redis" = local.notifications_redis_values
+    files = {
+      fullnameOverride = "files"
+      replicaCount     = 1
+      image = {
+        tag = local.resolved_files_image_tag
+      }
+      securityContext = {
+        enabled                  = true
+        runAsNonRoot             = true
+        runAsUser                = 65532
+        runAsGroup               = 65532
+        readOnlyRootFilesystem   = true
+        allowPrivilegeEscalation = false
+        capabilities = {
+          drop = ["ALL"]
+        }
+        seccompProfile = {
+          type = "RuntimeDefault"
+        }
+      }
+      containerPorts = [
+        {
+          name          = "grpc"
+          containerPort = 50051
+          protocol      = "TCP"
+        }
+      ]
+      service = {
+        enabled = true
+        type    = "ClusterIP"
+        ports = [
+          {
+            name       = "grpc"
+            port       = 50051
+            targetPort = "grpc"
+            protocol   = "TCP"
+          }
+        ]
+      }
+      livenessProbe = {
+        enabled = true
+        grpc = {
+          port = 50051
+        }
+      }
+      readinessProbe = {
+        enabled = true
+        grpc = {
+          port = 50051
+        }
+      }
+      files = {
+        databaseUrl = {
+          existingSecret    = "agyn-platform-database-urls"
+          existingSecretKey = "files"
+        }
+        urlExpiry = "1h"
+        s3 = {
+          endpoint = "minio.minio.svc.cluster.local:9000"
+          bucket   = var.minio_bucket_name
+          region   = "us-east-1"
+          useSSL   = false
+          accessKey = {
+            existingSecret    = "agyn-files-s3"
+            existingSecretKey = "access-key"
+          }
+          secretKey = {
+            existingSecret    = "agyn-files-s3"
+            existingSecretKey = "secret-key"
+          }
+        }
+      }
+    }
+    "media-proxy" = {
+      fullnameOverride = "media-proxy"
+      replicaCount     = 1
+      image = {
+        tag = local.resolved_media_proxy_image_tag
+      }
+      containerPorts = [
+        {
+          name          = "http"
+          containerPort = 8080
+          protocol      = "TCP"
+        }
+      ]
+      service = {
+        enabled = true
+        type    = "ClusterIP"
+        ports = [
+          {
+            name       = "http"
+            port       = 8080
+            targetPort = "http"
+            protocol   = "TCP"
+          }
+        ]
+      }
+      mediaProxy = {
+        listenAddr        = ":8080"
+        oidcIssuerUrl     = var.oidc_issuer_url
+        oidcClientId      = var.oidc_client_id
+        usersGrpcTarget   = "users:50051"
+        filesGrpcTarget   = "files:50051"
+        corsAllowedOrigin = format("https://chat.%s:%d", local.base_domain, local.ingress_port)
+      }
+    }
+    "chat-app" = {
+      fullnameOverride = "chat-app"
+      replicaCount     = 1
+      image = {
+        tag = local.resolved_chat_app_image_tag
+      }
+      service           = local.web_app_service_values
+      extraVolumes      = local.web_app_extra_volumes["chat-app"]
+      extraVolumeMounts = local.web_app_extra_volume_mounts["chat-app"]
+      env = [
+        {
+          name  = "OIDC_AUTHORITY"
+          value = var.oidc_issuer_url
+        },
+        {
+          name  = "OIDC_CLIENT_ID"
+          value = var.oidc_client_id
+        },
+        {
+          name  = "OIDC_REDIRECT_URI"
+          value = format("https://chat.%s:%d/callback", local.base_domain, local.ingress_port)
+        },
+        {
+          name  = "OIDC_POST_LOGOUT_REDIRECT_URI"
+          value = format("https://chat.%s:%d", local.base_domain, local.ingress_port)
+        },
+        {
+          name  = "OIDC_SCOPE"
+          value = "openid profile email offline_access"
+        },
+        {
+          name  = "API_BASE_URL"
+          value = "/api"
+        },
+        {
+          name  = "MEDIA_PROXY_URL"
+          value = format("https://media.%s:%d", local.base_domain, local.ingress_port)
+        },
+      ]
+    }
+    "console-app" = {
+      fullnameOverride = "console-app"
+      replicaCount     = 1
+      image = {
+        tag = local.resolved_console_app_image_tag
+      }
+      service           = local.web_app_service_values
+      extraVolumes      = local.web_app_extra_volumes["console-app"]
+      extraVolumeMounts = local.web_app_extra_volume_mounts["console-app"]
+      env = [
+        {
+          name  = "OIDC_AUTHORITY"
+          value = var.oidc_issuer_url
+        },
+        {
+          name  = "OIDC_CLIENT_ID"
+          value = var.console_app_oidc_client_id
+        },
+        {
+          name  = "OIDC_SCOPE"
+          value = "openid profile email offline_access"
+        },
+        {
+          name  = "API_BASE_URL"
+          value = "/api"
+        },
+      ]
+    }
+    "tracing-app" = {
+      fullnameOverride = "tracing-app"
+      replicaCount     = 1
+      image = {
+        tag = local.resolved_tracing_app_image_tag
+      }
+      service           = local.web_app_service_values
+      extraVolumes      = local.web_app_extra_volumes["tracing-app"]
+      extraVolumeMounts = local.web_app_extra_volume_mounts["tracing-app"]
+      env = [
+        {
+          name  = "API_BASE_URL"
+          value = "/api"
+        },
+        {
+          name  = "OIDC_AUTHORITY"
+          value = var.oidc_issuer_url
+        },
+        {
+          name  = "OIDC_CLIENT_ID"
+          value = local.resolved_tracing_app_oidc_client_id
+        },
+        {
+          name  = "OIDC_SCOPE"
+          value = "openid profile email offline_access"
+        },
+      ]
+    }
+    registryMirror = {
+      enabled = false
+    }
+    ncps = {
+      enabled = false
+    }
+  })
+  ncps_values = yamlencode({
+    fullnameOverride = "ncps"
+    replicaCount     = 1
+    image = {
+      repository = "kalbasit/ncps"
+      tag        = "v0.9.3"
+      pullPolicy = "IfNotPresent"
+    }
+    securityContext = {
+      runAsNonRoot = false
+    }
+    command = ["/bin/ncps"]
+    args = [
+      "serve",
+      "--server-addr=0.0.0.0:8501",
+      "--cache-hostname=ncps",
+      "--cache-storage-local=/storage",
+      "--cache-temp-path=/storage/tmp",
+      "--cache-database-url=sqlite:/storage/var/ncps/db/db.sqlite",
+      "--cache-upstream-url=https://cache.nixos.org",
+      "--cache-upstream-public-key=cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY="
     ]
     env = [
       {
-        name  = "OIDC_AUTHORITY"
-        value = var.oidc_issuer_url
-      },
-      {
-        name  = "OIDC_CLIENT_ID"
-        value = var.oidc_client_id
-      },
-      {
-        name  = "OIDC_REDIRECT_URI"
-        value = format("https://chat.%s:%d/callback", local.base_domain, local.ingress_port)
-      },
-      {
-        name  = "OIDC_POST_LOGOUT_REDIRECT_URI"
-        value = format("https://chat.%s:%d", local.base_domain, local.ingress_port)
-      },
-      {
-        name  = "OIDC_SCOPE"
-        value = "openid profile email offline_access"
-      },
-      {
-        name  = "API_BASE_URL"
-        value = "/api"
-      },
-      {
-        name  = "MEDIA_PROXY_URL"
-        value = format("https://media.%s:%d", local.base_domain, local.ingress_port)
+        name  = "PROMETHEUS_ENABLED"
+        value = "true"
       }
     ]
-  })
-
-  console_app_values = yamlencode({
-    replicaCount     = 1
-    fullnameOverride = "console-app"
-    image = {
-      repository = "ghcr.io/agynio/console-app"
-      tag        = local.resolved_console_app_image_tag
-      pullPolicy = "IfNotPresent"
-    }
+    initContainers = [
+      {
+        name  = "ncps-init"
+        image = "alpine:3.20"
+        command = [
+          "/bin/sh",
+          "-c",
+          "mkdir -m 0755 -p /storage/var && mkdir -m 0700 -p /storage/var/ncps && mkdir -m 0700 -p /storage/var/ncps/db && mkdir -m 0700 -p /storage/tmp"
+        ]
+        volumeMounts = [
+          {
+            name      = "storage"
+            mountPath = "/storage"
+          }
+        ]
+      },
+      {
+        name  = "ncps-migrate"
+        image = "kalbasit/ncps:v0.9.3"
+        command = [
+          "/bin/dbmate",
+        ]
+        args = [
+          "--url=sqlite:/storage/var/ncps/db/db.sqlite",
+          "up",
+        ]
+        volumeMounts = [
+          {
+            name      = "storage"
+            mountPath = "/storage"
+          }
+        ]
+      }
+    ]
+    containerPorts = [
+      {
+        name          = "http"
+        containerPort = 8501
+        protocol      = "TCP"
+      }
+    ]
     service = {
-      type = "ClusterIP"
+      enabled = true
+      type    = "ClusterIP"
       ports = [
         {
           name       = "http"
-          port       = 3000
+          port       = 8501
           targetPort = "http"
-          protocol   = "TCP"
         }
       ]
     }
-    extraVolumes = [
-      {
-        name     = "console-app-cache"
-        emptyDir = {}
-      },
-      {
-        name     = "console-app-run"
-        emptyDir = {}
-      },
-      {
-        name     = "console-app-tmp"
-        emptyDir = {}
-      },
-      {
-        name     = "console-app-conf"
-        emptyDir = {}
-      }
-    ]
-    extraVolumeMounts = [
-      {
-        name      = "console-app-cache"
-        mountPath = "/var/cache/nginx"
-      },
-      {
-        name      = "console-app-run"
-        mountPath = "/var/run"
-      },
-      {
-        name      = "console-app-tmp"
-        mountPath = "/tmp"
-      },
-      {
-        name      = "console-app-conf"
-        mountPath = "/etc/nginx/conf.d"
-      }
-    ]
-    env = [
-      {
-        name  = "OIDC_AUTHORITY"
-        value = var.oidc_issuer_url
-      },
-      {
-        name  = "OIDC_CLIENT_ID"
-        value = var.console_app_oidc_client_id
-      },
-      {
-        name  = "OIDC_SCOPE"
-        value = "openid profile email offline_access"
-      },
-      {
-        name  = "API_BASE_URL"
-        value = "/api"
-      }
-    ]
-  })
-
-  tracing_app_values = yamlencode({
-    replicaCount     = 1
-    fullnameOverride = "tracing-app"
-    image = {
-      repository = "ghcr.io/agynio/tracing-app"
-      tag        = local.resolved_tracing_app_image_tag
-      pullPolicy = "IfNotPresent"
+    persistence = {
+      enabled     = true
+      accessModes = ["ReadWriteOnce"]
+      size        = "10Gi"
     }
-    service = {
-      type = "ClusterIP"
-      ports = [
-        {
-          name       = "http"
-          port       = 3000
-          targetPort = "http"
-          protocol   = "TCP"
-        }
-      ]
+    livenessProbe = {
+      enabled = true
+      httpGet = {
+        path = "/nix-cache-info"
+        port = "http"
+      }
+      failureThreshold = 3
+      periodSeconds    = 30
     }
-    extraVolumes = [
-      {
-        name     = "tracing-app-cache"
-        emptyDir = {}
-      },
-      {
-        name     = "tracing-app-run"
-        emptyDir = {}
-      },
-      {
-        name     = "tracing-app-tmp"
-        emptyDir = {}
-      },
-      {
-        name     = "tracing-app-conf"
-        emptyDir = {}
+    readinessProbe = {
+      enabled = true
+      httpGet = {
+        path = "/nix-cache-info"
+        port = "http"
       }
-    ]
-    extraVolumeMounts = [
-      {
-        name      = "tracing-app-cache"
-        mountPath = "/var/cache/nginx"
-      },
-      {
-        name      = "tracing-app-run"
-        mountPath = "/var/run"
-      },
-      {
-        name      = "tracing-app-tmp"
-        mountPath = "/tmp"
-      },
-      {
-        name      = "tracing-app-conf"
-        mountPath = "/etc/nginx/conf.d"
+      failureThreshold = 3
+      periodSeconds    = 10
+    }
+    startupProbe = {
+      enabled = true
+      httpGet = {
+        path = "/nix-cache-info"
+        port = "http"
       }
-    ]
-    env = [
-      {
-        name  = "API_BASE_URL"
-        value = "/api"
-      },
-      {
-        name  = "OIDC_AUTHORITY"
-        value = var.oidc_issuer_url
-      },
-      {
-        name  = "OIDC_CLIENT_ID"
-        value = local.resolved_tracing_app_oidc_client_id
-      },
-      {
-        name  = "OIDC_SCOPE"
-        value = "openid profile email offline_access"
-      }
-    ]
+      failureThreshold = 12
+      periodSeconds    = 5
+    }
+    migrationJob = {
+      enabled = false
+    }
   })
 }
 
@@ -1416,7 +1395,7 @@ locals {
 # var.authorization_chart_version to ensure the provisioned FGA model
 # matches the model expected by the deployed Helm chart.
 module "openfga_authorization" {
-  source          = "github.com/agynio/authorization//terraform?ref=v0.5.4"
+  source          = "github.com/agynio/authorization//terraform?ref=v0.5.3"
   openfga_api_url = local.openfga_api_url_external
 }
 
@@ -1523,63 +1502,6 @@ resource "kubernetes_manifest" "egress_ca_certificate" {
   depends_on = [kubernetes_manifest.agyn_selfsigned_cluster_issuer]
 }
 
-# DEV/E2E ONLY: ziti-diagnostics contains admin UPDB credentials
-# for diagnostics tests. Keep enable_ziti_diagnostics=false in prod.
-resource "kubernetes_secret_v1" "ziti_diagnostics" {
-  count = var.enable_ziti_diagnostics ? 1 : 0
-
-  metadata {
-    name      = local.ziti_diagnostics_secret_name
-    namespace = kubernetes_namespace.platform.metadata[0].name
-  }
-
-  type = "Opaque"
-
-  data = {
-    username = data.terraform_remote_state.ziti.outputs.ziti_diagnostics_credentials.username
-    password = data.terraform_remote_state.ziti.outputs.ziti_diagnostics_credentials.password
-  }
-}
-
-resource "kubernetes_role_v1" "ziti_diagnostics_reader" {
-  count = var.enable_ziti_diagnostics ? 1 : 0
-
-  metadata {
-    name      = "ziti-diagnostics-reader"
-    namespace = kubernetes_namespace.platform.metadata[0].name
-  }
-
-  rule {
-    api_groups     = [""]
-    resources      = ["secrets"]
-    resource_names = [kubernetes_secret_v1.ziti_diagnostics[0].metadata[0].name]
-    verbs          = ["get"]
-  }
-}
-
-# DEV/E2E ONLY: grants agents-orchestrator-e2e access to the diagnostics
-# secret. Production deployments must not create this binding.
-resource "kubernetes_role_binding_v1" "ziti_diagnostics_reader" {
-  count = var.enable_ziti_diagnostics ? 1 : 0
-
-  metadata {
-    name      = "ziti-diagnostics-reader"
-    namespace = kubernetes_namespace.platform.metadata[0].name
-  }
-
-  role_ref {
-    api_group = "rbac.authorization.k8s.io"
-    kind      = "Role"
-    name      = kubernetes_role_v1.ziti_diagnostics_reader[0].metadata[0].name
-  }
-
-  subject {
-    kind      = "ServiceAccount"
-    name      = "agents-orchestrator-e2e"
-    namespace = kubernetes_namespace.platform.metadata[0].name
-  }
-}
-
 resource "kubernetes_secret_v1" "secrets_encryption_key" {
   metadata {
     name      = "secrets-encryption-key"
@@ -1590,6 +1512,48 @@ resource "kubernetes_secret_v1" "secrets_encryption_key" {
 
   data = {
     encryptionKey = var.secrets_encryption_key
+  }
+}
+
+resource "kubernetes_secret_v1" "platform_database_urls" {
+  metadata {
+    name      = local.platform_database_secret_name
+    namespace = kubernetes_namespace.platform.metadata[0].name
+  }
+
+  type = "Opaque"
+
+  data = local.platform_database_urls
+
+  depends_on = [kubernetes_namespace.platform]
+}
+
+resource "kubernetes_secret_v1" "files_s3" {
+  metadata {
+    name      = local.files_s3_secret_name
+    namespace = kubernetes_namespace.platform.metadata[0].name
+  }
+
+  type = "Opaque"
+
+  data = {
+    access-key = var.minio_root_user
+    secret-key = var.minio_root_password
+  }
+
+  depends_on = [kubernetes_namespace.platform]
+}
+
+resource "kubernetes_secret_v1" "cluster_admin" {
+  metadata {
+    name      = "agyn-cluster-admin"
+    namespace = kubernetes_namespace.platform.metadata[0].name
+  }
+
+  type = "Opaque"
+
+  data = {
+    token = random_password.cluster_admin_token.result
   }
 }
 
@@ -2120,10 +2084,11 @@ resource "kubernetes_stateful_set_v1" "files_db" {
     }
   }
 }
-resource "argocd_repository" "bitnami_repo" {
-  repo = "https://charts.bitnami.com/bitnami"
-  type = "helm"
+resource "argocd_repository" "twuni_docker_registry" {
+  repo = local.registry_mirror_repo_url
+  type = "git"
 }
+
 resource "argocd_repository" "ghcr" {
   repo       = "ghcr.io"
   type       = "helm"
@@ -2413,54 +2378,6 @@ resource "argocd_application" "secrets_db" {
     sync_policy {
       # DB apps always use automated sync with prune disabled for stateful safety,
       # independent of var.argocd_automated_sync_enabled.
-      automated {
-        prune       = false
-        self_heal   = true
-        allow_empty = false
-      }
-
-      sync_options = local.postgres_sync_options
-    }
-  }
-
-  timeouts {
-    create = "5m"
-    update = "5m"
-    delete = "5m"
-  }
-}
-
-resource "argocd_application" "egress_db" {
-  depends_on = [argocd_repository.ghcr]
-  wait       = true
-
-  metadata {
-    name      = "egress-db"
-    namespace = "argocd"
-    annotations = {
-      "argocd.argoproj.io/sync-wave" = "7"
-    }
-  }
-
-  spec {
-    project = "default"
-
-    source {
-      repo_url        = local.postgres_chart_repo_host
-      chart           = local.postgres_chart_name
-      target_revision = var.postgres_chart_version
-
-      helm {
-        values = local.egress_db_values
-      }
-    }
-
-    destination {
-      server    = var.destination_server
-      namespace = var.platform_namespace
-    }
-
-    sync_policy {
       automated {
         prune       = false
         self_heal   = true
@@ -2978,16 +2895,13 @@ resource "argocd_application" "apps_db" {
   }
 }
 
-resource "argocd_application" "threads" {
-  depends_on = [
-    argocd_repository.ghcr,
-    argocd_application.threads_db,
-  ]
+resource "argocd_application" "registry_mirror" {
+  depends_on = [argocd_repository.twuni_docker_registry]
   metadata {
-    name      = "threads"
+    name      = "registry-mirror"
     namespace = "argocd"
     annotations = {
-      "argocd.argoproj.io/sync-wave" = "16"
+      "argocd.argoproj.io/sync-wave" = "1"
     }
   }
 
@@ -2995,12 +2909,12 @@ resource "argocd_application" "threads" {
     project = "default"
 
     source {
-      repo_url        = local.platform_chart_repo_host
-      chart           = local.threads_chart_name
-      target_revision = var.threads_chart_version
+      repo_url        = local.registry_mirror_repo_url
+      target_revision = local.registry_mirror_chart_revision
+      path            = local.registry_mirror_chart_path
 
       helm {
-        values = local.threads_values
+        values = local.registry_mirror_values
       }
     }
 
@@ -3024,298 +2938,13 @@ resource "argocd_application" "threads" {
   }
 }
 
-resource "argocd_application" "metering" {
-  depends_on = [
-    argocd_repository.ghcr,
-    argocd_application.metering_db,
-  ]
-  metadata {
-    name      = "metering"
-    namespace = "argocd"
-    annotations = {
-      "argocd.argoproj.io/sync-wave" = "16"
-    }
-  }
-
-  spec {
-    project = "default"
-
-    source {
-      repo_url        = local.platform_chart_repo_host
-      chart           = local.metering_chart_name
-      target_revision = var.metering_chart_version
-
-      helm {
-        values = local.metering_values
-      }
-    }
-
-    destination {
-      server    = var.destination_server
-      namespace = var.platform_namespace
-    }
-
-    sync_policy {
-      dynamic "automated" {
-        for_each = var.argocd_automated_sync_enabled ? [1] : []
-        content {
-          prune       = var.argocd_prune_enabled
-          self_heal   = var.argocd_self_heal_enabled
-          allow_empty = false
-        }
-      }
-
-      sync_options = local.default_sync_options
-    }
-  }
-}
-
-resource "argocd_application" "tracing" {
-  depends_on = [
-    argocd_repository.ghcr,
-    argocd_application.tracing_db,
-    argocd_application.ziti_management,
-  ]
-  metadata {
-    name      = "tracing"
-    namespace = "argocd"
-    annotations = {
-      "argocd.argoproj.io/sync-wave" = "16"
-    }
-  }
-
-  spec {
-    project = "default"
-
-    source {
-      repo_url        = local.platform_chart_repo_host
-      chart           = local.tracing_chart_name
-      target_revision = var.tracing_chart_version
-
-      helm {
-        values = local.tracing_values
-      }
-    }
-
-    destination {
-      server    = var.destination_server
-      namespace = var.platform_namespace
-    }
-
-    sync_policy {
-      dynamic "automated" {
-        for_each = var.argocd_automated_sync_enabled ? [1] : []
-        content {
-          prune       = var.argocd_prune_enabled
-          self_heal   = var.argocd_self_heal_enabled
-          allow_empty = false
-        }
-      }
-
-      sync_options = local.default_sync_options
-    }
-  }
-}
-
-resource "argocd_application" "chat" {
-  depends_on = [
-    argocd_repository.ghcr,
-    argocd_application.chat_db,
-    argocd_application.threads,
-  ]
-  metadata {
-    name      = "chat"
-    namespace = "argocd"
-    annotations = {
-      "argocd.argoproj.io/sync-wave" = "17"
-    }
-  }
-
-  spec {
-    project = "default"
-
-    source {
-      repo_url        = local.platform_chart_repo_host
-      chart           = local.chat_chart_name
-      target_revision = var.chat_chart_version
-
-      helm {
-        values = local.chat_values
-      }
-    }
-
-    destination {
-      server    = var.destination_server
-      namespace = var.platform_namespace
-    }
-
-    sync_policy {
-      dynamic "automated" {
-        for_each = var.argocd_automated_sync_enabled ? [1] : []
-        content {
-          prune       = var.argocd_prune_enabled
-          self_heal   = var.argocd_self_heal_enabled
-          allow_empty = false
-        }
-      }
-
-      sync_options = local.default_sync_options
-    }
-  }
-}
-
-resource "argocd_application" "secrets" {
-  depends_on = [
-    argocd_repository.ghcr,
-    argocd_application.secrets_db,
-  ]
-  metadata {
-    name      = "secrets"
-    namespace = "argocd"
-    annotations = {
-      "argocd.argoproj.io/sync-wave" = "16"
-    }
-  }
-
-  spec {
-    project = "default"
-
-    source {
-      repo_url        = local.platform_chart_repo_host
-      chart           = local.secrets_chart_name
-      target_revision = var.secrets_chart_version
-
-      helm {
-        values = local.secrets_values
-      }
-    }
-
-    destination {
-      server    = var.destination_server
-      namespace = var.platform_namespace
-    }
-
-    sync_policy {
-      dynamic "automated" {
-        for_each = var.argocd_automated_sync_enabled ? [1] : []
-        content {
-          prune       = var.argocd_prune_enabled
-          self_heal   = var.argocd_self_heal_enabled
-          allow_empty = false
-        }
-      }
-
-      sync_options = local.default_sync_options
-    }
-  }
-}
-
-resource "argocd_application" "authorization" {
-  depends_on = [
-    argocd_repository.ghcr,
-    module.openfga_authorization,
-  ]
-  wait = true
-  metadata {
-    name      = "authorization"
-    namespace = "argocd"
-    annotations = {
-      "argocd.argoproj.io/sync-wave" = "16"
-    }
-  }
-
-  spec {
-    project = "default"
-
-    source {
-      repo_url        = local.platform_chart_repo_host
-      chart           = local.authorization_chart_name
-      target_revision = var.authorization_chart_version
-
-      helm {
-        values = local.authorization_values
-      }
-    }
-
-    destination {
-      server    = var.destination_server
-      namespace = var.platform_namespace
-    }
-
-    sync_policy {
-      dynamic "automated" {
-        for_each = var.argocd_automated_sync_enabled ? [1] : []
-        content {
-          prune       = var.argocd_prune_enabled
-          self_heal   = var.argocd_self_heal_enabled
-          allow_empty = false
-        }
-      }
-
-      sync_options = local.default_sync_options
-    }
-  }
-
-  timeouts {
-    create = "5m"
-    update = "5m"
-    delete = "5m"
-  }
-}
-
-resource "argocd_application" "identity" {
-  depends_on = [
-    argocd_repository.ghcr,
-    argocd_application.identity_db,
-  ]
-  metadata {
-    name      = "identity"
-    namespace = "argocd"
-    annotations = {
-      "argocd.argoproj.io/sync-wave" = "16"
-    }
-  }
-
-  spec {
-    project = "default"
-
-    source {
-      repo_url        = local.platform_chart_repo_host
-      chart           = local.identity_chart_name
-      target_revision = var.identity_chart_version
-
-      helm {
-        values = local.identity_values
-      }
-    }
-
-    destination {
-      server    = var.destination_server
-      namespace = var.platform_namespace
-    }
-
-    sync_policy {
-      dynamic "automated" {
-        for_each = var.argocd_automated_sync_enabled ? [1] : []
-        content {
-          prune       = var.argocd_prune_enabled
-          self_heal   = var.argocd_self_heal_enabled
-          allow_empty = false
-        }
-      }
-
-      sync_options = local.default_sync_options
-    }
-  }
-}
-
-resource "argocd_application" "token_counting" {
+resource "argocd_application" "ncps" {
   depends_on = [argocd_repository.ghcr]
   metadata {
-    name      = "token-counting"
+    name      = "ncps"
     namespace = "argocd"
     annotations = {
-      "argocd.argoproj.io/sync-wave" = "16"
+      "argocd.argoproj.io/sync-wave" = "15"
     }
   }
 
@@ -3323,12 +2952,12 @@ resource "argocd_application" "token_counting" {
     project = "default"
 
     source {
-      repo_url        = local.platform_chart_repo_host
-      chart           = local.token_counting_chart_name
-      target_revision = var.token_counting_chart_version
+      repo_url        = local.ncps_chart_repo_host
+      chart           = local.ncps_chart_name
+      target_revision = local.ncps_chart_revision
 
       helm {
-        values = local.token_counting_values
+        values = local.ncps_values
       }
     }
 
@@ -3352,647 +2981,44 @@ resource "argocd_application" "token_counting" {
   }
 }
 
-resource "argocd_application" "notifications_redis" {
-  depends_on = [argocd_repository.bitnami_repo]
-  metadata {
-    name      = "notifications-redis"
-    namespace = "argocd"
-    annotations = {
-      "argocd.argoproj.io/sync-wave" = "16"
-    }
-  }
-
-  spec {
-    project = "default"
-
-    source {
-      repo_url        = "https://charts.bitnami.com/bitnami"
-      chart           = local.redis_chart_name
-      target_revision = var.notifications_redis_chart_version
-
-      helm {
-        values = local.redis_values
-      }
-    }
-
-    destination {
-      server    = var.destination_server
-      namespace = var.platform_namespace
-    }
-
-    sync_policy {
-      dynamic "automated" {
-        for_each = var.argocd_automated_sync_enabled ? [1] : []
-        content {
-          prune       = var.argocd_prune_enabled
-          self_heal   = var.argocd_self_heal_enabled
-          allow_empty = false
-        }
-      }
-
-      sync_options = local.default_sync_options
-    }
-  }
-}
-
-resource "argocd_application" "runners" {
+resource "argocd_application" "platform" {
   depends_on = [
     argocd_repository.ghcr,
-    argocd_application.runners_db,
-    argocd_application.identity,
-    argocd_application.authorization,
-    argocd_application.ziti_management,
-  ]
-  metadata {
-    name      = "runners"
-    namespace = "argocd"
-    annotations = {
-      "argocd.argoproj.io/sync-wave" = "17"
-    }
-  }
-
-  spec {
-    project = "default"
-
-    source {
-      repo_url        = local.platform_chart_repo_host
-      chart           = local.runners_chart_name
-      target_revision = var.runners_chart_version
-
-      helm {
-        values = local.runners_values
-      }
-    }
-
-    destination {
-      server    = var.destination_server
-      namespace = var.platform_namespace
-    }
-
-    sync_policy {
-      dynamic "automated" {
-        for_each = var.argocd_automated_sync_enabled ? [1] : []
-        content {
-          prune       = var.argocd_prune_enabled
-          self_heal   = var.argocd_self_heal_enabled
-          allow_empty = false
-        }
-      }
-
-      sync_options = local.default_sync_options
-    }
-  }
-}
-
-resource "argocd_application" "apps" {
-  depends_on = [
-    argocd_repository.ghcr,
-    argocd_application.apps_db,
-    argocd_application.identity,
-    argocd_application.authorization,
-    argocd_application.ziti_management,
-  ]
-  metadata {
-    name      = "apps"
-    namespace = "argocd"
-    annotations = {
-      "argocd.argoproj.io/sync-wave" = "17"
-    }
-  }
-
-  spec {
-    project = "default"
-
-    source {
-      repo_url        = local.platform_chart_repo_host
-      chart           = local.apps_chart_name
-      target_revision = var.apps_chart_version
-
-      helm {
-        values = local.apps_values
-      }
-    }
-
-    destination {
-      server    = var.destination_server
-      namespace = var.platform_namespace
-    }
-
-    sync_policy {
-      dynamic "automated" {
-        for_each = var.argocd_automated_sync_enabled ? [1] : []
-        content {
-          prune       = var.argocd_prune_enabled
-          self_heal   = var.argocd_self_heal_enabled
-          allow_empty = false
-        }
-      }
-
-      sync_options = local.default_sync_options
-    }
-  }
-}
-
-resource "argocd_application" "egress" {
-  depends_on = [
-    argocd_repository.ghcr,
-    argocd_application.egress_db,
-    argocd_application.authorization,
-    argocd_application.ziti_management,
-    argocd_application.secrets,
-    argocd_application.notifications,
-  ]
-  metadata {
-    name      = "egress"
-    namespace = "argocd"
-    annotations = {
-      "argocd.argoproj.io/sync-wave" = "18"
-    }
-  }
-
-  spec {
-    project = "default"
-
-    source {
-      repo_url        = local.platform_chart_repo_host
-      chart           = local.egress_chart_name
-      target_revision = var.egress_chart_version
-
-      helm {
-        values = local.egress_values
-      }
-    }
-
-    destination {
-      server    = var.destination_server
-      namespace = var.platform_namespace
-    }
-
-    sync_policy {
-      dynamic "automated" {
-        for_each = var.argocd_automated_sync_enabled ? [1] : []
-        content {
-          prune       = var.argocd_prune_enabled
-          self_heal   = var.argocd_self_heal_enabled
-          allow_empty = false
-        }
-      }
-
-      sync_options = local.default_sync_options
-    }
-  }
-}
-
-resource "argocd_application" "egress_gateway" {
-  depends_on = [
-    argocd_repository.ghcr,
-    argocd_application.egress,
-    argocd_application.secrets,
-    argocd_application.metering,
-    argocd_application.tracing,
-    argocd_application.notifications,
+    kubernetes_namespace.platform,
+    module.openfga_authorization,
+    kubernetes_secret_v1.platform_database_urls,
+    kubernetes_secret_v1.files_s3,
+    kubernetes_secret_v1.cluster_admin,
+    kubernetes_secret_v1.secrets_encryption_key,
+    kubernetes_secret_v1.ziti_management_enrollment,
     kubernetes_secret_v1.egress_gateway_enrollment,
     kubernetes_manifest.egress_ca_certificate,
-  ]
-  metadata {
-    name      = "egress-gateway"
-    namespace = "argocd"
-    annotations = {
-      "argocd.argoproj.io/sync-wave" = "19"
-    }
-  }
-
-  spec {
-    project = "default"
-
-    source {
-      repo_url        = local.platform_chart_repo_host
-      chart           = local.egress_gateway_chart_name
-      target_revision = var.egress_gateway_chart_version
-
-      helm {
-        values = local.egress_gateway_values
-      }
-    }
-
-    destination {
-      server    = var.destination_server
-      namespace = var.platform_namespace
-    }
-
-    sync_policy {
-      dynamic "automated" {
-        for_each = var.argocd_automated_sync_enabled ? [1] : []
-        content {
-          prune       = var.argocd_prune_enabled
-          self_heal   = var.argocd_self_heal_enabled
-          allow_empty = false
-        }
-      }
-
-      sync_options = local.default_sync_options
-    }
-  }
-}
-
-resource "argocd_application" "agents" {
-  depends_on = [
-    argocd_repository.ghcr,
-    argocd_application.agents_db,
-  ]
-  metadata {
-    name      = "agents"
-    namespace = "argocd"
-    annotations = {
-      "argocd.argoproj.io/sync-wave" = "17"
-    }
-  }
-
-  spec {
-    project = "default"
-
-    source {
-      repo_url        = local.platform_chart_repo_host
-      chart           = local.agents_chart_name
-      target_revision = var.agents_chart_version
-
-      helm {
-        values = local.agents_values
-      }
-    }
-
-    destination {
-      server    = var.destination_server
-      namespace = var.platform_namespace
-    }
-
-    sync_policy {
-      dynamic "automated" {
-        for_each = var.argocd_automated_sync_enabled ? [1] : []
-        content {
-          prune       = var.argocd_prune_enabled
-          self_heal   = var.argocd_self_heal_enabled
-          allow_empty = false
-        }
-      }
-
-      sync_options = local.default_sync_options
-    }
-  }
-}
-
-resource "argocd_application" "ziti_management" {
-  depends_on = [
-    argocd_repository.ghcr,
-    argocd_application.ziti_management_db,
-  ]
-
-  metadata {
-    name      = "ziti-management"
-    namespace = "argocd"
-    annotations = {
-      "argocd.argoproj.io/sync-wave" = "17"
-    }
-  }
-
-  spec {
-    project = "default"
-
-    source {
-      repo_url        = local.platform_chart_repo_host
-      chart           = local.ziti_management_chart_name
-      target_revision = var.ziti_management_chart_version
-
-      helm {
-        values = local.ziti_management_values
-      }
-    }
-
-    destination {
-      server    = var.destination_server
-      namespace = var.platform_namespace
-    }
-
-    sync_policy {
-      dynamic "automated" {
-        for_each = var.argocd_automated_sync_enabled ? [1] : []
-        content {
-          prune       = var.argocd_prune_enabled
-          self_heal   = var.argocd_self_heal_enabled
-          allow_empty = false
-        }
-      }
-
-      sync_options = local.default_sync_options
-    }
-  }
-}
-
-resource "argocd_application" "users" {
-  depends_on = [
-    argocd_repository.ghcr,
-    argocd_application.users_db,
-  ]
-  wait = true
-  metadata {
-    name      = "users"
-    namespace = "argocd"
-    annotations = {
-      "argocd.argoproj.io/sync-wave" = "17"
-    }
-  }
-
-  spec {
-    project = "default"
-
-    source {
-      repo_url        = local.platform_chart_repo_host
-      chart           = local.users_chart_name
-      target_revision = var.users_chart_version
-
-      helm {
-        values = local.users_values
-      }
-    }
-
-    destination {
-      server    = var.destination_server
-      namespace = var.platform_namespace
-    }
-
-    sync_policy {
-      dynamic "automated" {
-        for_each = var.argocd_automated_sync_enabled ? [1] : []
-        content {
-          prune       = var.argocd_prune_enabled
-          self_heal   = var.argocd_self_heal_enabled
-          allow_empty = false
-        }
-      }
-
-      sync_options = local.default_sync_options
-    }
-  }
-}
-
-resource "argocd_application" "expose" {
-  depends_on = [
-    argocd_repository.ghcr,
-    argocd_application.expose_db,
-    argocd_application.ziti_management,
-    argocd_application.runners,
-    argocd_application.notifications,
-  ]
-  wait = true
-  metadata {
-    name      = "expose"
-    namespace = "argocd"
-    annotations = {
-      "argocd.argoproj.io/sync-wave" = "17"
-    }
-  }
-
-  spec {
-    project = "default"
-
-    source {
-      repo_url        = local.platform_chart_repo_host
-      chart           = local.expose_chart_name
-      target_revision = var.expose_chart_version
-
-      helm {
-        values = local.expose_values
-      }
-    }
-
-    destination {
-      server    = var.destination_server
-      namespace = var.platform_namespace
-    }
-
-    sync_policy {
-      dynamic "automated" {
-        for_each = var.argocd_automated_sync_enabled ? [1] : []
-        content {
-          prune       = var.argocd_prune_enabled
-          self_heal   = var.argocd_self_heal_enabled
-          allow_empty = false
-        }
-      }
-
-      sync_options = local.default_sync_options
-    }
-  }
-}
-
-resource "argocd_application" "organizations" {
-  depends_on = [
-    argocd_repository.ghcr,
-    argocd_application.organizations_db,
-    argocd_application.authorization,
-  ]
-  metadata {
-    name      = "organizations"
-    namespace = "argocd"
-    annotations = {
-      "argocd.argoproj.io/sync-wave" = "17"
-    }
-  }
-
-  spec {
-    project = "default"
-
-    source {
-      repo_url        = local.platform_chart_repo_host
-      chart           = local.organizations_chart_name
-      target_revision = var.organizations_chart_version
-
-      helm {
-        values = local.organizations_values
-      }
-    }
-
-    destination {
-      server    = var.destination_server
-      namespace = var.platform_namespace
-    }
-
-    sync_policy {
-      dynamic "automated" {
-        for_each = var.argocd_automated_sync_enabled ? [1] : []
-        content {
-          prune       = var.argocd_prune_enabled
-          self_heal   = var.argocd_self_heal_enabled
-          allow_empty = false
-        }
-      }
-
-      sync_options = local.default_sync_options
-    }
-  }
-}
-
-resource "argocd_application" "llm" {
-  depends_on = [
-    argocd_repository.ghcr,
+    argocd_application.platform_db,
+    argocd_application.threads_db,
+    argocd_application.metering_db,
+    argocd_application.chat_db,
+    argocd_application.tracing_db,
+    argocd_application.secrets_db,
     argocd_application.llm_db,
-  ]
-  metadata {
-    name      = "llm"
-    namespace = "argocd"
-    annotations = {
-      "argocd.argoproj.io/sync-wave" = "17"
-    }
-  }
-
-  spec {
-    project = "default"
-
-    source {
-      repo_url        = local.platform_chart_repo_host
-      chart           = local.llm_chart_name
-      target_revision = var.llm_chart_version
-
-      helm {
-        values = local.llm_values
-      }
-    }
-
-    destination {
-      server    = var.destination_server
-      namespace = var.platform_namespace
-    }
-
-    sync_policy {
-      dynamic "automated" {
-        for_each = var.argocd_automated_sync_enabled ? [1] : []
-        content {
-          prune       = var.argocd_prune_enabled
-          self_heal   = var.argocd_self_heal_enabled
-          allow_empty = false
-        }
-      }
-
-      sync_options = local.default_sync_options
-    }
-  }
-}
-
-resource "minio_s3_bucket" "files" {
-  bucket = var.minio_bucket_name
-  acl    = "private"
-}
-
-resource "argocd_application" "files" {
-  depends_on = [
-    argocd_repository.ghcr,
-    kubernetes_stateful_set_v1.files_db,
-    minio_s3_bucket.files,
-  ]
-  metadata {
-    name      = "files"
-    namespace = "argocd"
-    annotations = {
-      "argocd.argoproj.io/sync-wave" = "17"
-    }
-  }
-
-  spec {
-    project = "default"
-
-    source {
-      repo_url        = local.platform_chart_repo_host
-      chart           = local.files_chart_name
-      target_revision = var.files_chart_version
-
-      helm {
-        values = local.files_values
-      }
-    }
-
-    destination {
-      server    = var.destination_server
-      namespace = var.platform_namespace
-    }
-
-    sync_policy {
-      dynamic "automated" {
-        for_each = var.argocd_automated_sync_enabled ? [1] : []
-        content {
-          prune       = var.argocd_prune_enabled
-          self_heal   = var.argocd_self_heal_enabled
-          allow_empty = false
-        }
-      }
-
-      sync_options = local.default_sync_options
-    }
-  }
-}
-
-resource "argocd_application" "notifications" {
-  depends_on = [
-    argocd_repository.ghcr,
-    argocd_application.notifications_redis,
-  ]
-  metadata {
-    name      = "notifications"
-    namespace = "argocd"
-    annotations = {
-      "argocd.argoproj.io/sync-wave" = "17"
-    }
-  }
-
-  spec {
-    project = "default"
-
-    source {
-      repo_url        = local.platform_chart_repo_host
-      chart           = local.notifications_chart_name
-      target_revision = var.notifications_chart_version
-
-      helm {
-        values = local.notifications_values
-      }
-    }
-
-    destination {
-      server    = var.destination_server
-      namespace = var.platform_namespace
-    }
-
-    sync_policy {
-      dynamic "automated" {
-        for_each = var.argocd_automated_sync_enabled ? [1] : []
-        content {
-          prune       = var.argocd_prune_enabled
-          self_heal   = var.argocd_self_heal_enabled
-          allow_empty = false
-        }
-      }
-
-      sync_options = local.default_sync_options
-    }
-  }
-}
-
-resource "argocd_application" "agents_orchestrator" {
-  depends_on = [
-    argocd_repository.ghcr,
+    argocd_application.agents_db,
+    argocd_application.ziti_management_db,
+    argocd_application.users_db,
+    argocd_application.expose_db,
+    argocd_application.organizations_db,
     argocd_application.agents_orchestrator_db,
-    argocd_application.ziti_management,
-    argocd_application.threads,
-    argocd_application.notifications,
-    argocd_application.agents,
-    argocd_application.secrets,
-    argocd_application.runners,
-    argocd_application.egress,
+    argocd_application.identity_db,
+    argocd_application.runners_db,
+    argocd_application.apps_db,
+    argocd_application.registry_mirror,
+    argocd_application.ncps,
   ]
+  wait = false
+
   metadata {
-    name      = "agents-orchestrator"
+    name      = "platform"
     namespace = "argocd"
     annotations = {
-      "argocd.argoproj.io/sync-wave" = "19"
+      "argocd.argoproj.io/sync-wave" = "16"
     }
   }
 
@@ -4001,327 +3027,11 @@ resource "argocd_application" "agents_orchestrator" {
 
     source {
       repo_url        = local.platform_chart_repo_host
-      chart           = local.agents_orchestrator_chart_name
-      target_revision = var.agents_orchestrator_chart_version
+      chart           = local.platform_chart_name
+      target_revision = var.platform_chart_version
 
       helm {
-        values = local.agents_orchestrator_values
-      }
-    }
-
-    destination {
-      server    = var.destination_server
-      namespace = var.platform_namespace
-    }
-
-    sync_policy {
-      dynamic "automated" {
-        for_each = var.argocd_automated_sync_enabled ? [1] : []
-        content {
-          prune       = var.argocd_prune_enabled
-          self_heal   = var.argocd_self_heal_enabled
-          allow_empty = false
-        }
-      }
-
-      sync_options = local.default_sync_options
-    }
-  }
-}
-
-resource "argocd_application" "media_proxy" {
-  depends_on = [
-    argocd_repository.ghcr,
-    argocd_application.users,
-    argocd_application.files,
-    argocd_application.authorization,
-  ]
-  metadata {
-    name      = "media-proxy"
-    namespace = "argocd"
-    annotations = {
-      "argocd.argoproj.io/sync-wave" = "20"
-    }
-  }
-
-  spec {
-    project = "default"
-
-    source {
-      repo_url        = local.platform_chart_repo_host
-      chart           = local.media_proxy_chart_name
-      target_revision = var.media_proxy_chart_version
-
-      helm {
-        values = local.media_proxy_values
-      }
-    }
-
-    destination {
-      server    = var.destination_server
-      namespace = var.platform_namespace
-    }
-
-    sync_policy {
-      dynamic "automated" {
-        for_each = var.argocd_automated_sync_enabled ? [1] : []
-        content {
-          prune       = var.argocd_prune_enabled
-          self_heal   = var.argocd_self_heal_enabled
-          allow_empty = false
-        }
-      }
-
-      sync_options = local.default_sync_options
-    }
-  }
-}
-
-resource "argocd_application" "chat_app" {
-  depends_on = [argocd_repository.ghcr]
-  metadata {
-    name      = "chat-app"
-    namespace = "argocd"
-    annotations = {
-      "argocd.argoproj.io/sync-wave" = "25"
-    }
-  }
-
-  spec {
-    project = "default"
-
-    source {
-      repo_url        = local.platform_chart_repo_host
-      chart           = local.chat_app_chart_name
-      target_revision = var.chat_app_chart_version
-
-      helm {
-        values = local.chat_app_values
-      }
-    }
-
-    destination {
-      server    = var.destination_server
-      namespace = var.platform_namespace
-    }
-
-    sync_policy {
-      dynamic "automated" {
-        for_each = var.argocd_automated_sync_enabled ? [1] : []
-        content {
-          prune       = var.argocd_prune_enabled
-          self_heal   = var.argocd_self_heal_enabled
-          allow_empty = false
-        }
-      }
-
-      sync_options = local.default_sync_options
-    }
-  }
-}
-
-resource "argocd_application" "console_app" {
-  depends_on = [argocd_repository.ghcr]
-  metadata {
-    name      = "console-app"
-    namespace = "argocd"
-    annotations = {
-      "argocd.argoproj.io/sync-wave" = "25"
-    }
-  }
-
-  spec {
-    project = "default"
-
-    source {
-      repo_url        = local.platform_chart_repo_host
-      chart           = local.console_app_chart_name
-      target_revision = var.console_app_chart_version
-
-      helm {
-        values = local.console_app_values
-      }
-    }
-
-    destination {
-      server    = var.destination_server
-      namespace = var.platform_namespace
-    }
-
-    sync_policy {
-      dynamic "automated" {
-        for_each = var.argocd_automated_sync_enabled ? [1] : []
-        content {
-          prune       = var.argocd_prune_enabled
-          self_heal   = var.argocd_self_heal_enabled
-          allow_empty = false
-        }
-      }
-
-      sync_options = local.default_sync_options
-    }
-  }
-}
-
-resource "argocd_application" "tracing_app" {
-  depends_on = [argocd_repository.ghcr]
-  metadata {
-    name      = "tracing-app"
-    namespace = "argocd"
-    annotations = {
-      "argocd.argoproj.io/sync-wave" = "25"
-    }
-  }
-
-  spec {
-    project = "default"
-
-    source {
-      repo_url        = local.platform_chart_repo_host
-      chart           = local.tracing_app_chart_name
-      target_revision = var.tracing_app_chart_version
-
-      helm {
-        values = local.tracing_app_values
-      }
-    }
-
-    destination {
-      server    = var.destination_server
-      namespace = var.platform_namespace
-    }
-
-    sync_policy {
-      dynamic "automated" {
-        for_each = var.argocd_automated_sync_enabled ? [1] : []
-        content {
-          prune       = var.argocd_prune_enabled
-          self_heal   = var.argocd_self_heal_enabled
-          allow_empty = false
-        }
-      }
-
-      sync_options = local.default_sync_options
-    }
-  }
-}
-
-resource "argocd_application" "gateway" {
-  depends_on = [argocd_application.llm, argocd_application.ziti_management, argocd_application.expose]
-  wait       = true
-  metadata {
-    name      = "gateway"
-    namespace = "argocd"
-    annotations = {
-      "argocd.argoproj.io/sync-wave" = "30"
-    }
-  }
-
-  spec {
-    project = "default"
-
-    source {
-      repo_url        = "ghcr.io"
-      chart           = "agynio/charts/gateway"
-      target_revision = var.gateway_chart_version
-
-      helm {
-        values = yamlencode({
-          replicaCount     = 1
-          fullnameOverride = "gateway"
-          image = {
-            tag = local.resolved_gateway_image_tag
-          }
-          gateway = {
-            oidcIssuerUrl           = var.oidc_issuer_url
-            oidcClientId            = var.oidc_client_id
-            clusterAdminToken       = random_password.cluster_admin_token.result
-            clusterAdminIdentityId  = local.cluster_admin_identity_id
-            usersGrpcTarget         = "users:50051"
-            organizationsGrpcTarget = "organizations:50051"
-            egressRulesGrpcTarget   = "egress:50051"
-          }
-          env = [
-            {
-              name  = "ZITI_ENABLED"
-              value = "true"
-            },
-          ]
-        })
-      }
-    }
-
-    destination {
-      server    = var.destination_server
-      namespace = var.platform_namespace
-    }
-
-    sync_policy {
-      dynamic "automated" {
-        for_each = var.argocd_automated_sync_enabled ? [1] : []
-        content {
-          prune       = var.argocd_prune_enabled
-          self_heal   = var.argocd_self_heal_enabled
-          allow_empty = false
-        }
-      }
-
-      sync_options = local.default_sync_options
-    }
-  }
-}
-
-resource "argocd_application" "llm_proxy" {
-  depends_on = [
-    argocd_application.llm,
-    argocd_application.users,
-    argocd_application.authorization,
-    argocd_application.ziti_management,
-  ]
-  metadata {
-    name      = "llm-proxy"
-    namespace = "argocd"
-    annotations = {
-      "argocd.argoproj.io/sync-wave" = "30"
-    }
-  }
-
-  spec {
-    project = "default"
-
-    source {
-      repo_url        = local.platform_chart_repo_host
-      chart           = local.llm_proxy_chart_name
-      target_revision = var.llm_proxy_chart_version
-
-      helm {
-        values = yamlencode({
-          replicaCount     = 1
-          fullnameOverride = "llm-proxy"
-          image = {
-            tag = local.resolved_llm_proxy_image_tag
-          }
-          securityContext = {
-            enabled                  = true
-            runAsNonRoot             = true
-            runAsUser                = 65532
-            runAsGroup               = 65532
-            readOnlyRootFilesystem   = true
-            allowPrivilegeEscalation = false
-            capabilities = {
-              drop = ["ALL"]
-            }
-            seccompProfile = {
-              type = "RuntimeDefault"
-            }
-          }
-          env = [
-            {
-              name  = "ZITI_ENABLED"
-              value = "true"
-            },
-          ]
-        })
+        values = local.platform_values
       }
     }
 

@@ -26,17 +26,3 @@ data "terraform_remote_state" "ziti" {
     path = "../ziti/state/terraform.tfstate"
   }
 }
-
-data "kubernetes_service_v1" "ziti_controller_client" {
-  metadata {
-    name      = "ziti-controller-client"
-    namespace = local.ziti_namespace
-  }
-}
-
-data "kubernetes_service_v1" "ziti_router_edge" {
-  metadata {
-    name      = "ziti-router-edge"
-    namespace = local.ziti_namespace
-  }
-}

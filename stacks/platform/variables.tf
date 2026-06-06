@@ -17,6 +17,12 @@ variable "argocd_admin_password" {
   sensitive   = true
 }
 
+variable "platform_chart_version" {
+  type        = string
+  description = "Version of the agyn-platform umbrella Helm chart published to GHCR"
+  default     = "0.5.3"
+}
+
 variable "gateway_chart_version" {
   type        = string
   description = "Version of the gateway Helm chart published to GHCR"
@@ -177,7 +183,7 @@ variable "oidc_client_secret" {
 variable "tracing_app_chart_version" {
   type        = string
   description = "Version of the tracing-app Helm chart published to GHCR"
-  default     = "0.3.0"
+  default     = "0.2.7"
 }
 
 variable "tracing_app_image_tag" {
@@ -505,12 +511,6 @@ variable "ziti_management_db_password" {
   sensitive   = true
 }
 
-variable "enable_ziti_diagnostics" {
-  type        = bool
-  description = "DEV/E2E-only: publish the ziti-diagnostics secret and RBAC. Production deployments must leave this false."
-  default     = false
-}
-
 variable "organizations_db_password" {
   type        = string
   description = "Password for the organizations PostgreSQL database user"
@@ -581,11 +581,16 @@ variable "minio_bucket_name" {
   default     = "files"
 }
 
+variable "registry_mirror_pvc_size" {
+  type        = string
+  description = "Persistent volume claim size for the registry mirror"
+  default     = "5Gi"
+}
 
 variable "secrets_chart_version" {
   type        = string
   description = "Version of the secrets Helm chart published to GHCR"
-  default     = "0.2.0"
+  default     = "0.2.2"
 }
 
 variable "secrets_image_tag" {
@@ -617,7 +622,7 @@ variable "secrets_encryption_key" {
 variable "authorization_chart_version" {
   type        = string
   description = "Version of the authorization Helm chart published to GHCR"
-  default     = "0.5.4"
+  default     = "0.5.3"
 }
 
 variable "authorization_image_tag" {
