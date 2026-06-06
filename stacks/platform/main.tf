@@ -215,6 +215,29 @@ locals {
     }
   })
 
+  egress_db_values = yamlencode({
+    fullnameOverride = "egress-db"
+    postgres = {
+      database = "egress"
+      username = "egress"
+      password = var.egress_db_password
+      pgdata   = "/var/lib/postgresql/data/pgdata"
+    }
+    persistence = {
+      size                    = var.egress_db_pvc_size
+      mountPath               = "/var/lib/postgresql/data"
+      volumeClaimTemplateName = "data"
+    }
+    probes = {
+      readiness = {
+        execCommand = ["pg_isready", "-U", "egress", "-d", "egress"]
+      }
+      liveness = {
+        execCommand = ["pg_isready", "-U", "egress", "-d", "egress"]
+      }
+    }
+  })
+
   llm_db_values = yamlencode({
     fullnameOverride = "llm-db"
     postgres = {
@@ -2395,6 +2418,56 @@ resource "argocd_application" "secrets_db" {
   }
 }
 
+resource "argocd_application" "egress_db" {
+  depends_on = [argocd_repository.ghcr]
+  wait       = true
+
+  metadata {
+    name      = "egress-db"
+    namespace = "argocd"
+    annotations = {
+      "argocd.argoproj.io/sync-wave" = "7"
+    }
+  }
+
+  spec {
+    project = "default"
+
+    source {
+      repo_url        = local.postgres_chart_repo_host
+      chart           = local.postgres_chart_name
+      target_revision = var.postgres_chart_version
+
+      helm {
+        values = local.egress_db_values
+      }
+    }
+
+    destination {
+      server    = var.destination_server
+      namespace = var.platform_namespace
+    }
+
+    sync_policy {
+      # DB apps always use automated sync with prune disabled for stateful safety,
+      # independent of var.argocd_automated_sync_enabled.
+      automated {
+        prune       = false
+        self_heal   = true
+        allow_empty = false
+      }
+
+      sync_options = local.postgres_sync_options
+    }
+  }
+
+  timeouts {
+    create = "5m"
+    update = "5m"
+    delete = "5m"
+  }
+}
+
 resource "argocd_application" "llm_db" {
   depends_on = [argocd_repository.ghcr]
   wait       = true
@@ -2999,6 +3072,7 @@ resource "argocd_application" "platform" {
     argocd_application.chat_db,
     argocd_application.tracing_db,
     argocd_application.secrets_db,
+    argocd_application.egress_db,
     argocd_application.llm_db,
     argocd_application.agents_db,
     argocd_application.ziti_management_db,
