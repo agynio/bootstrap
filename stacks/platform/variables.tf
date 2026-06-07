@@ -107,6 +107,18 @@ variable "organizations_chart_version" {
   default     = "0.4.4"
 }
 
+variable "groups_chart_version" {
+  type        = string
+  description = "Version of the groups Helm chart published to GHCR"
+  default     = "0.1.0"
+}
+
+variable "groups_enabled" {
+  type        = bool
+  description = "Enable the Groups service and its PostgreSQL database"
+  default     = false
+}
+
 variable "identity_chart_version" {
   type        = string
   description = "Version of the identity Helm chart published to GHCR"
@@ -279,6 +291,12 @@ variable "expose_image_tag" {
 variable "organizations_image_tag" {
   type        = string
   description = "Optional override for the organizations image tag"
+  default     = ""
+}
+
+variable "groups_image_tag" {
+  type        = string
+  description = "Optional override for the groups image tag"
   default     = ""
 }
 
@@ -584,6 +602,13 @@ variable "organizations_db_password" {
   sensitive   = true
 }
 
+variable "groups_db_password" {
+  type        = string
+  description = "Password for the groups PostgreSQL database user"
+  default     = "groups"
+  sensitive   = true
+}
+
 variable "agents_db_pvc_size" {
   type        = string
   description = "Persistent volume claim size for the agents PostgreSQL primary"
@@ -625,6 +650,12 @@ variable "expose_db_pvc_size" {
 variable "organizations_db_pvc_size" {
   type        = string
   description = "Persistent volume claim size for the organizations PostgreSQL primary"
+  default     = "5Gi"
+}
+
+variable "groups_db_pvc_size" {
+  type        = string
+  description = "Persistent volume claim size for the groups PostgreSQL primary"
   default     = "5Gi"
 }
 
