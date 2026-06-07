@@ -1664,6 +1664,17 @@ resource "random_password" "cluster_admin_token" {
   special = false
 }
 
+resource "terraform_data" "groups_requires_nats" {
+  count = var.groups_enabled ? 1 : 0
+
+  lifecycle {
+    precondition {
+      condition     = var.nats_enabled
+      error_message = "Groups requires NATS JetStream. Set nats_enabled=true when groups_enabled=true."
+    }
+  }
+}
+
 resource "openfga_relationship_tuple" "cluster_admin" {
   store_id               = module.openfga_authorization.store_id
   authorization_model_id = module.openfga_authorization.model_id
@@ -4186,11 +4197,11 @@ resource "argocd_application" "groups" {
   count = var.groups_enabled ? 1 : 0
 
   depends_on = [
+    terraform_data.groups_requires_nats[0],
     argocd_repository.ghcr,
     argocd_application.groups_db[0],
     argocd_application.authorization,
     argocd_application.identity,
-    argocd_application.nats,
   ]
   metadata {
     name      = "groups"
@@ -4229,13 +4240,6 @@ resource "argocd_application" "groups" {
       }
 
       sync_options = local.default_sync_options
-    }
-  }
-
-  lifecycle {
-    precondition {
-      condition     = !var.groups_enabled || var.nats_enabled
-      error_message = "Groups requires NATS JetStream. Set nats_enabled=true when groups_enabled=true."
     }
   }
 }
