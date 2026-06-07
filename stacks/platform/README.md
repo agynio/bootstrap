@@ -38,11 +38,12 @@ Platform charts are pulled from the GHCR OCI registry (`ghcr.io/agynio/charts`).
 
 ### NATS JetStream event bus
 
-NATS JetStream is optional and disabled by default so existing local stacks keep
-their previous footprint. Enable it with the platform stack variable:
+NATS JetStream is required by the Groups service and disabled by default so
+existing local stacks keep their previous footprint. Enable it together with
+Groups using platform stack variables:
 
 ```bash
-terraform -chdir=stacks/platform apply -var='nats_enabled=true'
+terraform -chdir=stacks/platform apply -var='groups_enabled=true' -var='nats_enabled=true'
 ```
 
 When enabled, Terraform creates an Argo CD application named `nats` in the
@@ -69,6 +70,11 @@ stream config changes delete and recreate the Job instead of attempting an
 immutable Job update. Stream retention knobs follow the NATS API schema: age and
 duplicate window values are in nanoseconds, and size values are in bytes.
 
+The Groups service is disabled by default for backwards compatibility. Set
+`groups_enabled=true` to deploy the `groups-db` and `groups` Argo CD
+applications. Terraform enforces `nats_enabled=true` for the Groups application
+because the chart is configured to use the in-cluster NATS endpoint above.
+
 ### Graph persistence
 
 `platform-server` mounts `/shared` (sourced from the repository-root `./shared` directory created by the k3d stack) into `/mnt/graph` and sets `GRAPH_REPO_PATH=/mnt/graph/graph`. The graph repository is created under the host directory at `./shared/graph`, and swap artifacts land transiently under `./shared`.
@@ -87,6 +93,7 @@ Verify persistence by:
 |-----------|--------------------|-------------------------------------|-------|
 | 5         | `platform-db`      | PostgreSQL for platform workloads   | Uses chart `oci://ghcr.io/agynio/charts/postgres-helm` with inline Helm values |
 | 18        | `k8s-runner`       | Kubernetes workspace runner         | Uses cluster-wide RBAC; TCP-only runner mode |
+| 18        | `groups`           | Groups service                      | Optional; set `groups_enabled=true`; depends on `groups-db`, `authorization`, `identity`, and `nats` |
 | 20        | `platform-server`  | Core platform API                   | Depends on `platform-db` |
 | 25        | `platform-ui`      | Platform web UI                     | Connects to `platform-server` |
 

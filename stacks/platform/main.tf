@@ -21,6 +21,7 @@ locals {
   resolved_users_image_tag               = trimspace(var.users_image_tag) != "" ? var.users_image_tag : var.users_chart_version
   resolved_expose_image_tag              = trimspace(var.expose_image_tag) != "" ? var.expose_image_tag : var.expose_chart_version
   resolved_organizations_image_tag       = trimspace(var.organizations_image_tag) != "" ? var.organizations_image_tag : var.organizations_chart_version
+  resolved_groups_image_tag              = trimspace(var.groups_image_tag) != "" ? var.groups_image_tag : var.groups_chart_version
   resolved_authorization_image_tag       = trimspace(var.authorization_image_tag) != "" ? var.authorization_image_tag : var.authorization_chart_version
   resolved_identity_image_tag            = trimspace(var.identity_image_tag) != "" ? var.identity_image_tag : var.identity_chart_version
   resolved_runners_image_tag             = trimspace(var.runners_image_tag) != "" ? var.runners_image_tag : var.runners_chart_version
@@ -54,6 +55,7 @@ locals {
   users_chart_name               = "agynio/charts/users"
   expose_chart_name              = "agynio/charts/expose"
   organizations_chart_name       = "agynio/charts/organizations"
+  groups_chart_name              = "agynio/charts/groups"
   authorization_chart_name       = "agynio/charts/authorization"
   identity_chart_name            = "agynio/charts/identity"
   runners_chart_name             = "agynio/charts/runners"
@@ -383,6 +385,29 @@ locals {
       }
       liveness = {
         execCommand = ["pg_isready", "-U", "organizations", "-d", "organizations"]
+      }
+    }
+  })
+
+  groups_db_values = yamlencode({
+    fullnameOverride = "groups-db"
+    postgres = {
+      database = "groups"
+      username = "groups"
+      password = var.groups_db_password
+      pgdata   = "/var/lib/postgresql/data/pgdata"
+    }
+    persistence = {
+      size                    = var.groups_db_pvc_size
+      mountPath               = "/var/lib/postgresql/data"
+      volumeClaimTemplateName = "data"
+    }
+    probes = {
+      readiness = {
+        execCommand = ["pg_isready", "-U", "groups", "-d", "groups"]
+      }
+      liveness = {
+        execCommand = ["pg_isready", "-U", "groups", "-d", "groups"]
       }
     }
   })
@@ -805,6 +830,41 @@ locals {
         value = format("postgresql://organizations:%s@organizations-db:5432/organizations?sslmode=disable", var.organizations_db_password)
       },
     ]
+  })
+
+  groups_values = yamlencode({
+    fullnameOverride = "groups"
+    image = {
+      repository = "ghcr.io/agynio/groups"
+      tag        = local.resolved_groups_image_tag
+      pullPolicy = "IfNotPresent"
+    }
+    env = [
+      {
+        name  = "GRPC_ADDRESS"
+        value = ":50051"
+      },
+      {
+        name  = "DATABASE_URL"
+        value = format("postgresql://groups:%s@groups-db:5432/groups?sslmode=disable", var.groups_db_password)
+      },
+      {
+        name  = "AUTHORIZATION_GRPC_TARGET"
+        value = "authorization:50051"
+      },
+      {
+        name  = "IDENTITY_GRPC_TARGET"
+        value = "identity:50051"
+      },
+      {
+        name  = "NATS_URL"
+        value = local.nats_endpoint
+      },
+    ]
+    resources = {
+      requests = { cpu = "50m", memory = "128Mi" }
+      limits   = { cpu = "500m", memory = "256Mi" }
+    }
   })
 
   identity_values = yamlencode({
@@ -2951,6 +3011,58 @@ resource "argocd_application" "organizations_db" {
   }
 }
 
+resource "argocd_application" "groups_db" {
+  count = var.groups_enabled ? 1 : 0
+
+  depends_on = [argocd_repository.ghcr]
+  wait       = true
+
+  metadata {
+    name      = "groups-db"
+    namespace = "argocd"
+    annotations = {
+      "argocd.argoproj.io/sync-wave" = "8"
+    }
+  }
+
+  spec {
+    project = "default"
+
+    source {
+      repo_url        = local.postgres_chart_repo_host
+      chart           = local.postgres_chart_name
+      target_revision = var.postgres_chart_version
+
+      helm {
+        values = local.groups_db_values
+      }
+    }
+
+    destination {
+      server    = var.destination_server
+      namespace = var.platform_namespace
+    }
+
+    sync_policy {
+      # DB apps always use automated sync with prune disabled for stateful safety,
+      # independent of var.argocd_automated_sync_enabled.
+      automated {
+        prune       = false
+        self_heal   = true
+        allow_empty = false
+      }
+
+      sync_options = local.postgres_sync_options
+    }
+  }
+
+  timeouts {
+    create = "5m"
+    update = "5m"
+    delete = "5m"
+  }
+}
+
 resource "argocd_application" "agents_orchestrator_db" {
   depends_on = [argocd_repository.ghcr]
   wait       = true
@@ -4053,6 +4165,64 @@ resource "argocd_application" "organizations" {
       }
 
       sync_options = local.default_sync_options
+    }
+  }
+}
+
+resource "argocd_application" "groups" {
+  count = var.groups_enabled ? 1 : 0
+
+  depends_on = [
+    argocd_repository.ghcr,
+    argocd_application.groups_db[0],
+    argocd_application.authorization,
+    argocd_application.identity,
+    argocd_application.nats,
+  ]
+  metadata {
+    name      = "groups"
+    namespace = "argocd"
+    annotations = {
+      "argocd.argoproj.io/sync-wave" = "18"
+    }
+  }
+
+  spec {
+    project = "default"
+
+    source {
+      repo_url        = local.platform_chart_repo_host
+      chart           = local.groups_chart_name
+      target_revision = var.groups_chart_version
+
+      helm {
+        values = local.groups_values
+      }
+    }
+
+    destination {
+      server    = var.destination_server
+      namespace = var.platform_namespace
+    }
+
+    sync_policy {
+      dynamic "automated" {
+        for_each = var.argocd_automated_sync_enabled ? [1] : []
+        content {
+          prune       = var.argocd_prune_enabled
+          self_heal   = var.argocd_self_heal_enabled
+          allow_empty = false
+        }
+      }
+
+      sync_options = local.default_sync_options
+    }
+  }
+
+  lifecycle {
+    precondition {
+      condition     = !var.groups_enabled || var.nats_enabled
+      error_message = "Groups requires NATS JetStream. Set nats_enabled=true when groups_enabled=true."
     }
   }
 }
