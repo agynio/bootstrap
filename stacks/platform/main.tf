@@ -4199,6 +4199,7 @@ resource "argocd_application" "groups" {
   depends_on = [
     terraform_data.groups_requires_nats[0],
     argocd_repository.ghcr,
+    argocd_application.nats[0],
     argocd_application.groups_db[0],
     argocd_application.authorization,
     argocd_application.identity,
