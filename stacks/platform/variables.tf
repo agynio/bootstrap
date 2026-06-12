@@ -17,6 +17,19 @@ variable "argocd_admin_password" {
   sensitive   = true
 }
 
+variable "ghcr_username" {
+  type        = string
+  description = "Optional username for authenticated GHCR OCI Helm chart pulls"
+  default     = ""
+}
+
+variable "ghcr_password" {
+  type        = string
+  description = "Optional password or token for authenticated GHCR OCI Helm chart pulls"
+  default     = ""
+  sensitive   = true
+}
+
 variable "gateway_chart_version" {
   type        = string
   description = "Version of the gateway Helm chart published to GHCR"
