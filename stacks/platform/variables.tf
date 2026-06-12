@@ -113,12 +113,6 @@ variable "groups_chart_version" {
   default     = "0.1.0"
 }
 
-variable "groups_enabled" {
-  type        = bool
-  description = "Enable the Groups service and its PostgreSQL database"
-  default     = false
-}
-
 variable "identity_chart_version" {
   type        = string
   description = "Version of the identity Helm chart published to GHCR"
@@ -328,12 +322,6 @@ variable "notifications_redis_addr" {
   type        = string
   description = "Redis address used by the notifications service"
   default     = "notifications-redis-master.platform.svc.cluster.local:6379"
-}
-
-variable "nats_enabled" {
-  type        = bool
-  description = "Enable NATS JetStream deployment for durable platform events"
-  default     = false
 }
 
 variable "nats_jetstream_file_store_pvc_size" {
