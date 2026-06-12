@@ -2369,12 +2369,22 @@ resource "argocd_repository" "nats_repo" {
   type = "helm"
 }
 
+resource "argocd_repository_credentials" "ghcr" {
+  count = trimspace(var.ghcr_password) != "" ? 1 : 0
+
+  url        = "ghcr.io"
+  type       = "helm"
+  enable_oci = true
+  username   = trimspace(var.ghcr_username) != "" ? var.ghcr_username : null
+  password   = var.ghcr_password
+}
+
 resource "argocd_repository" "ghcr" {
   repo       = "ghcr.io"
   type       = "helm"
   enable_oci = true
-  username   = trimspace(var.ghcr_username) != "" ? var.ghcr_username : null
-  password   = trimspace(var.ghcr_password) != "" ? var.ghcr_password : null
+
+  depends_on = [argocd_repository_credentials.ghcr]
 }
 
 resource "argocd_application" "platform_db" {
