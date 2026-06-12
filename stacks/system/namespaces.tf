@@ -17,3 +17,9 @@ resource "kubernetes_namespace" "istio_gateway" {
 resource "kubernetes_namespace" "argocd" {
   metadata { name = "argocd" }
 }
+
+resource "kubernetes_namespace_v1" "platform" {
+  metadata {
+    name = var.platform_namespace
+  }
+}

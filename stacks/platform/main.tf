@@ -834,6 +834,9 @@ locals {
 
   groups_values = yamlencode({
     fullnameOverride = "groups"
+    global = {
+      imagePullSecrets = compact([data.terraform_remote_state.system.outputs.ghcr_pull_secret_name])
+    }
     image = {
       repository = "ghcr.io/agynio/groups"
       tag        = local.resolved_groups_image_tag
