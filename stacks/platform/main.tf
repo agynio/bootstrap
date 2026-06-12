@@ -637,17 +637,16 @@ locals {
       { name = "TRACING_ADDRESS", value = "tracing:50051" },
       { name = "AGENTS_SERVICE_ADDRESS", value = "agents:50051" },
       { name = "ZITI_MANAGEMENT_ADDRESS", value = "ziti-management:50051" },
+      { name = "ZITI_IDENTITY_FILE", value = "/var/lib/ziti/identity.json" },
       { name = "EGRESS_CA_CERT_PATH", value = "/var/run/agyn/egress-ca/tls.crt" },
       { name = "EGRESS_CA_KEY_PATH", value = "/var/run/agyn/egress-ca/tls.key" },
-      { name = "ZITI_ENROLLMENT_JWT_FILE", value = "/etc/ziti-enrollment/enrollmentJwt" },
-      { name = "ZITI_IDENTITY_NAME_RESOLVE", value = "true" },
     ]
     extraVolumeMounts = [
-      { name = "ziti-enrollment", mountPath = "/etc/ziti-enrollment", readOnly = true },
+      { name = "ziti-identity", mountPath = "/var/lib/ziti", readOnly = true },
       { name = "egress-ca", mountPath = "/var/run/agyn/egress-ca", readOnly = true },
     ]
     extraVolumes = [
-      { name = "ziti-enrollment", secret = { secretName = "egress-gateway-enrollment" } },
+      { name = "ziti-identity", secret = { secretName = "egress-gateway-ziti-identity" } },
       { name = "egress-ca", secret = { secretName = "egress-ca" } },
     ]
     resources = {
@@ -1641,16 +1640,23 @@ resource "kubernetes_secret_v1" "ziti_management_enrollment" {
   }
 }
 
-resource "kubernetes_secret_v1" "egress_gateway_enrollment" {
+resource "kubernetes_secret_v1" "egress_gateway_ziti_identity" {
   metadata {
-    name      = "egress-gateway-enrollment"
+    name      = "egress-gateway-ziti-identity"
     namespace = kubernetes_namespace.platform.metadata[0].name
   }
 
   type = "Opaque"
 
   data = {
-    enrollmentJwt = data.terraform_remote_state.ziti.outputs.egress_gateway_enrollment_token
+    "identity.json" = data.kubernetes_secret_v1.egress_gateway_ziti_identity.data["identity.json"]
+  }
+
+  lifecycle {
+    ignore_changes = [
+      metadata[0].annotations,
+      metadata[0].labels,
+    ]
   }
 }
 
@@ -3789,7 +3795,7 @@ resource "argocd_application" "egress_gateway" {
     argocd_application.metering,
     argocd_application.tracing,
     argocd_application.notifications,
-    kubernetes_secret_v1.egress_gateway_enrollment,
+    kubernetes_secret_v1.egress_gateway_ziti_identity,
     kubernetes_manifest.egress_ca_certificate,
   ]
   metadata {
