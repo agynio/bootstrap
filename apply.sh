@@ -198,6 +198,16 @@ run_stack() {
     apply_cmd+=(-var "domain=${domain}" -var "port=${port}")
   fi
 
+  if [[ "${stack}" == "system" ]]; then
+    if [[ -n "${ghcr_username}" ]]; then
+      apply_cmd+=(-var "ghcr_username=${ghcr_username}")
+    fi
+
+    if [[ -n "${ghcr_password}" ]]; then
+      apply_cmd+=(-var "ghcr_password=${ghcr_password}")
+    fi
+  fi
+
   if [[ "${stack}" == "platform" ]]; then
     apply_cmd+=(
       -var "oidc_issuer_url=${oidc_issuer_url}"
@@ -207,14 +217,6 @@ run_stack() {
 
     if [[ -n "${tracing_app_oidc_client_id}" ]]; then
       apply_cmd+=(-var "tracing_app_oidc_client_id=${tracing_app_oidc_client_id}")
-    fi
-
-    if [[ -n "${ghcr_username}" ]]; then
-      apply_cmd+=(-var "ghcr_username=${ghcr_username}")
-    fi
-
-    if [[ -n "${ghcr_password}" ]]; then
-      apply_cmd+=(-var "ghcr_password=${ghcr_password}")
     fi
   fi
 
