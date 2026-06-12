@@ -1699,8 +1699,6 @@ resource "kubernetes_secret_v1" "ziti_management_enrollment" {
   }
 }
 
-<<<<<<< HEAD
-=======
 resource "kubernetes_secret_v1" "egress_gateway_enrollment" {
   metadata {
     name      = "egress-gateway-enrollment"
@@ -1713,8 +1711,6 @@ resource "kubernetes_secret_v1" "egress_gateway_enrollment" {
     enrollmentJwt = data.terraform_remote_state.ziti.outputs.egress_gateway_enrollment_token
   }
 }
-
->>>>>>> 830e91c (fix(platform): rely on existing namespace)
 resource "kubernetes_manifest" "agyn_selfsigned_cluster_issuer" {
   manifest = {
     "apiVersion" = "cert-manager.io/v1"
