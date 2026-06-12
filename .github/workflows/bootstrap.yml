@@ -38,7 +38,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: agynio/terraform-provider-agyn
-          ref: da26675003482382e45e284baaf40632e7db9f21
+          ref: 3dc62567d9eae5b7643e91850abeaa5305a6d66d
           path: terraform-provider-agyn
 
       - name: Build Terraform provider with egress resources
@@ -51,7 +51,7 @@ jobs:
           go build -o dist/terraform-provider-agyn .
 
       - name: Run full E2E suite
-        uses: agynio/e2e/.github/actions/run-tests@main
+        uses: agynio/e2e/.github/actions/run-tests@noa/bootstrap-568-egress-method-state
         with:
           provider-binary: terraform-provider-agyn/dist/terraform-provider-agyn
 
