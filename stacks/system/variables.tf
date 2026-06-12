@@ -16,6 +16,19 @@ variable "argocd_chart_version" {
   default     = "9.4.3"
 }
 
+variable "ghcr_username" {
+  type        = string
+  description = "Optional username for authenticated GHCR OCI Helm chart pulls"
+  default     = ""
+}
+
+variable "ghcr_password" {
+  type        = string
+  description = "Optional password or token for authenticated GHCR OCI Helm chart pulls"
+  default     = ""
+  sensitive   = true
+}
+
 variable "save_private_keys" {
   type        = bool
   description = "Write generated private keys to local-certs when true"

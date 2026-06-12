@@ -223,6 +223,10 @@ resource "local_file" "ca_private_key" {
 }
 
 # Argo CD
+locals {
+  ghcr_credentials_secret_enabled = trimspace(var.ghcr_password) != ""
+}
+
 resource "helm_release" "argo_cd" {
   name       = "argo-cd"
   repository = local.argo_repository_url
@@ -268,4 +272,28 @@ resource "helm_release" "argo_cd" {
       }
     })
   ]
+}
+
+resource "kubernetes_secret_v1" "argocd_ghcr_repo_creds" {
+  count = local.ghcr_credentials_secret_enabled ? 1 : 0
+
+  metadata {
+    name      = "repo-creds-ghcr"
+    namespace = kubernetes_namespace.argocd.metadata[0].name
+    labels = {
+      "argocd.argoproj.io/secret-type" = "repo-creds"
+    }
+  }
+
+  type = "Opaque"
+
+  data = {
+    url       = "ghcr.io"
+    type      = "helm"
+    enableOCI = "true"
+    username  = trimspace(var.ghcr_username) != "" ? var.ghcr_username : "oauth2"
+    password  = var.ghcr_password
+  }
+
+  depends_on = [helm_release.argo_cd]
 }
