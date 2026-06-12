@@ -985,7 +985,7 @@ locals {
       },
       {
         name  = "EGRESS_CA_NAMESPACE"
-        value = "agyn-workloads"
+        value = var.platform_namespace
       }
     ]
   })
@@ -4369,6 +4369,7 @@ resource "argocd_application" "agents_orchestrator" {
     argocd_application.secrets,
     argocd_application.runners,
     argocd_application.egress,
+    kubernetes_manifest.egress_ca_certificate,
   ]
   metadata {
     name      = "agents-orchestrator"
