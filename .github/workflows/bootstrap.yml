@@ -29,8 +29,31 @@ jobs:
         with:
           ref: ${{ github.sha }}
 
+      - name: Setup Go for Terraform provider
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24.x"
+
+      - name: Checkout Terraform provider with egress resources
+        uses: actions/checkout@v4
+        with:
+          repository: agynio/terraform-provider-agyn
+          ref: 333b204d36422004270c88c17fab0a74055d1c5b
+          path: terraform-provider-agyn
+
+      - name: Build Terraform provider with egress resources
+        run: |
+          set -euo pipefail
+          cd terraform-provider-agyn
+          go run github.com/bufbuild/buf/cmd/buf@v1.70.0 dep update
+          go run github.com/bufbuild/buf/cmd/buf@v1.70.0 generate
+          mkdir -p dist
+          go build -o dist/terraform-provider-agyn .
+
       - name: Run full E2E suite
         uses: agynio/e2e/.github/actions/run-tests@main
+        with:
+          provider-binary: terraform-provider-agyn/dist/terraform-provider-agyn
 
       - name: Dump authorization diagnostics
         if: failure()
