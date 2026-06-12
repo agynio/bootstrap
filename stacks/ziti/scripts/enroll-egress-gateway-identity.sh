@@ -7,6 +7,9 @@ required_vars=(
   ZITI_CLI_LINUX_AMD64_SHA256
   ZITI_CLI_LINUX_ARM64_SHA256
   ZITI_CLI_VERSION
+  ZITI_CONTROLLER_URL
+  ZITI_ADMIN_USERNAME
+  ZITI_ADMIN_PASSWORD
   ZITI_NAMESPACE
 )
 
@@ -42,6 +45,8 @@ curl -fsSL "https://github.com/openziti/ziti/releases/download/v${ZITI_CLI_VERSI
 printf '%s  %s\n' "$ziti_sha" "$archive" | sha256sum -c - >&2
 tar -xzf "$archive" -C "$workdir"
 ziti="$workdir/ziti"
+
+"$ziti" edge login "$ZITI_CONTROLLER_URL" --yes --username "$ZITI_ADMIN_USERNAME" --password "$ZITI_ADMIN_PASSWORD" >&2
 
 enrollment_id=$("$ziti" edge create enrollment ott "$IDENTITY_ID" --jwt-output-file "$workdir/enrollment.jwt" --output-json | jq -r '.data.id')
 if [[ -z "$enrollment_id" || "$enrollment_id" == "null" ]]; then
