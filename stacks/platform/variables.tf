@@ -750,7 +750,7 @@ variable "egress_chart_version" {
 variable "egress_image_tag" {
   type        = string
   description = "Optional override for the egress image tag"
-  default     = ""
+  default     = "0.1.1-address-fix"
 }
 
 variable "egress_db_password" {
