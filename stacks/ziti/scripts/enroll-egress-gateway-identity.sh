@@ -2,14 +2,11 @@
 set -euo pipefail
 
 required_vars=(
-  IDENTITY_ID
+  ENROLLMENT_TOKEN
   SECRET_NAME
   ZITI_CLI_LINUX_AMD64_SHA256
   ZITI_CLI_LINUX_ARM64_SHA256
   ZITI_CLI_VERSION
-  ZITI_CONTROLLER_URL
-  ZITI_ADMIN_USERNAME
-  ZITI_ADMIN_PASSWORD
   ZITI_NAMESPACE
 )
 
@@ -21,7 +18,6 @@ for var_name in "${required_vars[@]}"; do
 done
 
 workdir=$(mktemp -d)
-export ZITI_CONFIG_DIR="$workdir/config"
 trap 'rm -rf "$workdir"' EXIT
 
 arch=$(uname -m)
@@ -45,19 +41,14 @@ curl -fsSL "https://github.com/openziti/ziti/releases/download/v${ZITI_CLI_VERSI
 printf '%s  %s\n' "$ziti_sha" "$archive" | sha256sum -c - >&2
 tar -xzf "$archive" -C "$workdir"
 ziti="$workdir/ziti"
+jwt_file="$workdir/enrollment.jwt"
+identity_file="$workdir/identity.json"
 
-"$ziti" edge login "$ZITI_CONTROLLER_URL" --yes --username "$ZITI_ADMIN_USERNAME" --password "$ZITI_ADMIN_PASSWORD" >&2
-
-enrollment_id=$("$ziti" edge create enrollment ott "$IDENTITY_ID" --jwt-output-file "$workdir/enrollment.jwt" --output-json | jq -r '.data.id')
-if [[ -z "$enrollment_id" || "$enrollment_id" == "null" ]]; then
-  echo "OpenZiti enrollment creation did not return an enrollment id" >&2
-  exit 1
-fi
-
-"$ziti" edge enroll --jwt "$workdir/enrollment.jwt" --out "$workdir/identity.json" >&2
+printf '%s' "$ENROLLMENT_TOKEN" > "$jwt_file"
+"$ziti" edge enroll --jwt "$jwt_file" --out "$identity_file" >&2
 
 kubectl --namespace "$ZITI_NAMESPACE" create secret generic "$SECRET_NAME" \
-  --from-file="identity.json=$workdir/identity.json" \
+  --from-file="identity.json=$identity_file" \
   --dry-run=client \
   --output=yaml \
   | kubectl apply -f - >&2
