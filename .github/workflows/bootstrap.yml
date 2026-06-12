@@ -38,7 +38,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: agynio/terraform-provider-agyn
-          ref: 3861991742260823c96e4a0de7d5f6fd33ee383c
+          ref: fcc14358d9669df640f5feb12c3ec979149f4a73
           path: terraform-provider-agyn
 
       - name: Build Terraform provider with egress resources
