@@ -23,11 +23,37 @@ jobs:
       - name: Provision bootstrap cluster
         id: provision
         uses: ./.github/actions/provision
+        env:
+          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
+          GHCR_PASSWORD: ${{ secrets.GHCR_TOKEN }}
         with:
           ref: ${{ github.sha }}
 
+      - name: Setup Go for Terraform provider
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24.x"
+
+      - name: Checkout Terraform provider with egress resources
+        uses: actions/checkout@v4
+        with:
+          repository: agynio/terraform-provider-agyn
+          ref: 3dc62567d9eae5b7643e91850abeaa5305a6d66d
+          path: terraform-provider-agyn
+
+      - name: Build Terraform provider with egress resources
+        run: |
+          set -euo pipefail
+          cd terraform-provider-agyn
+          go run github.com/bufbuild/buf/cmd/buf@v1.70.0 dep update
+          go run github.com/bufbuild/buf/cmd/buf@v1.70.0 generate
+          mkdir -p dist
+          go build -o dist/terraform-provider-agyn .
+
       - name: Run full E2E suite
-        uses: agynio/e2e/.github/actions/run-tests@main
+        uses: agynio/e2e/.github/actions/run-tests@noa/bootstrap-568-egress-method-state
+        with:
+          provider-binary: terraform-provider-agyn/dist/terraform-provider-agyn
 
       - name: Dump authorization diagnostics
         if: failure()

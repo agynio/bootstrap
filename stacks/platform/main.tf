@@ -21,6 +21,7 @@ locals {
   resolved_users_image_tag               = trimspace(var.users_image_tag) != "" ? var.users_image_tag : var.users_chart_version
   resolved_expose_image_tag              = trimspace(var.expose_image_tag) != "" ? var.expose_image_tag : var.expose_chart_version
   resolved_organizations_image_tag       = trimspace(var.organizations_image_tag) != "" ? var.organizations_image_tag : var.organizations_chart_version
+  resolved_groups_image_tag              = trimspace(var.groups_image_tag) != "" ? var.groups_image_tag : var.groups_chart_version
   resolved_authorization_image_tag       = trimspace(var.authorization_image_tag) != "" ? var.authorization_image_tag : var.authorization_chart_version
   resolved_identity_image_tag            = trimspace(var.identity_image_tag) != "" ? var.identity_image_tag : var.identity_chart_version
   resolved_runners_image_tag             = trimspace(var.runners_image_tag) != "" ? var.runners_image_tag : var.runners_chart_version
@@ -54,6 +55,7 @@ locals {
   users_chart_name               = "agynio/charts/users"
   expose_chart_name              = "agynio/charts/expose"
   organizations_chart_name       = "agynio/charts/organizations"
+  groups_chart_name              = "agynio/charts/groups"
   authorization_chart_name       = "agynio/charts/authorization"
   identity_chart_name            = "agynio/charts/identity"
   runners_chart_name             = "agynio/charts/runners"
@@ -387,6 +389,29 @@ locals {
     }
   })
 
+  groups_db_values = yamlencode({
+    fullnameOverride = "groups-db"
+    postgres = {
+      database = "groups"
+      username = "groups"
+      password = var.groups_db_password
+      pgdata   = "/var/lib/postgresql/data/pgdata"
+    }
+    persistence = {
+      size                    = var.groups_db_pvc_size
+      mountPath               = "/var/lib/postgresql/data"
+      volumeClaimTemplateName = "data"
+    }
+    probes = {
+      readiness = {
+        execCommand = ["pg_isready", "-U", "groups", "-d", "groups"]
+      }
+      liveness = {
+        execCommand = ["pg_isready", "-U", "groups", "-d", "groups"]
+      }
+    }
+  })
+
   agents_orchestrator_db_values = yamlencode({
     fullnameOverride = "agents-orchestrator-db"
     postgres = {
@@ -582,6 +607,9 @@ locals {
     }
     database = {
       url = format("postgresql://secrets:%s@secrets-db:5432/secrets?sslmode=disable", var.secrets_db_password)
+      existingSecret = {
+        name = ""
+      }
     }
     image = {
       repository = "ghcr.io/agynio/secrets"
@@ -672,7 +700,8 @@ locals {
   })
 
   ziti_management_values = yamlencode({
-    fullnameOverride = "ziti-management"
+    fullnameOverride  = "ziti-management"
+    zitiControllerUrl = format("https://ziti-mgmt.%s:%d/edge/management/v1", local.base_domain, local.ingress_port)
     image = {
       repository = "ghcr.io/agynio/ziti-management"
       tag        = local.resolved_ziti_management_image_tag
@@ -802,6 +831,45 @@ locals {
     ]
   })
 
+  groups_values = yamlencode({
+    fullnameOverride = "groups"
+    global = {
+      imagePullSecrets = compact([data.terraform_remote_state.system.outputs.ghcr_pull_secret_name])
+    }
+    image = {
+      repository  = "ghcr.io/agynio/groups"
+      tag         = local.resolved_groups_image_tag
+      pullPolicy  = "IfNotPresent"
+      pullSecrets = [data.terraform_remote_state.system.outputs.ghcr_pull_secret_name]
+    }
+    env = [
+      {
+        name  = "GRPC_ADDRESS"
+        value = ":50051"
+      },
+      {
+        name  = "DATABASE_URL"
+        value = format("postgresql://groups:%s@groups-db:5432/groups?sslmode=disable", var.groups_db_password)
+      },
+      {
+        name  = "AUTHORIZATION_GRPC_TARGET"
+        value = "authorization:50051"
+      },
+      {
+        name  = "IDENTITY_GRPC_TARGET"
+        value = "identity:50051"
+      },
+      {
+        name  = "NATS_URL"
+        value = local.nats_endpoint
+      },
+    ]
+    resources = {
+      requests = { cpu = "50m", memory = "128Mi" }
+      limits   = { cpu = "500m", memory = "256Mi" }
+    }
+  })
+
   identity_values = yamlencode({
     replicaCount     = 1
     fullnameOverride = "identity"
@@ -830,6 +898,30 @@ locals {
       {
         name  = "DATABASE_URL"
         value = format("postgresql://runners:%s@runners-db:5432/runners?sslmode=disable", var.runners_db_password)
+      },
+      {
+        name  = "GRPC_ADDR"
+        value = ":50051"
+      },
+      {
+        name  = "IDENTITY_ADDRESS"
+        value = "identity:50051"
+      },
+      {
+        name  = "AUTHORIZATION_ADDRESS"
+        value = "authorization:50051"
+      },
+      {
+        name  = "AGENTS_ADDRESS"
+        value = "agents:50051"
+      },
+      {
+        name  = "ZITI_MANAGEMENT_ADDRESS"
+        value = "ziti-management:50051"
+      },
+      {
+        name  = "NOTIFICATIONS_ADDRESS"
+        value = "notifications:50051"
       },
     ]
   })
@@ -896,7 +988,7 @@ locals {
       },
       {
         name  = "EGRESS_CA_NAMESPACE"
-        value = "agyn-workloads"
+        value = var.platform_namespace
       }
     ]
   })
@@ -1614,12 +1706,6 @@ resource "openfga_relationship_tuple" "cluster_admin" {
   depends_on = [module.openfga_authorization]
 }
 
-resource "kubernetes_namespace" "platform" {
-  metadata {
-    name = var.platform_namespace
-  }
-}
-
 resource "kubernetes_namespace_v1" "agyn_workloads" {
   metadata {
     name = "agyn-workloads"
@@ -1631,7 +1717,7 @@ resource "kubernetes_namespace_v1" "agyn_workloads" {
 resource "kubernetes_secret_v1" "ziti_management_enrollment" {
   metadata {
     name      = "ziti-management-enrollment"
-    namespace = kubernetes_namespace.platform.metadata[0].name
+    namespace = var.platform_namespace
   }
 
   type = "Opaque"
@@ -1644,7 +1730,7 @@ resource "kubernetes_secret_v1" "ziti_management_enrollment" {
 resource "kubernetes_secret_v1" "egress_gateway_enrollment" {
   metadata {
     name      = "egress-gateway-enrollment"
-    namespace = kubernetes_namespace.platform.metadata[0].name
+    namespace = var.platform_namespace
   }
 
   type = "Opaque"
@@ -1673,7 +1759,7 @@ resource "kubernetes_manifest" "egress_ca_certificate" {
     "kind"       = "Certificate"
     "metadata" = {
       "name"      = "egress-ca"
-      "namespace" = kubernetes_namespace.platform.metadata[0].name
+      "namespace" = var.platform_namespace
     }
     "spec" = {
       "isCA"        = true
@@ -1709,7 +1795,7 @@ resource "kubernetes_secret_v1" "ziti_diagnostics" {
 
   metadata {
     name      = local.ziti_diagnostics_secret_name
-    namespace = kubernetes_namespace.platform.metadata[0].name
+    namespace = var.platform_namespace
   }
 
   type = "Opaque"
@@ -1725,7 +1811,7 @@ resource "kubernetes_role_v1" "ziti_diagnostics_reader" {
 
   metadata {
     name      = "ziti-diagnostics-reader"
-    namespace = kubernetes_namespace.platform.metadata[0].name
+    namespace = var.platform_namespace
   }
 
   rule {
@@ -1743,7 +1829,7 @@ resource "kubernetes_role_binding_v1" "ziti_diagnostics_reader" {
 
   metadata {
     name      = "ziti-diagnostics-reader"
-    namespace = kubernetes_namespace.platform.metadata[0].name
+    namespace = var.platform_namespace
   }
 
   role_ref {
@@ -1755,14 +1841,14 @@ resource "kubernetes_role_binding_v1" "ziti_diagnostics_reader" {
   subject {
     kind      = "ServiceAccount"
     name      = "agents-orchestrator-e2e"
-    namespace = kubernetes_namespace.platform.metadata[0].name
+    namespace = var.platform_namespace
   }
 }
 
 resource "kubernetes_secret_v1" "secrets_encryption_key" {
   metadata {
     name      = "secrets-encryption-key"
-    namespace = kubernetes_namespace.platform.metadata[0].name
+    namespace = var.platform_namespace
   }
 
   type = "Opaque"
@@ -2183,7 +2269,7 @@ resource "kubernetes_manifest" "virtualservice_llm_proxy" {
 resource "kubernetes_service_v1" "files_db" {
   metadata {
     name      = "files-db"
-    namespace = kubernetes_namespace.platform.metadata[0].name
+    namespace = var.platform_namespace
     labels = {
       "app.kubernetes.io/name" = "files-db"
     }
@@ -2206,7 +2292,7 @@ resource "kubernetes_service_v1" "files_db" {
 resource "kubernetes_stateful_set_v1" "files_db" {
   metadata {
     name      = "files-db"
-    namespace = kubernetes_namespace.platform.metadata[0].name
+    namespace = var.platform_namespace
     labels = {
       "app.kubernetes.io/name" = "files-db"
     }
@@ -2309,15 +2395,8 @@ resource "argocd_repository" "nats_repo" {
   type = "helm"
 }
 
-resource "argocd_repository" "ghcr" {
-  repo       = "ghcr.io"
-  type       = "helm"
-  enable_oci = true
-}
-
 resource "argocd_application" "platform_db" {
-  depends_on = [argocd_repository.ghcr]
-  wait       = true
+  wait = true
 
   metadata {
     name      = "platform-db"
@@ -2366,8 +2445,7 @@ resource "argocd_application" "platform_db" {
 }
 
 resource "argocd_application" "threads_db" {
-  depends_on = [argocd_repository.ghcr]
-  wait       = true
+  wait = true
 
   metadata {
     name      = "threads-db"
@@ -2416,8 +2494,7 @@ resource "argocd_application" "threads_db" {
 }
 
 resource "argocd_application" "metering_db" {
-  depends_on = [argocd_repository.ghcr]
-  wait       = true
+  wait = true
 
   metadata {
     name      = "metering-db"
@@ -2466,8 +2543,7 @@ resource "argocd_application" "metering_db" {
 }
 
 resource "argocd_application" "chat_db" {
-  depends_on = [argocd_repository.ghcr]
-  wait       = true
+  wait = true
 
   metadata {
     name      = "chat-db"
@@ -2516,8 +2592,7 @@ resource "argocd_application" "chat_db" {
 }
 
 resource "argocd_application" "tracing_db" {
-  depends_on = [argocd_repository.ghcr]
-  wait       = true
+  wait = true
 
   metadata {
     name      = "tracing-db"
@@ -2566,8 +2641,7 @@ resource "argocd_application" "tracing_db" {
 }
 
 resource "argocd_application" "secrets_db" {
-  depends_on = [argocd_repository.ghcr]
-  wait       = true
+  wait = true
 
   metadata {
     name      = "secrets-db"
@@ -2616,8 +2690,7 @@ resource "argocd_application" "secrets_db" {
 }
 
 resource "argocd_application" "egress_db" {
-  depends_on = [argocd_repository.ghcr]
-  wait       = true
+  wait = true
 
   metadata {
     name      = "egress-db"
@@ -2664,8 +2737,7 @@ resource "argocd_application" "egress_db" {
 }
 
 resource "argocd_application" "llm_db" {
-  depends_on = [argocd_repository.ghcr]
-  wait       = true
+  wait = true
 
   metadata {
     name      = "llm-db"
@@ -2714,8 +2786,7 @@ resource "argocd_application" "llm_db" {
 }
 
 resource "argocd_application" "agents_db" {
-  depends_on = [argocd_repository.ghcr]
-  wait       = true
+  wait = true
 
   metadata {
     name      = "agents-db"
@@ -2764,8 +2835,7 @@ resource "argocd_application" "agents_db" {
 }
 
 resource "argocd_application" "ziti_management_db" {
-  depends_on = [argocd_repository.ghcr]
-  wait       = true
+  wait = true
 
   metadata {
     name      = "ziti-management-db"
@@ -2814,8 +2884,7 @@ resource "argocd_application" "ziti_management_db" {
 }
 
 resource "argocd_application" "users_db" {
-  depends_on = [argocd_repository.ghcr]
-  wait       = true
+  wait = true
 
   metadata {
     name      = "users-db"
@@ -2864,8 +2933,7 @@ resource "argocd_application" "users_db" {
 }
 
 resource "argocd_application" "expose_db" {
-  depends_on = [argocd_repository.ghcr]
-  wait       = true
+  wait = true
 
   metadata {
     name      = "expose-db"
@@ -2914,8 +2982,7 @@ resource "argocd_application" "expose_db" {
 }
 
 resource "argocd_application" "organizations_db" {
-  depends_on = [argocd_repository.ghcr]
-  wait       = true
+  wait = true
 
   metadata {
     name      = "organizations-db"
@@ -2963,9 +3030,57 @@ resource "argocd_application" "organizations_db" {
   }
 }
 
+resource "argocd_application" "groups_db" {
+  wait = true
+
+  metadata {
+    name      = "groups-db"
+    namespace = "argocd"
+    annotations = {
+      "argocd.argoproj.io/sync-wave" = "8"
+    }
+  }
+
+  spec {
+    project = "default"
+
+    source {
+      repo_url        = local.postgres_chart_repo_host
+      chart           = local.postgres_chart_name
+      target_revision = var.postgres_chart_version
+
+      helm {
+        values = local.groups_db_values
+      }
+    }
+
+    destination {
+      server    = var.destination_server
+      namespace = var.platform_namespace
+    }
+
+    sync_policy {
+      # DB apps always use automated sync with prune disabled for stateful safety,
+      # independent of var.argocd_automated_sync_enabled.
+      automated {
+        prune       = false
+        self_heal   = true
+        allow_empty = false
+      }
+
+      sync_options = local.postgres_sync_options
+    }
+  }
+
+  timeouts {
+    create = "5m"
+    update = "5m"
+    delete = "5m"
+  }
+}
+
 resource "argocd_application" "agents_orchestrator_db" {
-  depends_on = [argocd_repository.ghcr]
-  wait       = true
+  wait = true
 
   metadata {
     name      = "agents-orchestrator-db"
@@ -3014,8 +3129,7 @@ resource "argocd_application" "agents_orchestrator_db" {
 }
 
 resource "argocd_application" "identity_db" {
-  depends_on = [argocd_repository.ghcr]
-  wait       = true
+  wait = true
 
   metadata {
     name      = "identity-db"
@@ -3064,8 +3178,7 @@ resource "argocd_application" "identity_db" {
 }
 
 resource "argocd_application" "runners_db" {
-  depends_on = [argocd_repository.ghcr]
-  wait       = true
+  wait = true
 
   metadata {
     name      = "runners-db"
@@ -3114,8 +3227,7 @@ resource "argocd_application" "runners_db" {
 }
 
 resource "argocd_application" "apps_db" {
-  depends_on = [argocd_repository.ghcr]
-  wait       = true
+  wait = true
 
   metadata {
     name      = "apps-db"
@@ -3165,7 +3277,6 @@ resource "argocd_application" "apps_db" {
 
 resource "argocd_application" "threads" {
   depends_on = [
-    argocd_repository.ghcr,
     argocd_application.threads_db,
   ]
   metadata {
@@ -3211,7 +3322,6 @@ resource "argocd_application" "threads" {
 
 resource "argocd_application" "metering" {
   depends_on = [
-    argocd_repository.ghcr,
     argocd_application.metering_db,
   ]
   metadata {
@@ -3257,7 +3367,6 @@ resource "argocd_application" "metering" {
 
 resource "argocd_application" "tracing" {
   depends_on = [
-    argocd_repository.ghcr,
     argocd_application.tracing_db,
     argocd_application.ziti_management,
   ]
@@ -3304,7 +3413,6 @@ resource "argocd_application" "tracing" {
 
 resource "argocd_application" "chat" {
   depends_on = [
-    argocd_repository.ghcr,
     argocd_application.chat_db,
     argocd_application.threads,
   ]
@@ -3351,7 +3459,6 @@ resource "argocd_application" "chat" {
 
 resource "argocd_application" "secrets" {
   depends_on = [
-    argocd_repository.ghcr,
     argocd_application.secrets_db,
   ]
   metadata {
@@ -3397,7 +3504,6 @@ resource "argocd_application" "secrets" {
 
 resource "argocd_application" "authorization" {
   depends_on = [
-    argocd_repository.ghcr,
     module.openfga_authorization,
   ]
   wait = true
@@ -3450,7 +3556,6 @@ resource "argocd_application" "authorization" {
 
 resource "argocd_application" "identity" {
   depends_on = [
-    argocd_repository.ghcr,
     argocd_application.identity_db,
   ]
   metadata {
@@ -3495,7 +3600,6 @@ resource "argocd_application" "identity" {
 }
 
 resource "argocd_application" "token_counting" {
-  depends_on = [argocd_repository.ghcr]
   metadata {
     name      = "token-counting"
     namespace = "argocd"
@@ -3581,8 +3685,6 @@ resource "argocd_application" "notifications_redis" {
 }
 
 resource "argocd_application" "nats" {
-  count = var.nats_enabled ? 1 : 0
-
   depends_on = [argocd_repository.nats_repo]
   wait       = true
 
@@ -3635,7 +3737,6 @@ resource "argocd_application" "nats" {
 
 resource "argocd_application" "runners" {
   depends_on = [
-    argocd_repository.ghcr,
     argocd_application.runners_db,
     argocd_application.identity,
     argocd_application.authorization,
@@ -3684,7 +3785,6 @@ resource "argocd_application" "runners" {
 
 resource "argocd_application" "apps" {
   depends_on = [
-    argocd_repository.ghcr,
     argocd_application.apps_db,
     argocd_application.identity,
     argocd_application.authorization,
@@ -3733,7 +3833,6 @@ resource "argocd_application" "apps" {
 
 resource "argocd_application" "egress" {
   depends_on = [
-    argocd_repository.ghcr,
     argocd_application.egress_db,
     argocd_application.authorization,
     argocd_application.ziti_management,
@@ -3783,7 +3882,6 @@ resource "argocd_application" "egress" {
 
 resource "argocd_application" "egress_gateway" {
   depends_on = [
-    argocd_repository.ghcr,
     argocd_application.egress,
     argocd_application.secrets,
     argocd_application.metering,
@@ -3835,7 +3933,6 @@ resource "argocd_application" "egress_gateway" {
 
 resource "argocd_application" "agents" {
   depends_on = [
-    argocd_repository.ghcr,
     argocd_application.agents_db,
   ]
   metadata {
@@ -3881,7 +3978,6 @@ resource "argocd_application" "agents" {
 
 resource "argocd_application" "ziti_management" {
   depends_on = [
-    argocd_repository.ghcr,
     argocd_application.ziti_management_db,
   ]
 
@@ -3928,7 +4024,6 @@ resource "argocd_application" "ziti_management" {
 
 resource "argocd_application" "users" {
   depends_on = [
-    argocd_repository.ghcr,
     argocd_application.users_db,
   ]
   wait = true
@@ -3975,7 +4070,6 @@ resource "argocd_application" "users" {
 
 resource "argocd_application" "expose" {
   depends_on = [
-    argocd_repository.ghcr,
     argocd_application.expose_db,
     argocd_application.ziti_management,
     argocd_application.runners,
@@ -4025,7 +4119,6 @@ resource "argocd_application" "expose" {
 
 resource "argocd_application" "organizations" {
   depends_on = [
-    argocd_repository.ghcr,
     argocd_application.organizations_db,
     argocd_application.authorization,
   ]
@@ -4070,9 +4163,66 @@ resource "argocd_application" "organizations" {
   }
 }
 
+resource "argocd_application" "groups" {
+  depends_on = [
+    argocd_application.nats,
+    argocd_application.groups_db,
+    argocd_application.authorization,
+    argocd_application.identity,
+  ]
+  metadata {
+    name      = "groups"
+    namespace = "argocd"
+    annotations = {
+      "argocd.argoproj.io/sync-wave" = "18"
+    }
+  }
+
+  spec {
+    project = "default"
+
+    source {
+      repo_url        = local.platform_chart_repo_host
+      chart           = local.groups_chart_name
+      target_revision = var.groups_chart_version
+
+      helm {
+        values = local.groups_values
+
+        parameter {
+          name  = "global.imagePullSecrets[0]"
+          value = data.terraform_remote_state.system.outputs.ghcr_pull_secret_name
+        }
+
+        parameter {
+          name  = "image.pullSecrets[0]"
+          value = data.terraform_remote_state.system.outputs.ghcr_pull_secret_name
+        }
+      }
+    }
+
+    destination {
+      server    = var.destination_server
+      namespace = var.platform_namespace
+    }
+
+    sync_policy {
+      dynamic "automated" {
+        for_each = var.argocd_automated_sync_enabled ? [1] : []
+        content {
+          prune       = var.argocd_prune_enabled
+          self_heal   = var.argocd_self_heal_enabled
+          allow_empty = false
+        }
+      }
+
+      sync_options = local.default_sync_options
+    }
+  }
+}
+
 resource "argocd_application" "llm" {
   depends_on = [
-    argocd_repository.ghcr,
     argocd_application.llm_db,
   ]
   metadata {
@@ -4123,7 +4273,6 @@ resource "minio_s3_bucket" "files" {
 
 resource "argocd_application" "files" {
   depends_on = [
-    argocd_repository.ghcr,
     kubernetes_stateful_set_v1.files_db,
     minio_s3_bucket.files,
   ]
@@ -4170,7 +4319,6 @@ resource "argocd_application" "files" {
 
 resource "argocd_application" "notifications" {
   depends_on = [
-    argocd_repository.ghcr,
     argocd_application.notifications_redis,
   ]
   metadata {
@@ -4216,7 +4364,6 @@ resource "argocd_application" "notifications" {
 
 resource "argocd_application" "agents_orchestrator" {
   depends_on = [
-    argocd_repository.ghcr,
     argocd_application.agents_orchestrator_db,
     argocd_application.ziti_management,
     argocd_application.threads,
@@ -4225,6 +4372,7 @@ resource "argocd_application" "agents_orchestrator" {
     argocd_application.secrets,
     argocd_application.runners,
     argocd_application.egress,
+    kubernetes_manifest.egress_ca_certificate,
   ]
   metadata {
     name      = "agents-orchestrator"
@@ -4269,7 +4417,6 @@ resource "argocd_application" "agents_orchestrator" {
 
 resource "argocd_application" "media_proxy" {
   depends_on = [
-    argocd_repository.ghcr,
     argocd_application.users,
     argocd_application.files,
     argocd_application.authorization,
@@ -4316,7 +4463,6 @@ resource "argocd_application" "media_proxy" {
 }
 
 resource "argocd_application" "chat_app" {
-  depends_on = [argocd_repository.ghcr]
   metadata {
     name      = "chat-app"
     namespace = "argocd"
@@ -4359,7 +4505,6 @@ resource "argocd_application" "chat_app" {
 }
 
 resource "argocd_application" "console_app" {
-  depends_on = [argocd_repository.ghcr]
   metadata {
     name      = "console-app"
     namespace = "argocd"
@@ -4402,7 +4547,6 @@ resource "argocd_application" "console_app" {
 }
 
 resource "argocd_application" "tracing_app" {
-  depends_on = [argocd_repository.ghcr]
   metadata {
     name      = "tracing-app"
     namespace = "argocd"

@@ -68,20 +68,17 @@ Default domain and port: `agyn.dev` on `2496`.
 - OpenFGA API: https://openfga.agyn.dev:2496/
 - OpenFGA Playground: https://openfga-playground.agyn.dev:2496/
 
-## Optional NATS JetStream event bus
+## NATS JetStream event bus
 
-The platform stack can deploy NATS JetStream for durable service-to-service
-events used by private Networks and Groups work. It is disabled by default.
-Enable it when applying the platform stack:
+The platform stack deploys NATS JetStream for durable service-to-service
+events used by private Networks and the Groups service. Groups is wired as a
+core platform service and depends on NATS so it is created after the event bus.
 
-```sh
-terraform -chdir=stacks/platform apply -var='nats_enabled=true'
-```
-
-The local deployment creates the `nats` Argo CD application in the platform
-namespace, enables JetStream file storage with a PVC, and configures the
-`AGYN_GROUPS` and `AGYN_NETWORKS` streams. The stable in-cluster endpoint is
-available from the platform stack output `nats_endpoint`.
+The local deployment creates the `nats`, `groups-db`, and `groups` Argo CD
+applications in the platform namespace, enables JetStream file storage with a
+PVC, and configures the `AGYN_GROUPS` and `AGYN_NETWORKS` streams. The stable
+in-cluster endpoint is available from the platform stack output
+`nats_endpoint`.
 
 ## DEV/E2E-only diagnostics credentials
 

@@ -26,7 +26,7 @@ variable "gateway_chart_version" {
 variable "agents_orchestrator_chart_version" {
   type        = string
   description = "Version of the agents-orchestrator Helm chart published to GHCR"
-  default     = "0.13.17"
+  default     = "0.13.18"
 }
 
 variable "threads_chart_version" {
@@ -86,7 +86,7 @@ variable "agents_chart_version" {
 variable "ziti_management_chart_version" {
   type        = string
   description = "Version of the ziti-management Helm chart published to GHCR"
-  default     = "0.10.10"
+  default     = "0.10.12"
 }
 
 variable "users_chart_version" {
@@ -107,6 +107,12 @@ variable "organizations_chart_version" {
   default     = "0.4.4"
 }
 
+variable "groups_chart_version" {
+  type        = string
+  description = "Version of the groups Helm chart published to GHCR"
+  default     = "0.1.0"
+}
+
 variable "identity_chart_version" {
   type        = string
   description = "Version of the identity Helm chart published to GHCR"
@@ -116,7 +122,7 @@ variable "identity_chart_version" {
 variable "runners_chart_version" {
   type        = string
   description = "Version of the runners Helm chart published to GHCR"
-  default     = "0.5.11"
+  default     = "0.5.12"
 }
 
 variable "apps_chart_version" {
@@ -146,7 +152,7 @@ variable "console_app_chart_version" {
 variable "console_app_image_tag" {
   type        = string
   description = "Optional override for the console-app container image tag"
-  default     = ""
+  default     = "0.10.10-egress-rules"
 }
 
 variable "oidc_issuer_url" {
@@ -282,6 +288,12 @@ variable "organizations_image_tag" {
   default     = ""
 }
 
+variable "groups_image_tag" {
+  type        = string
+  description = "Optional override for the groups image tag"
+  default     = ""
+}
+
 variable "identity_image_tag" {
   type        = string
   description = "Optional override for the identity image tag"
@@ -310,12 +322,6 @@ variable "notifications_redis_addr" {
   type        = string
   description = "Redis address used by the notifications service"
   default     = "notifications-redis-master.platform.svc.cluster.local:6379"
-}
-
-variable "nats_enabled" {
-  type        = bool
-  description = "Enable NATS JetStream deployment for durable platform events"
-  default     = false
 }
 
 variable "nats_jetstream_file_store_pvc_size" {
@@ -584,6 +590,13 @@ variable "organizations_db_password" {
   sensitive   = true
 }
 
+variable "groups_db_password" {
+  type        = string
+  description = "Password for the groups PostgreSQL database user"
+  default     = "groups"
+  sensitive   = true
+}
+
 variable "agents_db_pvc_size" {
   type        = string
   description = "Persistent volume claim size for the agents PostgreSQL primary"
@@ -628,6 +641,12 @@ variable "organizations_db_pvc_size" {
   default     = "5Gi"
 }
 
+variable "groups_db_pvc_size" {
+  type        = string
+  description = "Persistent volume claim size for the groups PostgreSQL primary"
+  default     = "5Gi"
+}
+
 variable "minio_root_user" {
   type        = string
   description = "MinIO root user access key"
@@ -651,7 +670,7 @@ variable "minio_bucket_name" {
 variable "secrets_chart_version" {
   type        = string
   description = "Version of the secrets Helm chart published to GHCR"
-  default     = "0.2.0"
+  default     = "0.2.2"
 }
 
 variable "secrets_image_tag" {
@@ -713,7 +732,7 @@ variable "media_proxy_image_tag" {
 variable "llm_proxy_chart_version" {
   type        = string
   description = "Version of the llm-proxy Helm chart published to GHCR"
-  default     = "0.12.5"
+  default     = "0.12.6"
 }
 
 variable "llm_proxy_image_tag" {
@@ -731,7 +750,7 @@ variable "egress_chart_version" {
 variable "egress_image_tag" {
   type        = string
   description = "Optional override for the egress image tag"
-  default     = ""
+  default     = "0.1.1-ziti-policy-fix"
 }
 
 variable "egress_db_password" {
