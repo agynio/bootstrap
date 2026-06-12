@@ -290,7 +290,7 @@ variable "organizations_image_tag" {
 
 variable "groups_image_tag" {
   type        = string
-  description = "Optional override for the groups image tag; defaults to the GHCR major tag because the 0.1.0 image tag is not published"
+  description = "Optional override for the groups image tag"
   default     = ""
 }
 
