@@ -37,3 +37,9 @@ output "ziti_diagnostics_credentials" {
 
   depends_on = [terraform_data.ziti_diagnostics_enrollment]
 }
+
+output "egress_gateway_enrollment_token" {
+  value       = ziti_identity.egress_gateway.enrollment_token
+  description = "Enrollment JWT for the egress-gateway identity"
+  sensitive   = true
+}

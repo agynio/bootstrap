@@ -40,10 +40,3 @@ data "kubernetes_service_v1" "ziti_router_edge" {
     namespace = local.ziti_namespace
   }
 }
-
-data "kubernetes_secret_v1" "egress_gateway_ziti_identity" {
-  metadata {
-    name      = "egress-gateway-ziti-identity"
-    namespace = local.ziti_namespace
-  }
-}
