@@ -1675,12 +1675,6 @@ resource "openfga_relationship_tuple" "cluster_admin" {
   depends_on = [module.openfga_authorization]
 }
 
-resource "kubernetes_namespace" "platform" {
-  metadata {
-    name = var.platform_namespace
-  }
-}
-
 resource "kubernetes_namespace_v1" "agyn_workloads" {
   metadata {
     name = "agyn-workloads"
@@ -1692,7 +1686,7 @@ resource "kubernetes_namespace_v1" "agyn_workloads" {
 resource "kubernetes_secret_v1" "ziti_management_enrollment" {
   metadata {
     name      = "ziti-management-enrollment"
-    namespace = kubernetes_namespace.platform.metadata[0].name
+    namespace = var.platform_namespace
   }
 
   type = "Opaque"
@@ -1702,6 +1696,22 @@ resource "kubernetes_secret_v1" "ziti_management_enrollment" {
   }
 }
 
+<<<<<<< HEAD
+=======
+resource "kubernetes_secret_v1" "egress_gateway_enrollment" {
+  metadata {
+    name      = "egress-gateway-enrollment"
+    namespace = var.platform_namespace
+  }
+
+  type = "Opaque"
+
+  data = {
+    enrollmentJwt = data.terraform_remote_state.ziti.outputs.egress_gateway_enrollment_token
+  }
+}
+
+>>>>>>> 830e91c (fix(platform): rely on existing namespace)
 resource "kubernetes_manifest" "agyn_selfsigned_cluster_issuer" {
   manifest = {
     "apiVersion" = "cert-manager.io/v1"
@@ -1721,7 +1731,7 @@ resource "kubernetes_manifest" "egress_ca_certificate" {
     "kind"       = "Certificate"
     "metadata" = {
       "name"      = "egress-ca"
-      "namespace" = kubernetes_namespace.platform.metadata[0].name
+      "namespace" = var.platform_namespace
     }
     "spec" = {
       "isCA"        = true
@@ -1757,7 +1767,7 @@ resource "kubernetes_secret_v1" "ziti_diagnostics" {
 
   metadata {
     name      = local.ziti_diagnostics_secret_name
-    namespace = kubernetes_namespace.platform.metadata[0].name
+    namespace = var.platform_namespace
   }
 
   type = "Opaque"
@@ -1773,7 +1783,7 @@ resource "kubernetes_role_v1" "ziti_diagnostics_reader" {
 
   metadata {
     name      = "ziti-diagnostics-reader"
-    namespace = kubernetes_namespace.platform.metadata[0].name
+    namespace = var.platform_namespace
   }
 
   rule {
@@ -1791,7 +1801,7 @@ resource "kubernetes_role_binding_v1" "ziti_diagnostics_reader" {
 
   metadata {
     name      = "ziti-diagnostics-reader"
-    namespace = kubernetes_namespace.platform.metadata[0].name
+    namespace = var.platform_namespace
   }
 
   role_ref {
@@ -1803,14 +1813,14 @@ resource "kubernetes_role_binding_v1" "ziti_diagnostics_reader" {
   subject {
     kind      = "ServiceAccount"
     name      = "agents-orchestrator-e2e"
-    namespace = kubernetes_namespace.platform.metadata[0].name
+    namespace = var.platform_namespace
   }
 }
 
 resource "kubernetes_secret_v1" "secrets_encryption_key" {
   metadata {
     name      = "secrets-encryption-key"
-    namespace = kubernetes_namespace.platform.metadata[0].name
+    namespace = var.platform_namespace
   }
 
   type = "Opaque"
@@ -2231,7 +2241,7 @@ resource "kubernetes_manifest" "virtualservice_llm_proxy" {
 resource "kubernetes_service_v1" "files_db" {
   metadata {
     name      = "files-db"
-    namespace = kubernetes_namespace.platform.metadata[0].name
+    namespace = var.platform_namespace
     labels = {
       "app.kubernetes.io/name" = "files-db"
     }
@@ -2254,7 +2264,7 @@ resource "kubernetes_service_v1" "files_db" {
 resource "kubernetes_stateful_set_v1" "files_db" {
   metadata {
     name      = "files-db"
-    namespace = kubernetes_namespace.platform.metadata[0].name
+    namespace = var.platform_namespace
     labels = {
       "app.kubernetes.io/name" = "files-db"
     }
