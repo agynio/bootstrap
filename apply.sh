@@ -23,6 +23,8 @@ Options:
 Environment variables:
   DOMAIN  Override the ingress domain (default: agyn.dev)
   PORT    Override the ingress port (default: 2496)
+  GHCR_USERNAME  Optional username for authenticated GHCR OCI chart pulls
+  GHCR_PASSWORD  Optional token for authenticated GHCR OCI chart pulls
   OIDC_ISSUER_URL     Override the OIDC issuer URL (default: https://mockauth.dev/r/301ebb13-15a8-48f4-baac-e3fa25be29fc/oidc)
   OIDC_CLIENT_ID      Override the OIDC client ID (default: client_MU95KU3gHQf5Ir7p)
   TRACING_APP_OIDC_CLIENT_ID  Override the tracing-app OIDC client ID (default: client_tzqVFAYTvpkfUzy5)
@@ -159,6 +161,18 @@ if [[ -n "${admin_oidc_subject}" ]]; then
   echo "Admin OIDC subject provided via ADMIN_OIDC_SUBJECT environment variable: ${admin_oidc_subject}"
 fi
 
+ghcr_username="${GHCR_USERNAME:-}"
+ghcr_password="${GHCR_PASSWORD:-}"
+if [[ -n "${ghcr_password}" && -z "${ghcr_username}" && -n "${GITHUB_ACTOR:-}" ]]; then
+  ghcr_username="${GITHUB_ACTOR}"
+fi
+if [[ -n "${ghcr_username}" ]]; then
+  echo "GHCR username provided for Argo CD OCI chart pulls."
+fi
+if [[ -n "${ghcr_password}" ]]; then
+  echo "GHCR password/token provided for Argo CD OCI chart pulls."
+fi
+
 
 export K3D_IMAGE_LOADBALANCER="${K3D_IMAGE_LOADBALANCER:-${DEFAULT_K3D_PROXY_IMAGE}}"
 echo "Using k3d load balancer image: ${K3D_IMAGE_LOADBALANCER}"
@@ -193,6 +207,14 @@ run_stack() {
 
     if [[ -n "${tracing_app_oidc_client_id}" ]]; then
       apply_cmd+=(-var "tracing_app_oidc_client_id=${tracing_app_oidc_client_id}")
+    fi
+
+    if [[ -n "${ghcr_username}" ]]; then
+      apply_cmd+=(-var "ghcr_username=${ghcr_username}")
+    fi
+
+    if [[ -n "${ghcr_password}" ]]; then
+      apply_cmd+=(-var "ghcr_password=${ghcr_password}")
     fi
   fi
 

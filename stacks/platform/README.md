@@ -34,7 +34,7 @@ Each application chart enables a Kubernetes `Ingress` with `ingressClassName: is
 
 ### Chart source
 
-Platform charts are pulled from the GHCR OCI registry (`ghcr.io/agynio/charts`). Pin the release with `platform_chart_version`. The PostgreSQL Argo CD applications use the same registry and are pinned via `postgres_chart_version`.
+Platform charts are pulled from the GHCR OCI registry (`ghcr.io/agynio/charts`). Pin the releases with the per-service chart version variables. The PostgreSQL Argo CD applications use the same registry and are pinned via `postgres_chart_version`. For private chart packages, provide `ghcr_username` and `ghcr_password` so Argo CD can authenticate OCI chart pulls.
 
 ### NATS JetStream event bus
 
