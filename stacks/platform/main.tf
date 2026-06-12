@@ -21,7 +21,7 @@ locals {
   resolved_users_image_tag               = trimspace(var.users_image_tag) != "" ? var.users_image_tag : var.users_chart_version
   resolved_expose_image_tag              = trimspace(var.expose_image_tag) != "" ? var.expose_image_tag : var.expose_chart_version
   resolved_organizations_image_tag       = trimspace(var.organizations_image_tag) != "" ? var.organizations_image_tag : var.organizations_chart_version
-  resolved_groups_image_tag              = trimspace(var.groups_image_tag) != "" ? var.groups_image_tag : var.groups_chart_version
+  resolved_groups_image_tag              = trimspace(var.groups_image_tag) != "" ? var.groups_image_tag : "0"
   resolved_authorization_image_tag       = trimspace(var.authorization_image_tag) != "" ? var.authorization_image_tag : var.authorization_chart_version
   resolved_identity_image_tag            = trimspace(var.identity_image_tag) != "" ? var.identity_image_tag : var.identity_chart_version
   resolved_runners_image_tag             = trimspace(var.runners_image_tag) != "" ? var.runners_image_tag : var.runners_chart_version
@@ -838,9 +838,10 @@ locals {
       imagePullSecrets = compact([data.terraform_remote_state.system.outputs.ghcr_pull_secret_name])
     }
     image = {
-      repository = "ghcr.io/agynio/groups"
-      tag        = local.resolved_groups_image_tag
-      pullPolicy = "IfNotPresent"
+      repository  = "ghcr.io/agynio/groups"
+      tag         = local.resolved_groups_image_tag
+      pullPolicy  = "IfNotPresent"
+      pullSecrets = [data.terraform_remote_state.system.outputs.ghcr_pull_secret_name]
     }
     env = [
       {
@@ -4158,6 +4159,16 @@ resource "argocd_application" "groups" {
 
       helm {
         values = local.groups_values
+
+        parameter {
+          name  = "global.imagePullSecrets[0]"
+          value = data.terraform_remote_state.system.outputs.ghcr_pull_secret_name
+        }
+
+        parameter {
+          name  = "image.pullSecrets[0]"
+          value = data.terraform_remote_state.system.outputs.ghcr_pull_secret_name
+        }
       }
     }
 
