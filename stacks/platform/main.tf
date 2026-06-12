@@ -2357,15 +2357,8 @@ resource "argocd_repository" "nats_repo" {
   type = "helm"
 }
 
-resource "argocd_repository" "ghcr" {
-  repo       = "ghcr.io"
-  type       = "helm"
-  enable_oci = true
-}
-
 resource "argocd_application" "platform_db" {
-  depends_on = [argocd_repository.ghcr]
-  wait       = true
+  wait = true
 
   metadata {
     name      = "platform-db"
@@ -2414,8 +2407,7 @@ resource "argocd_application" "platform_db" {
 }
 
 resource "argocd_application" "threads_db" {
-  depends_on = [argocd_repository.ghcr]
-  wait       = true
+  wait = true
 
   metadata {
     name      = "threads-db"
@@ -2464,8 +2456,7 @@ resource "argocd_application" "threads_db" {
 }
 
 resource "argocd_application" "metering_db" {
-  depends_on = [argocd_repository.ghcr]
-  wait       = true
+  wait = true
 
   metadata {
     name      = "metering-db"
@@ -2514,8 +2505,7 @@ resource "argocd_application" "metering_db" {
 }
 
 resource "argocd_application" "chat_db" {
-  depends_on = [argocd_repository.ghcr]
-  wait       = true
+  wait = true
 
   metadata {
     name      = "chat-db"
@@ -2564,8 +2554,7 @@ resource "argocd_application" "chat_db" {
 }
 
 resource "argocd_application" "tracing_db" {
-  depends_on = [argocd_repository.ghcr]
-  wait       = true
+  wait = true
 
   metadata {
     name      = "tracing-db"
@@ -2614,8 +2603,7 @@ resource "argocd_application" "tracing_db" {
 }
 
 resource "argocd_application" "secrets_db" {
-  depends_on = [argocd_repository.ghcr]
-  wait       = true
+  wait = true
 
   metadata {
     name      = "secrets-db"
@@ -2664,8 +2652,7 @@ resource "argocd_application" "secrets_db" {
 }
 
 resource "argocd_application" "egress_db" {
-  depends_on = [argocd_repository.ghcr]
-  wait       = true
+  wait = true
 
   metadata {
     name      = "egress-db"
@@ -2712,8 +2699,7 @@ resource "argocd_application" "egress_db" {
 }
 
 resource "argocd_application" "llm_db" {
-  depends_on = [argocd_repository.ghcr]
-  wait       = true
+  wait = true
 
   metadata {
     name      = "llm-db"
@@ -2762,8 +2748,7 @@ resource "argocd_application" "llm_db" {
 }
 
 resource "argocd_application" "agents_db" {
-  depends_on = [argocd_repository.ghcr]
-  wait       = true
+  wait = true
 
   metadata {
     name      = "agents-db"
@@ -2812,8 +2797,7 @@ resource "argocd_application" "agents_db" {
 }
 
 resource "argocd_application" "ziti_management_db" {
-  depends_on = [argocd_repository.ghcr]
-  wait       = true
+  wait = true
 
   metadata {
     name      = "ziti-management-db"
@@ -2862,8 +2846,7 @@ resource "argocd_application" "ziti_management_db" {
 }
 
 resource "argocd_application" "users_db" {
-  depends_on = [argocd_repository.ghcr]
-  wait       = true
+  wait = true
 
   metadata {
     name      = "users-db"
@@ -2912,8 +2895,7 @@ resource "argocd_application" "users_db" {
 }
 
 resource "argocd_application" "expose_db" {
-  depends_on = [argocd_repository.ghcr]
-  wait       = true
+  wait = true
 
   metadata {
     name      = "expose-db"
@@ -2962,8 +2944,7 @@ resource "argocd_application" "expose_db" {
 }
 
 resource "argocd_application" "organizations_db" {
-  depends_on = [argocd_repository.ghcr]
-  wait       = true
+  wait = true
 
   metadata {
     name      = "organizations-db"
@@ -3012,8 +2993,7 @@ resource "argocd_application" "organizations_db" {
 }
 
 resource "argocd_application" "groups_db" {
-  depends_on = [argocd_repository.ghcr]
-  wait       = true
+  wait = true
 
   metadata {
     name      = "groups-db"
@@ -3062,8 +3042,7 @@ resource "argocd_application" "groups_db" {
 }
 
 resource "argocd_application" "agents_orchestrator_db" {
-  depends_on = [argocd_repository.ghcr]
-  wait       = true
+  wait = true
 
   metadata {
     name      = "agents-orchestrator-db"
@@ -3112,8 +3091,7 @@ resource "argocd_application" "agents_orchestrator_db" {
 }
 
 resource "argocd_application" "identity_db" {
-  depends_on = [argocd_repository.ghcr]
-  wait       = true
+  wait = true
 
   metadata {
     name      = "identity-db"
@@ -3162,8 +3140,7 @@ resource "argocd_application" "identity_db" {
 }
 
 resource "argocd_application" "runners_db" {
-  depends_on = [argocd_repository.ghcr]
-  wait       = true
+  wait = true
 
   metadata {
     name      = "runners-db"
@@ -3212,8 +3189,7 @@ resource "argocd_application" "runners_db" {
 }
 
 resource "argocd_application" "apps_db" {
-  depends_on = [argocd_repository.ghcr]
-  wait       = true
+  wait = true
 
   metadata {
     name      = "apps-db"
@@ -3263,7 +3239,6 @@ resource "argocd_application" "apps_db" {
 
 resource "argocd_application" "threads" {
   depends_on = [
-    argocd_repository.ghcr,
     argocd_application.threads_db,
   ]
   metadata {
@@ -3309,7 +3284,6 @@ resource "argocd_application" "threads" {
 
 resource "argocd_application" "metering" {
   depends_on = [
-    argocd_repository.ghcr,
     argocd_application.metering_db,
   ]
   metadata {
@@ -3355,7 +3329,6 @@ resource "argocd_application" "metering" {
 
 resource "argocd_application" "tracing" {
   depends_on = [
-    argocd_repository.ghcr,
     argocd_application.tracing_db,
     argocd_application.ziti_management,
   ]
@@ -3402,7 +3375,6 @@ resource "argocd_application" "tracing" {
 
 resource "argocd_application" "chat" {
   depends_on = [
-    argocd_repository.ghcr,
     argocd_application.chat_db,
     argocd_application.threads,
   ]
@@ -3449,7 +3421,6 @@ resource "argocd_application" "chat" {
 
 resource "argocd_application" "secrets" {
   depends_on = [
-    argocd_repository.ghcr,
     argocd_application.secrets_db,
   ]
   metadata {
@@ -3495,7 +3466,6 @@ resource "argocd_application" "secrets" {
 
 resource "argocd_application" "authorization" {
   depends_on = [
-    argocd_repository.ghcr,
     module.openfga_authorization,
   ]
   wait = true
@@ -3548,7 +3518,6 @@ resource "argocd_application" "authorization" {
 
 resource "argocd_application" "identity" {
   depends_on = [
-    argocd_repository.ghcr,
     argocd_application.identity_db,
   ]
   metadata {
@@ -3593,7 +3562,6 @@ resource "argocd_application" "identity" {
 }
 
 resource "argocd_application" "token_counting" {
-  depends_on = [argocd_repository.ghcr]
   metadata {
     name      = "token-counting"
     namespace = "argocd"
@@ -3731,7 +3699,6 @@ resource "argocd_application" "nats" {
 
 resource "argocd_application" "runners" {
   depends_on = [
-    argocd_repository.ghcr,
     argocd_application.runners_db,
     argocd_application.identity,
     argocd_application.authorization,
@@ -3780,7 +3747,6 @@ resource "argocd_application" "runners" {
 
 resource "argocd_application" "apps" {
   depends_on = [
-    argocd_repository.ghcr,
     argocd_application.apps_db,
     argocd_application.identity,
     argocd_application.authorization,
@@ -3829,7 +3795,6 @@ resource "argocd_application" "apps" {
 
 resource "argocd_application" "egress" {
   depends_on = [
-    argocd_repository.ghcr,
     argocd_application.egress_db,
     argocd_application.authorization,
     argocd_application.ziti_management,
@@ -3879,7 +3844,6 @@ resource "argocd_application" "egress" {
 
 resource "argocd_application" "egress_gateway" {
   depends_on = [
-    argocd_repository.ghcr,
     argocd_application.egress,
     argocd_application.secrets,
     argocd_application.metering,
@@ -3930,7 +3894,6 @@ resource "argocd_application" "egress_gateway" {
 
 resource "argocd_application" "agents" {
   depends_on = [
-    argocd_repository.ghcr,
     argocd_application.agents_db,
   ]
   metadata {
@@ -3976,7 +3939,6 @@ resource "argocd_application" "agents" {
 
 resource "argocd_application" "ziti_management" {
   depends_on = [
-    argocd_repository.ghcr,
     argocd_application.ziti_management_db,
   ]
 
@@ -4023,7 +3985,6 @@ resource "argocd_application" "ziti_management" {
 
 resource "argocd_application" "users" {
   depends_on = [
-    argocd_repository.ghcr,
     argocd_application.users_db,
   ]
   wait = true
@@ -4070,7 +4031,6 @@ resource "argocd_application" "users" {
 
 resource "argocd_application" "expose" {
   depends_on = [
-    argocd_repository.ghcr,
     argocd_application.expose_db,
     argocd_application.ziti_management,
     argocd_application.runners,
@@ -4120,7 +4080,6 @@ resource "argocd_application" "expose" {
 
 resource "argocd_application" "organizations" {
   depends_on = [
-    argocd_repository.ghcr,
     argocd_application.organizations_db,
     argocd_application.authorization,
   ]
@@ -4167,7 +4126,6 @@ resource "argocd_application" "organizations" {
 
 resource "argocd_application" "groups" {
   depends_on = [
-    argocd_repository.ghcr,
     argocd_application.nats,
     argocd_application.groups_db,
     argocd_application.authorization,
@@ -4216,7 +4174,6 @@ resource "argocd_application" "groups" {
 
 resource "argocd_application" "llm" {
   depends_on = [
-    argocd_repository.ghcr,
     argocd_application.llm_db,
   ]
   metadata {
@@ -4267,7 +4224,6 @@ resource "minio_s3_bucket" "files" {
 
 resource "argocd_application" "files" {
   depends_on = [
-    argocd_repository.ghcr,
     kubernetes_stateful_set_v1.files_db,
     minio_s3_bucket.files,
   ]
@@ -4314,7 +4270,6 @@ resource "argocd_application" "files" {
 
 resource "argocd_application" "notifications" {
   depends_on = [
-    argocd_repository.ghcr,
     argocd_application.notifications_redis,
   ]
   metadata {
@@ -4360,7 +4315,6 @@ resource "argocd_application" "notifications" {
 
 resource "argocd_application" "agents_orchestrator" {
   depends_on = [
-    argocd_repository.ghcr,
     argocd_application.agents_orchestrator_db,
     argocd_application.ziti_management,
     argocd_application.threads,
@@ -4413,7 +4367,6 @@ resource "argocd_application" "agents_orchestrator" {
 
 resource "argocd_application" "media_proxy" {
   depends_on = [
-    argocd_repository.ghcr,
     argocd_application.users,
     argocd_application.files,
     argocd_application.authorization,
@@ -4460,7 +4413,6 @@ resource "argocd_application" "media_proxy" {
 }
 
 resource "argocd_application" "chat_app" {
-  depends_on = [argocd_repository.ghcr]
   metadata {
     name      = "chat-app"
     namespace = "argocd"
@@ -4503,7 +4455,6 @@ resource "argocd_application" "chat_app" {
 }
 
 resource "argocd_application" "console_app" {
-  depends_on = [argocd_repository.ghcr]
   metadata {
     name      = "console-app"
     namespace = "argocd"
@@ -4546,7 +4497,6 @@ resource "argocd_application" "console_app" {
 }
 
 resource "argocd_application" "tracing_app" {
-  depends_on = [argocd_repository.ghcr]
   metadata {
     name      = "tracing-app"
     namespace = "argocd"
