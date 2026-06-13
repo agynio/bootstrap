@@ -35,13 +35,15 @@ jobs:
 
       - name: Build Terraform provider binary
         working-directory: terraform-provider-agyn
-        run: go build -o ../terraform-provider-agyn .
+        run: |
+          mkdir -p ../provider-bin
+          go build -o ../provider-bin/terraform-provider-agyn .
 
       - name: Run full E2E suite
         uses: agynio/e2e/.github/actions/run-tests@noa/issue-206
         with:
           e2e-ref: noa/issue-206
-          provider-binary: terraform-provider-agyn
+          provider-binary: provider-bin/terraform-provider-agyn
 
       - name: Dump authorization diagnostics
         if: failure()
