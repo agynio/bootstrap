@@ -40,7 +40,7 @@ jobs:
 
       - name: Wait for ziti-management PR image
         env:
-          ZITI_MANAGEMENT_IMAGE_TAG: pr-61-138daaf29682b3d1fbc0ba695318c15bb3ece6aa
+          ZITI_MANAGEMENT_IMAGE_TAG: pr-61-d81d5dc495ac4860c88206418cbbb9fccb59b0c3
         run: |
           set -euo pipefail
           image_ref="ghcr.io/agynio/ziti-management:${ZITI_MANAGEMENT_IMAGE_TAG}"
