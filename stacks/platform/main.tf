@@ -582,6 +582,10 @@ locals {
     }
     database = {
       url = format("postgresql://secrets:%s@secrets-db:5432/secrets?sslmode=disable", var.secrets_db_password)
+      existingSecret = {
+        name = ""
+        key  = ""
+      }
     }
     image = {
       repository = "ghcr.io/agynio/secrets"
@@ -637,16 +641,18 @@ locals {
       { name = "TRACING_ADDRESS", value = "tracing:50051" },
       { name = "AGENTS_SERVICE_ADDRESS", value = "agents:50051" },
       { name = "ZITI_MANAGEMENT_ADDRESS", value = "ziti-management:50051" },
+      { name = "ZITI_IDENTITY_FILE", value = "/var/lib/ziti/identity.json" },
       { name = "EGRESS_CA_CERT_PATH", value = "/var/run/agyn/egress-ca/tls.crt" },
       { name = "EGRESS_CA_KEY_PATH", value = "/var/run/agyn/egress-ca/tls.key" },
       { name = "ZITI_ENROLLMENT_JWT_FILE", value = "/etc/ziti-enrollment/enrollmentJwt" },
-      { name = "ZITI_IDENTITY_NAME_RESOLVE", value = "true" },
     ]
     extraVolumeMounts = [
+      { name = "ziti-identity", mountPath = "/var/lib/ziti" },
       { name = "ziti-enrollment", mountPath = "/etc/ziti-enrollment", readOnly = true },
       { name = "egress-ca", mountPath = "/var/run/agyn/egress-ca", readOnly = true },
     ]
     extraVolumes = [
+      { name = "ziti-identity", emptyDir = {} },
       { name = "ziti-enrollment", secret = { secretName = "egress-gateway-enrollment" } },
       { name = "egress-ca", secret = { secretName = "egress-ca" } },
     ]
@@ -1628,19 +1634,6 @@ resource "kubernetes_namespace_v1" "agyn_workloads" {
 
 # Enrollment JWT for ziti-management self-enrollment at startup.
 # The token is created by the ziti stack and passed via remote state.
-resource "kubernetes_secret_v1" "ziti_management_enrollment" {
-  metadata {
-    name      = "ziti-management-enrollment"
-    namespace = kubernetes_namespace.platform.metadata[0].name
-  }
-
-  type = "Opaque"
-
-  data = {
-    enrollmentJwt = data.terraform_remote_state.ziti.outputs.ziti_management_enrollment_token
-  }
-}
-
 resource "kubernetes_secret_v1" "egress_gateway_enrollment" {
   metadata {
     name      = "egress-gateway-enrollment"
@@ -1651,6 +1644,19 @@ resource "kubernetes_secret_v1" "egress_gateway_enrollment" {
 
   data = {
     enrollmentJwt = data.terraform_remote_state.ziti.outputs.egress_gateway_enrollment_token
+  }
+}
+
+resource "kubernetes_secret_v1" "ziti_management_enrollment" {
+  metadata {
+    name      = "ziti-management-enrollment"
+    namespace = kubernetes_namespace.platform.metadata[0].name
+  }
+
+  type = "Opaque"
+
+  data = {
+    enrollmentJwt = data.terraform_remote_state.ziti.outputs.ziti_management_enrollment_token
   }
 }
 

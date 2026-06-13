@@ -20,14 +20,66 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Wait for egress PR image
+        env:
+          EGRESS_IMAGE_TAG: pr-14-471fd0cff8d7aa2e49c1a6ecbe296cc7afe3ecdd
+        run: |
+          set -euo pipefail
+          image_ref="ghcr.io/agynio/egress:${EGRESS_IMAGE_TAG}"
+          for attempt in {1..60}; do
+            if docker buildx imagetools inspect "${image_ref}" >/dev/null 2>&1; then
+              echo "Found ${image_ref}"
+              echo "TF_VAR_egress_image_tag=${EGRESS_IMAGE_TAG}" >> "${GITHUB_ENV}"
+              exit 0
+            fi
+            echo "Waiting for ${image_ref} (${attempt}/60)"
+            sleep 10
+          done
+          echo "Timed out waiting for ${image_ref}" >&2
+          exit 1
+
+      - name: Wait for ziti-management PR image
+        env:
+          ZITI_MANAGEMENT_IMAGE_TAG: pr-61-d81d5dc495ac4860c88206418cbbb9fccb59b0c3
+        run: |
+          set -euo pipefail
+          image_ref="ghcr.io/agynio/ziti-management:${ZITI_MANAGEMENT_IMAGE_TAG}"
+          for attempt in {1..60}; do
+            if docker buildx imagetools inspect "${image_ref}" >/dev/null 2>&1; then
+              echo "Found ${image_ref}"
+              echo "TF_VAR_ziti_management_image_tag=${ZITI_MANAGEMENT_IMAGE_TAG}" >> "${GITHUB_ENV}"
+              exit 0
+            fi
+            echo "Waiting for ${image_ref} (${attempt}/60)"
+            sleep 10
+          done
+          echo "Timed out waiting for ${image_ref}" >&2
+          exit 1
+
       - name: Provision bootstrap cluster
         id: provision
         uses: ./.github/actions/provision
         with:
           ref: ${{ github.sha }}
 
+      - name: Build Terraform provider from PR #81
+        uses: actions/checkout@v4
+        with:
+          repository: agynio/terraform-provider-agyn
+          ref: noa/issue-153-continue
+          path: terraform-provider-agyn
+
+      - name: Build Terraform provider binary
+        working-directory: terraform-provider-agyn
+        run: |
+          mkdir -p ../provider-bin
+          go build -o ../provider-bin/terraform-provider-agyn .
+
       - name: Run full E2E suite
-        uses: agynio/e2e/.github/actions/run-tests@main
+        uses: agynio/e2e/.github/actions/run-tests@noa/issue-206
+        with:
+          e2e-ref: noa/issue-206
+          provider-binary: provider-bin/terraform-provider-agyn
 
       - name: Dump authorization diagnostics
         if: failure()
