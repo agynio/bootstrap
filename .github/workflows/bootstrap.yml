@@ -38,6 +38,24 @@ jobs:
           echo "Timed out waiting for ${image_ref}" >&2
           exit 1
 
+      - name: Wait for ziti-management PR image
+        env:
+          ZITI_MANAGEMENT_IMAGE_TAG: pr-61-c1d860ed955c62e06ef06be5ce1bb1befc07c5e5
+        run: |
+          set -euo pipefail
+          image_ref="ghcr.io/agynio/ziti-management:${ZITI_MANAGEMENT_IMAGE_TAG}"
+          for attempt in {1..60}; do
+            if docker buildx imagetools inspect "${image_ref}" >/dev/null 2>&1; then
+              echo "Found ${image_ref}"
+              echo "TF_VAR_ziti_management_image_tag=${ZITI_MANAGEMENT_IMAGE_TAG}" >> "${GITHUB_ENV}"
+              exit 0
+            fi
+            echo "Waiting for ${image_ref} (${attempt}/60)"
+            sleep 10
+          done
+          echo "Timed out waiting for ${image_ref}" >&2
+          exit 1
+
       - name: Provision bootstrap cluster
         id: provision
         uses: ./.github/actions/provision
