@@ -26,8 +26,22 @@ jobs:
         with:
           ref: ${{ github.sha }}
 
+      - name: Build Terraform provider from PR #81
+        uses: actions/checkout@v4
+        with:
+          repository: agynio/terraform-provider-agyn
+          ref: noa/issue-153-continue
+          path: terraform-provider-agyn
+
+      - name: Build Terraform provider binary
+        working-directory: terraform-provider-agyn
+        run: go build -o ../terraform-provider-agyn .
+
       - name: Run full E2E suite
-        uses: agynio/e2e/.github/actions/run-tests@main
+        uses: agynio/e2e/.github/actions/run-tests@noa/issue-206
+        with:
+          e2e-ref: noa/issue-206
+          provider-binary: terraform-provider-agyn
 
       - name: Dump authorization diagnostics
         if: failure()
