@@ -582,6 +582,10 @@ locals {
     }
     database = {
       url = format("postgresql://secrets:%s@secrets-db:5432/secrets?sslmode=disable", var.secrets_db_password)
+      existingSecret = {
+        name = ""
+        key  = ""
+      }
     }
     image = {
       repository = "ghcr.io/agynio/secrets"
