@@ -22,7 +22,7 @@ jobs:
 
       - name: Wait for egress PR image
         env:
-          EGRESS_IMAGE_TAG: pr-14-6bd908c0bb48895ab55cccdeaf20c4ae4e707908
+          EGRESS_IMAGE_TAG: pr-14-1df3c611e8474c71de8f611f6dde1edf62f64719
         run: |
           set -euo pipefail
           image_ref="ghcr.io/agynio/egress:${EGRESS_IMAGE_TAG}"
