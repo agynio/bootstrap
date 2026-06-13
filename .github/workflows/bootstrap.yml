@@ -20,6 +20,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Wait for egress PR image
+        env:
+          EGRESS_IMAGE_TAG: pr-14-75d68527f7f2ac9e69f7e036c39fe9d0af956e19
+        run: |
+          set -euo pipefail
+          image_ref="ghcr.io/agynio/egress:${EGRESS_IMAGE_TAG}"
+          for attempt in {1..60}; do
+            if docker buildx imagetools inspect "${image_ref}" >/dev/null 2>&1; then
+              echo "Found ${image_ref}"
+              echo "TF_VAR_egress_image_tag=${EGRESS_IMAGE_TAG}" >> "${GITHUB_ENV}"
+              exit 0
+            fi
+            echo "Waiting for ${image_ref} (${attempt}/60)"
+            sleep 10
+          done
+          echo "Timed out waiting for ${image_ref}" >&2
+          exit 1
+
       - name: Provision bootstrap cluster
         id: provision
         uses: ./.github/actions/provision
