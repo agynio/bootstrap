@@ -731,7 +731,7 @@ variable "egress_chart_version" {
 variable "egress_image_tag" {
   type        = string
   description = "Optional override for the egress image tag"
-  default     = ""
+  default     = "pr-14-471fd0cff8d7aa2e49c1a6ecbe296cc7afe3ecdd"
 }
 
 variable "egress_db_password" {
