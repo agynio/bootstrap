@@ -640,17 +640,18 @@ locals {
       { name = "TRACING_ADDRESS", value = "tracing:50051" },
       { name = "AGENTS_SERVICE_ADDRESS", value = "agents:50051" },
       { name = "ZITI_MANAGEMENT_ADDRESS", value = "ziti-management:50051" },
+      { name = "ZITI_IDENTITY_FILE", value = "/var/lib/ziti/identity.json" },
+      { name = "ZITI_LEASE_INTERVAL", value = "30s" },
+      { name = "ZITI_SERVICE_NAME", value = "" },
       { name = "EGRESS_CA_CERT_PATH", value = "/var/run/agyn/egress-ca/tls.crt" },
       { name = "EGRESS_CA_KEY_PATH", value = "/var/run/agyn/egress-ca/tls.key" },
-      { name = "ZITI_ENROLLMENT_JWT_FILE", value = "/etc/ziti-enrollment/enrollmentJwt" },
-      { name = "ZITI_IDENTITY_NAME_RESOLVE", value = "true" },
     ]
     extraVolumeMounts = [
-      { name = "ziti-enrollment", mountPath = "/etc/ziti-enrollment", readOnly = true },
+      { name = "ziti-identity", mountPath = "/var/lib/ziti", readOnly = false },
       { name = "egress-ca", mountPath = "/var/run/agyn/egress-ca", readOnly = true },
     ]
     extraVolumes = [
-      { name = "ziti-enrollment", secret = { secretName = "egress-gateway-enrollment" } },
+      { name = "ziti-identity", emptyDir = {} },
       { name = "egress-ca", secret = { secretName = "egress-ca" } },
     ]
     resources = {
@@ -1642,19 +1643,6 @@ resource "kubernetes_secret_v1" "ziti_management_enrollment" {
 
   data = {
     enrollmentJwt = data.terraform_remote_state.ziti.outputs.ziti_management_enrollment_token
-  }
-}
-
-resource "kubernetes_secret_v1" "egress_gateway_enrollment" {
-  metadata {
-    name      = "egress-gateway-enrollment"
-    namespace = kubernetes_namespace.platform.metadata[0].name
-  }
-
-  type = "Opaque"
-
-  data = {
-    enrollmentJwt = data.terraform_remote_state.ziti.outputs.egress_gateway_enrollment_token
   }
 }
 
@@ -3793,7 +3781,6 @@ resource "argocd_application" "egress_gateway" {
     argocd_application.metering,
     argocd_application.tracing,
     argocd_application.notifications,
-    kubernetes_secret_v1.egress_gateway_enrollment,
     kubernetes_manifest.egress_ca_certificate,
   ]
   metadata {
