@@ -23,6 +23,8 @@ jobs:
       - name: Provision bootstrap cluster
         id: provision
         uses: ./.github/actions/provision
+        env:
+          TF_VAR_egress_image_tag: pr-14-471fd0cff8d7aa2e49c1a6ecbe296cc7afe3ecdd
         with:
           ref: ${{ github.sha }}
 
