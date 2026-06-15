@@ -703,6 +703,7 @@ locals {
       accessMode = "ReadWriteOnce"
       size       = "10Mi"
     }
+    zitiControllerUrl = format("https://ziti-mgmt.%s:%d/edge/management/v1", local.base_domain, local.ingress_port)
     configMounts = [
       {
         name       = "ziti-enrollment"
