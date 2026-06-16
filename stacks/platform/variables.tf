@@ -146,7 +146,7 @@ variable "console_app_chart_version" {
 variable "console_app_image_tag" {
   type        = string
   description = "Optional override for the console-app container image tag"
-  default     = ""
+  default     = "0.10.10-egress-rules"
 }
 
 variable "oidc_issuer_url" {
