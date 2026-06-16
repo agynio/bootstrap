@@ -899,10 +899,6 @@ locals {
         name  = "RUNNERS_ADDRESS"
         value = "runners:50051"
       },
-      {
-        name  = "EGRESS_CA_NAMESPACE"
-        value = "agyn-workloads"
-      }
     ]
   })
 
