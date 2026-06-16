@@ -140,7 +140,7 @@ variable "chat_app_image_tag" {
 variable "console_app_chart_version" {
   type        = string
   description = "Version of the console-app Helm chart published to GHCR"
-  default     = "0.10.11"
+  default     = "0.10.12"
 }
 
 variable "console_app_image_tag" {
