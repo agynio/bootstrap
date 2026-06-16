@@ -86,7 +86,7 @@ variable "agents_chart_version" {
 variable "ziti_management_chart_version" {
   type        = string
   description = "Version of the ziti-management Helm chart published to GHCR"
-  default     = "0.10.16"
+  default     = "0.10.17"
 }
 
 variable "users_chart_version" {
