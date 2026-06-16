@@ -86,7 +86,7 @@ variable "agents_chart_version" {
 variable "ziti_management_chart_version" {
   type        = string
   description = "Version of the ziti-management Helm chart published to GHCR"
-  default     = "0.10.10"
+  default     = "0.10.14"
 }
 
 variable "users_chart_version" {
@@ -140,7 +140,7 @@ variable "chat_app_image_tag" {
 variable "console_app_chart_version" {
   type        = string
   description = "Version of the console-app Helm chart published to GHCR"
-  default     = "0.10.10"
+  default     = "0.10.11"
 }
 
 variable "console_app_image_tag" {
@@ -651,7 +651,7 @@ variable "minio_bucket_name" {
 variable "secrets_chart_version" {
   type        = string
   description = "Version of the secrets Helm chart published to GHCR"
-  default     = "0.2.0"
+  default     = "0.2.2"
 }
 
 variable "secrets_image_tag" {
@@ -725,7 +725,7 @@ variable "llm_proxy_image_tag" {
 variable "egress_chart_version" {
   type        = string
   description = "Version of the egress Helm chart published to GHCR"
-  default     = "0.1.1"
+  default     = "0.1.3"
 }
 
 variable "egress_image_tag" {
@@ -750,7 +750,7 @@ variable "egress_db_pvc_size" {
 variable "egress_gateway_chart_version" {
   type        = string
   description = "Version of the egress-gateway Helm chart published to GHCR"
-  default     = "0.1.1"
+  default     = "0.1.3"
 }
 
 variable "egress_gateway_image_tag" {
