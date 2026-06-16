@@ -140,13 +140,13 @@ variable "chat_app_image_tag" {
 variable "console_app_chart_version" {
   type        = string
   description = "Version of the console-app Helm chart published to GHCR"
-  default     = "0.10.10"
+  default     = "0.10.11"
 }
 
 variable "console_app_image_tag" {
   type        = string
   description = "Optional override for the console-app container image tag"
-  default     = "0.10.10-egress-rules"
+  default     = ""
 }
 
 variable "oidc_issuer_url" {
