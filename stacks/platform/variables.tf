@@ -86,7 +86,7 @@ variable "agents_chart_version" {
 variable "ziti_management_chart_version" {
   type        = string
   description = "Version of the ziti-management Helm chart published to GHCR"
-  default     = "0.10.14"
+  default     = "0.10.15"
 }
 
 variable "users_chart_version" {
@@ -750,7 +750,7 @@ variable "egress_db_pvc_size" {
 variable "egress_gateway_chart_version" {
   type        = string
   description = "Version of the egress-gateway Helm chart published to GHCR"
-  default     = "0.1.3"
+  default     = "0.1.4"
 }
 
 variable "egress_gateway_image_tag" {
