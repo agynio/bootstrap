@@ -725,7 +725,7 @@ variable "llm_proxy_image_tag" {
 variable "egress_chart_version" {
   type        = string
   description = "Version of the egress Helm chart published to GHCR"
-  default     = "0.1.2"
+  default     = "0.1.3"
 }
 
 variable "egress_image_tag" {
