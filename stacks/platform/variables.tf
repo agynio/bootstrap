@@ -26,7 +26,7 @@ variable "gateway_chart_version" {
 variable "agents_orchestrator_chart_version" {
   type        = string
   description = "Version of the agents-orchestrator Helm chart published to GHCR"
-  default     = "0.13.17"
+  default     = "0.13.18"
 }
 
 variable "threads_chart_version" {
@@ -86,7 +86,7 @@ variable "agents_chart_version" {
 variable "ziti_management_chart_version" {
   type        = string
   description = "Version of the ziti-management Helm chart published to GHCR"
-  default     = "0.10.14"
+  default     = "0.10.17"
 }
 
 variable "users_chart_version" {
@@ -116,7 +116,7 @@ variable "identity_chart_version" {
 variable "runners_chart_version" {
   type        = string
   description = "Version of the runners Helm chart published to GHCR"
-  default     = "0.5.11"
+  default     = "0.5.12"
 }
 
 variable "apps_chart_version" {
@@ -713,7 +713,7 @@ variable "media_proxy_image_tag" {
 variable "llm_proxy_chart_version" {
   type        = string
   description = "Version of the llm-proxy Helm chart published to GHCR"
-  default     = "0.12.5"
+  default     = "0.12.6"
 }
 
 variable "llm_proxy_image_tag" {
@@ -750,7 +750,7 @@ variable "egress_db_pvc_size" {
 variable "egress_gateway_chart_version" {
   type        = string
   description = "Version of the egress-gateway Helm chart published to GHCR"
-  default     = "0.1.3"
+  default     = "0.1.4"
 }
 
 variable "egress_gateway_image_tag" {
