@@ -109,8 +109,8 @@ variable "organizations_chart_version" {
 
 variable "groups_chart_version" {
   type        = string
-  description = "Version of the agyn-platform Helm chart carrying the groups workload artifact"
-  default     = "0.1.1"
+  description = "Version of the agyn-platform Helm chart carrying the vendored groups chart"
+  default     = "0.5.4"
 }
 
 variable "identity_chart_version" {
@@ -290,8 +290,8 @@ variable "organizations_image_tag" {
 
 variable "groups_image_tag" {
   type        = string
-  description = "Optional override for the groups image tag"
-  default     = ""
+  description = "Groups image tag published to the public platform artifact package"
+  default     = "0.1.1"
 }
 
 variable "identity_image_tag" {
