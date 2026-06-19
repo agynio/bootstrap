@@ -55,7 +55,7 @@ locals {
   users_chart_name               = "agynio/charts/users"
   expose_chart_name              = "agynio/charts/expose"
   organizations_chart_name       = "agynio/charts/organizations"
-  groups_chart_name              = "agynio/charts-public/groups"
+  groups_chart_name              = "agynio/charts/agyn-platform"
   authorization_chart_name       = "agynio/charts/authorization"
   identity_chart_name            = "agynio/charts/identity"
   runners_chart_name             = "agynio/charts/runners"
@@ -834,37 +834,146 @@ locals {
   })
 
   groups_values = yamlencode({
-    fullnameOverride = "groups"
-    image = {
-      repository = "ghcr.io/agynio/charts/agyn-platform"
-      tag        = local.resolved_groups_image_tag
-      pullPolicy = "IfNotPresent"
+    egress = {
+      enabled = false
     }
-    env = [
-      {
-        name  = "GRPC_ADDRESS"
-        value = ":50051"
-      },
-      {
-        name  = "DATABASE_URL"
-        value = format("postgresql://groups:%s@groups-db:5432/groups?sslmode=disable", var.groups_db_password)
-      },
-      {
-        name  = "AUTHORIZATION_GRPC_TARGET"
-        value = "authorization:50051"
-      },
-      {
-        name  = "IDENTITY_GRPC_TARGET"
-        value = "identity:50051"
-      },
-      {
-        name  = "NATS_URL"
-        value = local.nats_endpoint
-      },
-    ]
-    resources = {
-      requests = { cpu = "50m", memory = "128Mi" }
-      limits   = { cpu = "500m", memory = "256Mi" }
+    egress-gateway = {
+      enabled = false
+    }
+    gateway = {
+      enabled = false
+    }
+    agents = {
+      enabled = false
+    }
+    agents-orchestrator = {
+      enabled = false
+    }
+    threads = {
+      enabled = false
+    }
+    chat = {
+      enabled = false
+    }
+    users = {
+      enabled = false
+    }
+    organizations = {
+      enabled = false
+    }
+    identity = {
+      enabled = false
+    }
+    authorization = {
+      enabled = false
+    }
+    groups = {
+      enabled          = true
+      fullnameOverride = "groups"
+      image = {
+        repository = "ghcr.io/agynio/charts/agyn-platform"
+        tag        = local.resolved_groups_image_tag
+        pullPolicy = "IfNotPresent"
+      }
+      env = [
+        {
+          name  = "GRPC_ADDRESS"
+          value = ":50051"
+        },
+        {
+          name = "DATABASE_URL"
+          valueFrom = {
+            secretKeyRef = {
+              name = "agyn-platform-database-urls"
+              key  = "groups"
+            }
+          }
+        },
+        {
+          name  = "AUTHORIZATION_GRPC_TARGET"
+          value = "authorization:50051"
+        },
+        {
+          name  = "IDENTITY_GRPC_TARGET"
+          value = "identity:50051"
+        },
+        {
+          name  = "NATS_URL"
+          value = local.nats_endpoint
+        },
+      ]
+      resources = {
+        requests = { cpu = "50m", memory = "128Mi" }
+        limits   = { cpu = "500m", memory = "256Mi" }
+      }
+    }
+    networks = {
+      enabled = false
+    }
+    apps = {
+      enabled = false
+    }
+    runners = {
+      enabled = false
+    }
+    ziti-management = {
+      enabled = false
+    }
+    expose = {
+      enabled = false
+    }
+    secrets = {
+      enabled = false
+    }
+    llm = {
+      enabled = false
+    }
+    llm-proxy = {
+      enabled = false
+    }
+    token-counting = {
+      enabled = false
+    }
+    tracing = {
+      enabled = false
+    }
+    notifications = {
+      enabled = true
+      redis = {
+        enabled = false
+      }
+    }
+    nats = {
+      enabled = false
+    }
+    files = {
+      enabled = false
+    }
+    media-proxy = {
+      enabled = false
+    }
+    chat-app = {
+      enabled = false
+    }
+    console-app = {
+      enabled = false
+    }
+    tracing-app = {
+      enabled = false
+    }
+    registryMirror = {
+      enabled = false
+    }
+    ncps = {
+      enabled = false
+    }
+    platform = {
+      serviceEndpoints = {
+        nats = local.nats_endpoint
+      }
+      eventBus = {
+        url = local.nats_endpoint
+      }
     }
   })
 

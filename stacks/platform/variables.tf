@@ -109,8 +109,8 @@ variable "organizations_chart_version" {
 
 variable "groups_chart_version" {
   type        = string
-  description = "Version of the groups Helm chart published to the public platform chart package"
-  default     = "0.1.2"
+  description = "Version of the agyn-platform Helm chart carrying the Groups service"
+  default     = "0.5.4"
 }
 
 variable "identity_chart_version" {
