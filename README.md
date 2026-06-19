@@ -71,14 +71,12 @@ Default domain and port: `agyn.dev` on `2496`.
 ## NATS JetStream event bus
 
 The platform stack deploys NATS JetStream for durable service-to-service
-events used by private Networks and the Groups service. Groups is wired as a
-core platform service and depends on NATS so it is created after the event bus.
+events used by private Networks and Groups service deployments.
 
-The local deployment creates the `nats`, `groups-db`, and `groups` Argo CD
-applications in the platform namespace, enables JetStream file storage with a
-PVC, and configures the `AGYN_GROUPS` and `AGYN_NETWORKS` streams. The stable
-in-cluster endpoint is available from the platform stack output
-`nats_endpoint`.
+The local deployment creates the `nats` Argo CD application in the platform
+namespace, enables JetStream file storage with a PVC, and configures the
+`AGYN_GROUPS` and `AGYN_NETWORKS` streams. The stable in-cluster endpoint is
+available from the platform stack output `nats_endpoint`.
 
 ## DEV/E2E-only diagnostics credentials
 

@@ -46,9 +46,7 @@ output "platform_app_names" {
     argocd_application.tracing_app.metadata[0].name,
     argocd_application.gateway.metadata[0].name,
     argocd_application.llm_proxy.metadata[0].name,
-    argocd_application.groups_db.metadata[0].name,
     argocd_application.nats.metadata[0].name,
-    argocd_application.groups.metadata[0].name,
   ]
 }
 
@@ -100,9 +98,7 @@ output "platform_app_ids" {
     argocd_application.tracing_app.id,
     argocd_application.gateway.id,
     argocd_application.llm_proxy.id,
-    argocd_application.groups_db.id,
     argocd_application.nats.id,
-    argocd_application.groups.id,
   ]
 }
 
