@@ -938,7 +938,7 @@ locals {
       enabled = false
     }
     notifications = {
-      enabled = true
+      enabled = false
       redis = {
         enabled = false
       }
