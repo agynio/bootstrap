@@ -34,19 +34,14 @@ Each application chart enables a Kubernetes `Ingress` with `ingressClassName: is
 
 ### Chart source
 
-Platform charts are pulled from the GHCR OCI registry (`ghcr.io/agynio/charts`). Pin the release with `platform_chart_version`. The PostgreSQL Argo CD applications use the same registry and are pinned via `postgres_chart_version`.
+Platform charts are pulled from the GHCR OCI registry (`ghcr.io/agynio/charts`). Pin the releases with the per-service chart version variables. The PostgreSQL Argo CD applications use the same registry and are pinned via `postgres_chart_version`.
 
 ### NATS JetStream event bus
 
-NATS JetStream is optional and disabled by default so existing local stacks keep
-their previous footprint. Enable it with the platform stack variable:
-
-```bash
-terraform -chdir=stacks/platform apply -var='nats_enabled=true'
-```
-
-When enabled, Terraform creates an Argo CD application named `nats` in the
-platform namespace using the upstream NATS Helm chart. The application enables
+NATS JetStream is deployed as a core platform application for durable
+service-to-service events. Terraform creates an Argo CD application named
+`nats` in the platform namespace using the upstream NATS Helm chart. The
+application enables
 JetStream file storage with a PVC (`nats_jetstream_file_store_pvc_size`,
 default `10Gi`) and a matching file store max size
 (`nats_jetstream_file_store_max_size`, default `10Gi`). The stable in-cluster
@@ -69,6 +64,7 @@ stream config changes delete and recreate the Job instead of attempting an
 immutable Job update. Stream retention knobs follow the NATS API schema: age and
 duplicate window values are in nanoseconds, and size values are in bytes.
 
+
 ### Graph persistence
 
 `platform-server` mounts `/shared` (sourced from the repository-root `./shared` directory created by the k3d stack) into `/mnt/graph` and sets `GRAPH_REPO_PATH=/mnt/graph/graph`. The graph repository is created under the host directory at `./shared/graph`, and swap artifacts land transiently under `./shared`.
@@ -87,6 +83,7 @@ Verify persistence by:
 |-----------|--------------------|-------------------------------------|-------|
 | 5         | `platform-db`      | PostgreSQL for platform workloads   | Uses chart `oci://ghcr.io/agynio/charts/postgres-helm` with inline Helm values |
 | 18        | `k8s-runner`       | Kubernetes workspace runner         | Uses cluster-wide RBAC; TCP-only runner mode |
+| 16        | `nats`             | NATS JetStream event bus            | Required by Groups and private Networks |
 | 20        | `platform-server`  | Core platform API                   | Depends on `platform-db` |
 | 25        | `platform-ui`      | Platform web UI                     | Connects to `platform-server` |
 

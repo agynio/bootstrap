@@ -312,12 +312,6 @@ variable "notifications_redis_addr" {
   default     = "notifications-redis-master.platform.svc.cluster.local:6379"
 }
 
-variable "nats_enabled" {
-  type        = bool
-  description = "Enable NATS JetStream deployment for durable platform events"
-  default     = false
-}
-
 variable "nats_jetstream_file_store_pvc_size" {
   type        = string
   description = "Persistent volume claim size for the NATS JetStream file store"
