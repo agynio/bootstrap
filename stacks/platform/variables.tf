@@ -152,7 +152,7 @@ variable "console_app_chart_version" {
 variable "console_app_image_tag" {
   type        = string
   description = "Optional override for the console-app container image tag"
-  default     = "0.10.10-egress-rules"
+  default     = ""
 }
 
 variable "oidc_issuer_url" {
@@ -750,7 +750,7 @@ variable "egress_chart_version" {
 variable "egress_image_tag" {
   type        = string
   description = "Optional override for the egress image tag"
-  default     = "0.1.1-ziti-policy-fix"
+  default     = ""
 }
 
 variable "egress_db_password" {
