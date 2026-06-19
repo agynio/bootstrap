@@ -1645,6 +1645,12 @@ resource "openfga_relationship_tuple" "cluster_admin" {
   depends_on = [module.openfga_authorization]
 }
 
+resource "kubernetes_namespace" "platform" {
+  metadata {
+    name = var.platform_namespace
+  }
+}
+
 resource "kubernetes_namespace_v1" "agyn_workloads" {
   metadata {
     name = "agyn-workloads"
@@ -1656,7 +1662,7 @@ resource "kubernetes_namespace_v1" "agyn_workloads" {
 resource "kubernetes_secret_v1" "ziti_management_enrollment" {
   metadata {
     name      = "ziti-management-enrollment"
-    namespace = var.platform_namespace
+    namespace = kubernetes_namespace.platform.metadata[0].name
   }
 
   type = "Opaque"
@@ -1669,7 +1675,7 @@ resource "kubernetes_secret_v1" "ziti_management_enrollment" {
 resource "kubernetes_secret_v1" "egress_gateway_enrollment" {
   metadata {
     name      = "egress-gateway-enrollment"
-    namespace = var.platform_namespace
+    namespace = kubernetes_namespace.platform.metadata[0].name
   }
 
   type = "Opaque"
@@ -1697,7 +1703,7 @@ resource "kubernetes_manifest" "egress_ca_certificate" {
     "kind"       = "Certificate"
     "metadata" = {
       "name"      = "egress-ca"
-      "namespace" = var.platform_namespace
+      "namespace" = kubernetes_namespace.platform.metadata[0].name
     }
     "spec" = {
       "isCA"        = true
@@ -1733,7 +1739,7 @@ resource "kubernetes_secret_v1" "ziti_diagnostics" {
 
   metadata {
     name      = local.ziti_diagnostics_secret_name
-    namespace = var.platform_namespace
+    namespace = kubernetes_namespace.platform.metadata[0].name
   }
 
   type = "Opaque"
@@ -1749,7 +1755,7 @@ resource "kubernetes_role_v1" "ziti_diagnostics_reader" {
 
   metadata {
     name      = "ziti-diagnostics-reader"
-    namespace = var.platform_namespace
+    namespace = kubernetes_namespace.platform.metadata[0].name
   }
 
   rule {
@@ -1767,7 +1773,7 @@ resource "kubernetes_role_binding_v1" "ziti_diagnostics_reader" {
 
   metadata {
     name      = "ziti-diagnostics-reader"
-    namespace = var.platform_namespace
+    namespace = kubernetes_namespace.platform.metadata[0].name
   }
 
   role_ref {
@@ -1779,14 +1785,14 @@ resource "kubernetes_role_binding_v1" "ziti_diagnostics_reader" {
   subject {
     kind      = "ServiceAccount"
     name      = "agents-orchestrator-e2e"
-    namespace = var.platform_namespace
+    namespace = kubernetes_namespace.platform.metadata[0].name
   }
 }
 
 resource "kubernetes_secret_v1" "secrets_encryption_key" {
   metadata {
     name      = "secrets-encryption-key"
-    namespace = var.platform_namespace
+    namespace = kubernetes_namespace.platform.metadata[0].name
   }
 
   type = "Opaque"
@@ -2207,7 +2213,7 @@ resource "kubernetes_manifest" "virtualservice_llm_proxy" {
 resource "kubernetes_service_v1" "files_db" {
   metadata {
     name      = "files-db"
-    namespace = var.platform_namespace
+    namespace = kubernetes_namespace.platform.metadata[0].name
     labels = {
       "app.kubernetes.io/name" = "files-db"
     }
@@ -2230,7 +2236,7 @@ resource "kubernetes_service_v1" "files_db" {
 resource "kubernetes_stateful_set_v1" "files_db" {
   metadata {
     name      = "files-db"
-    namespace = var.platform_namespace
+    namespace = kubernetes_namespace.platform.metadata[0].name
     labels = {
       "app.kubernetes.io/name" = "files-db"
     }
@@ -2359,7 +2365,7 @@ resource "argocd_application" "platform_db" {
 
     destination {
       server    = var.destination_server
-      namespace = var.platform_namespace
+      namespace = kubernetes_namespace.platform.metadata[0].name
     }
 
     sync_policy {
@@ -2408,7 +2414,7 @@ resource "argocd_application" "threads_db" {
 
     destination {
       server    = var.destination_server
-      namespace = var.platform_namespace
+      namespace = kubernetes_namespace.platform.metadata[0].name
     }
 
     sync_policy {
@@ -2457,7 +2463,7 @@ resource "argocd_application" "metering_db" {
 
     destination {
       server    = var.destination_server
-      namespace = var.platform_namespace
+      namespace = kubernetes_namespace.platform.metadata[0].name
     }
 
     sync_policy {
@@ -2506,7 +2512,7 @@ resource "argocd_application" "chat_db" {
 
     destination {
       server    = var.destination_server
-      namespace = var.platform_namespace
+      namespace = kubernetes_namespace.platform.metadata[0].name
     }
 
     sync_policy {
@@ -2555,7 +2561,7 @@ resource "argocd_application" "tracing_db" {
 
     destination {
       server    = var.destination_server
-      namespace = var.platform_namespace
+      namespace = kubernetes_namespace.platform.metadata[0].name
     }
 
     sync_policy {
@@ -2604,7 +2610,7 @@ resource "argocd_application" "secrets_db" {
 
     destination {
       server    = var.destination_server
-      namespace = var.platform_namespace
+      namespace = kubernetes_namespace.platform.metadata[0].name
     }
 
     sync_policy {
@@ -2653,7 +2659,7 @@ resource "argocd_application" "egress_db" {
 
     destination {
       server    = var.destination_server
-      namespace = var.platform_namespace
+      namespace = kubernetes_namespace.platform.metadata[0].name
     }
 
     sync_policy {
@@ -2700,7 +2706,7 @@ resource "argocd_application" "llm_db" {
 
     destination {
       server    = var.destination_server
-      namespace = var.platform_namespace
+      namespace = kubernetes_namespace.platform.metadata[0].name
     }
 
     sync_policy {
@@ -2749,7 +2755,7 @@ resource "argocd_application" "agents_db" {
 
     destination {
       server    = var.destination_server
-      namespace = var.platform_namespace
+      namespace = kubernetes_namespace.platform.metadata[0].name
     }
 
     sync_policy {
@@ -2798,7 +2804,7 @@ resource "argocd_application" "ziti_management_db" {
 
     destination {
       server    = var.destination_server
-      namespace = var.platform_namespace
+      namespace = kubernetes_namespace.platform.metadata[0].name
     }
 
     sync_policy {
@@ -2847,7 +2853,7 @@ resource "argocd_application" "users_db" {
 
     destination {
       server    = var.destination_server
-      namespace = var.platform_namespace
+      namespace = kubernetes_namespace.platform.metadata[0].name
     }
 
     sync_policy {
@@ -2896,7 +2902,7 @@ resource "argocd_application" "expose_db" {
 
     destination {
       server    = var.destination_server
-      namespace = var.platform_namespace
+      namespace = kubernetes_namespace.platform.metadata[0].name
     }
 
     sync_policy {
@@ -2945,7 +2951,7 @@ resource "argocd_application" "organizations_db" {
 
     destination {
       server    = var.destination_server
-      namespace = var.platform_namespace
+      namespace = kubernetes_namespace.platform.metadata[0].name
     }
 
     sync_policy {
@@ -2994,7 +3000,7 @@ resource "argocd_application" "agents_orchestrator_db" {
 
     destination {
       server    = var.destination_server
-      namespace = var.platform_namespace
+      namespace = kubernetes_namespace.platform.metadata[0].name
     }
 
     sync_policy {
@@ -3043,7 +3049,7 @@ resource "argocd_application" "identity_db" {
 
     destination {
       server    = var.destination_server
-      namespace = var.platform_namespace
+      namespace = kubernetes_namespace.platform.metadata[0].name
     }
 
     sync_policy {
@@ -3092,7 +3098,7 @@ resource "argocd_application" "runners_db" {
 
     destination {
       server    = var.destination_server
-      namespace = var.platform_namespace
+      namespace = kubernetes_namespace.platform.metadata[0].name
     }
 
     sync_policy {
@@ -3141,7 +3147,7 @@ resource "argocd_application" "apps_db" {
 
     destination {
       server    = var.destination_server
-      namespace = var.platform_namespace
+      namespace = kubernetes_namespace.platform.metadata[0].name
     }
 
     sync_policy {
@@ -3191,7 +3197,7 @@ resource "argocd_application" "threads" {
 
     destination {
       server    = var.destination_server
-      namespace = var.platform_namespace
+      namespace = kubernetes_namespace.platform.metadata[0].name
     }
 
     sync_policy {
@@ -3236,7 +3242,7 @@ resource "argocd_application" "metering" {
 
     destination {
       server    = var.destination_server
-      namespace = var.platform_namespace
+      namespace = kubernetes_namespace.platform.metadata[0].name
     }
 
     sync_policy {
@@ -3282,7 +3288,7 @@ resource "argocd_application" "tracing" {
 
     destination {
       server    = var.destination_server
-      namespace = var.platform_namespace
+      namespace = kubernetes_namespace.platform.metadata[0].name
     }
 
     sync_policy {
@@ -3328,7 +3334,7 @@ resource "argocd_application" "chat" {
 
     destination {
       server    = var.destination_server
-      namespace = var.platform_namespace
+      namespace = kubernetes_namespace.platform.metadata[0].name
     }
 
     sync_policy {
@@ -3373,7 +3379,7 @@ resource "argocd_application" "secrets" {
 
     destination {
       server    = var.destination_server
-      namespace = var.platform_namespace
+      namespace = kubernetes_namespace.platform.metadata[0].name
     }
 
     sync_policy {
@@ -3419,7 +3425,7 @@ resource "argocd_application" "authorization" {
 
     destination {
       server    = var.destination_server
-      namespace = var.platform_namespace
+      namespace = kubernetes_namespace.platform.metadata[0].name
     }
 
     sync_policy {
@@ -3470,7 +3476,7 @@ resource "argocd_application" "identity" {
 
     destination {
       server    = var.destination_server
-      namespace = var.platform_namespace
+      namespace = kubernetes_namespace.platform.metadata[0].name
     }
 
     sync_policy {
@@ -3512,7 +3518,7 @@ resource "argocd_application" "token_counting" {
 
     destination {
       server    = var.destination_server
-      namespace = var.platform_namespace
+      namespace = kubernetes_namespace.platform.metadata[0].name
     }
 
     sync_policy {
@@ -3555,7 +3561,7 @@ resource "argocd_application" "notifications_redis" {
 
     destination {
       server    = var.destination_server
-      namespace = var.platform_namespace
+      namespace = kubernetes_namespace.platform.metadata[0].name
     }
 
     sync_policy {
@@ -3600,7 +3606,7 @@ resource "argocd_application" "nats" {
 
     destination {
       server    = var.destination_server
-      namespace = var.platform_namespace
+      namespace = kubernetes_namespace.platform.metadata[0].name
     }
 
     sync_policy {
@@ -3654,7 +3660,7 @@ resource "argocd_application" "runners" {
 
     destination {
       server    = var.destination_server
-      namespace = var.platform_namespace
+      namespace = kubernetes_namespace.platform.metadata[0].name
     }
 
     sync_policy {
@@ -3702,7 +3708,7 @@ resource "argocd_application" "apps" {
 
     destination {
       server    = var.destination_server
-      namespace = var.platform_namespace
+      namespace = kubernetes_namespace.platform.metadata[0].name
     }
 
     sync_policy {
@@ -3751,7 +3757,7 @@ resource "argocd_application" "egress" {
 
     destination {
       server    = var.destination_server
-      namespace = var.platform_namespace
+      namespace = kubernetes_namespace.platform.metadata[0].name
     }
 
     sync_policy {
@@ -3801,7 +3807,7 @@ resource "argocd_application" "egress_gateway" {
 
     destination {
       server    = var.destination_server
-      namespace = var.platform_namespace
+      namespace = kubernetes_namespace.platform.metadata[0].name
     }
 
     sync_policy {
@@ -3846,7 +3852,7 @@ resource "argocd_application" "agents" {
 
     destination {
       server    = var.destination_server
-      namespace = var.platform_namespace
+      namespace = kubernetes_namespace.platform.metadata[0].name
     }
 
     sync_policy {
@@ -3892,7 +3898,7 @@ resource "argocd_application" "ziti_management" {
 
     destination {
       server    = var.destination_server
-      namespace = var.platform_namespace
+      namespace = kubernetes_namespace.platform.metadata[0].name
     }
 
     sync_policy {
@@ -3938,7 +3944,7 @@ resource "argocd_application" "users" {
 
     destination {
       server    = var.destination_server
-      namespace = var.platform_namespace
+      namespace = kubernetes_namespace.platform.metadata[0].name
     }
 
     sync_policy {
@@ -3987,7 +3993,7 @@ resource "argocd_application" "expose" {
 
     destination {
       server    = var.destination_server
-      namespace = var.platform_namespace
+      namespace = kubernetes_namespace.platform.metadata[0].name
     }
 
     sync_policy {
@@ -4033,7 +4039,7 @@ resource "argocd_application" "organizations" {
 
     destination {
       server    = var.destination_server
-      namespace = var.platform_namespace
+      namespace = kubernetes_namespace.platform.metadata[0].name
     }
 
     sync_policy {
@@ -4078,7 +4084,7 @@ resource "argocd_application" "llm" {
 
     destination {
       server    = var.destination_server
-      namespace = var.platform_namespace
+      namespace = kubernetes_namespace.platform.metadata[0].name
     }
 
     sync_policy {
@@ -4129,7 +4135,7 @@ resource "argocd_application" "files" {
 
     destination {
       server    = var.destination_server
-      namespace = var.platform_namespace
+      namespace = kubernetes_namespace.platform.metadata[0].name
     }
 
     sync_policy {
@@ -4174,7 +4180,7 @@ resource "argocd_application" "notifications" {
 
     destination {
       server    = var.destination_server
-      namespace = var.platform_namespace
+      namespace = kubernetes_namespace.platform.metadata[0].name
     }
 
     sync_policy {
@@ -4227,7 +4233,7 @@ resource "argocd_application" "agents_orchestrator" {
 
     destination {
       server    = var.destination_server
-      namespace = var.platform_namespace
+      namespace = kubernetes_namespace.platform.metadata[0].name
     }
 
     sync_policy {
@@ -4274,7 +4280,7 @@ resource "argocd_application" "media_proxy" {
 
     destination {
       server    = var.destination_server
-      namespace = var.platform_namespace
+      namespace = kubernetes_namespace.platform.metadata[0].name
     }
 
     sync_policy {
@@ -4316,7 +4322,7 @@ resource "argocd_application" "chat_app" {
 
     destination {
       server    = var.destination_server
-      namespace = var.platform_namespace
+      namespace = kubernetes_namespace.platform.metadata[0].name
     }
 
     sync_policy {
@@ -4358,7 +4364,7 @@ resource "argocd_application" "console_app" {
 
     destination {
       server    = var.destination_server
-      namespace = var.platform_namespace
+      namespace = kubernetes_namespace.platform.metadata[0].name
     }
 
     sync_policy {
@@ -4400,7 +4406,7 @@ resource "argocd_application" "tracing_app" {
 
     destination {
       server    = var.destination_server
-      namespace = var.platform_namespace
+      namespace = kubernetes_namespace.platform.metadata[0].name
     }
 
     sync_policy {
@@ -4465,7 +4471,7 @@ resource "argocd_application" "gateway" {
 
     destination {
       server    = var.destination_server
-      namespace = var.platform_namespace
+      namespace = kubernetes_namespace.platform.metadata[0].name
     }
 
     sync_policy {
@@ -4539,7 +4545,7 @@ resource "argocd_application" "llm_proxy" {
 
     destination {
       server    = var.destination_server
-      namespace = var.platform_namespace
+      namespace = kubernetes_namespace.platform.metadata[0].name
     }
 
     sync_policy {
