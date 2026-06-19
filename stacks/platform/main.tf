@@ -835,14 +835,10 @@ locals {
 
   groups_values = yamlencode({
     fullnameOverride = "groups"
-    global = {
-      imagePullSecrets = compact([data.terraform_remote_state.system.outputs.ghcr_pull_secret_name])
-    }
     image = {
-      repository  = "ghcr.io/agynio/groups"
-      tag         = local.resolved_groups_image_tag
-      pullPolicy  = "IfNotPresent"
-      pullSecrets = [data.terraform_remote_state.system.outputs.ghcr_pull_secret_name]
+      repository = "ghcr.io/agynio/groups"
+      tag        = local.resolved_groups_image_tag
+      pullPolicy = "IfNotPresent"
     }
     env = [
       {
@@ -4189,16 +4185,6 @@ resource "argocd_application" "groups" {
 
       helm {
         values = local.groups_values
-
-        parameter {
-          name  = "global.imagePullSecrets[0]"
-          value = data.terraform_remote_state.system.outputs.ghcr_pull_secret_name
-        }
-
-        parameter {
-          name  = "image.pullSecrets[0]"
-          value = data.terraform_remote_state.system.outputs.ghcr_pull_secret_name
-        }
       }
     }
 

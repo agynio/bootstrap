@@ -223,22 +223,6 @@ resource "local_file" "ca_private_key" {
 }
 
 # Argo CD
-locals {
-  ghcr_credentials_secret_enabled = trimspace(var.ghcr_password) != ""
-  ghcr_pull_secret_name           = "ghcr-pull-secret"
-  ghcr_registry_server            = "ghcr.io"
-  resolved_ghcr_username          = trimspace(var.ghcr_username) != "" ? var.ghcr_username : "oauth2"
-  ghcr_docker_config = jsonencode({
-    auths = {
-      (local.ghcr_registry_server) = {
-        username = local.resolved_ghcr_username
-        password = var.ghcr_password
-        auth     = base64encode(format("%s:%s", local.resolved_ghcr_username, var.ghcr_password))
-      }
-    }
-  })
-}
-
 resource "helm_release" "argo_cd" {
   name       = "argo-cd"
   repository = local.argo_repository_url
@@ -284,45 +268,4 @@ resource "helm_release" "argo_cd" {
       }
     })
   ]
-}
-
-resource "kubernetes_secret_v1" "argocd_ghcr_repo_creds" {
-  count = local.ghcr_credentials_secret_enabled ? 1 : 0
-
-  metadata {
-    name      = "repo-creds-ghcr"
-    namespace = kubernetes_namespace.argocd.metadata[0].name
-    labels = {
-      "argocd.argoproj.io/secret-type" = "repo-creds"
-    }
-  }
-
-  type = "Opaque"
-
-  data = {
-    url       = "ghcr.io"
-    type      = "helm"
-    enableOCI = "true"
-    username  = trimspace(var.ghcr_username) != "" ? var.ghcr_username : "oauth2"
-    password  = var.ghcr_password
-  }
-
-  depends_on = [helm_release.argo_cd]
-}
-
-resource "kubernetes_secret_v1" "platform_ghcr_pull_secret" {
-  count = local.ghcr_credentials_secret_enabled ? 1 : 0
-
-  metadata {
-    name      = local.ghcr_pull_secret_name
-    namespace = kubernetes_namespace_v1.platform.metadata[0].name
-  }
-
-  type = "kubernetes.io/dockerconfigjson"
-
-  data = {
-    ".dockerconfigjson" = local.ghcr_docker_config
-  }
-
-  depends_on = [helm_release.argo_cd]
 }

@@ -5,7 +5,6 @@ output "installed_namespaces" {
     kubernetes_namespace.istio_system.metadata[0].name,
     kubernetes_namespace.istio_gateway.metadata[0].name,
     kubernetes_namespace.argocd.metadata[0].name,
-    kubernetes_namespace_v1.platform.metadata[0].name,
   ]
   description = "Installed namespaces"
 }
@@ -40,9 +39,4 @@ output "istio_gateway_namespace" {
 output "wildcard_tls_gateway_secret_name" {
   value       = kubernetes_secret_v1.wildcard_tls_gateway.metadata[0].name
   description = "TLS secret name containing the agyn.dev wildcard certificate for the ingress gateway"
-}
-
-output "ghcr_pull_secret_name" {
-  value       = local.ghcr_pull_secret_name
-  description = "Name of the platform namespace image pull secret for GHCR private images"
 }

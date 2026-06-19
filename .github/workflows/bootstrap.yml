@@ -23,9 +23,6 @@ jobs:
       - name: Provision bootstrap cluster
         id: provision
         uses: ./.github/actions/provision
-        env:
-          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
-          GHCR_PASSWORD: ${{ secrets.GHCR_TOKEN }}
         with:
           ref: ${{ github.sha }}
 
