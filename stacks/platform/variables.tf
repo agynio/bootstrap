@@ -109,8 +109,8 @@ variable "organizations_chart_version" {
 
 variable "groups_chart_version" {
   type        = string
-  description = "Version of the groups Helm chart published to GHCR"
-  default     = "0.1.0"
+  description = "Version of the agyn-platform Helm chart carrying the groups workload artifact"
+  default     = "0.1.1"
 }
 
 variable "identity_chart_version" {

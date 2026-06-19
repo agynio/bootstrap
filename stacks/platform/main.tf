@@ -55,7 +55,7 @@ locals {
   users_chart_name               = "agynio/charts/users"
   expose_chart_name              = "agynio/charts/expose"
   organizations_chart_name       = "agynio/charts/organizations"
-  groups_chart_name              = "agynio/charts/groups"
+  groups_chart_name              = "agynio/charts/agyn-platform"
   authorization_chart_name       = "agynio/charts/authorization"
   identity_chart_name            = "agynio/charts/identity"
   runners_chart_name             = "agynio/charts/runners"
@@ -834,37 +834,40 @@ locals {
   })
 
   groups_values = yamlencode({
-    fullnameOverride = "groups"
-    image = {
-      repository = "ghcr.io/agynio/groups"
-      tag        = local.resolved_groups_image_tag
-      pullPolicy = "IfNotPresent"
-    }
-    env = [
-      {
-        name  = "GRPC_ADDRESS"
-        value = ":50051"
-      },
-      {
-        name  = "DATABASE_URL"
-        value = format("postgresql://groups:%s@groups-db:5432/groups?sslmode=disable", var.groups_db_password)
-      },
-      {
-        name  = "AUTHORIZATION_GRPC_TARGET"
-        value = "authorization:50051"
-      },
-      {
-        name  = "IDENTITY_GRPC_TARGET"
-        value = "identity:50051"
-      },
-      {
-        name  = "NATS_URL"
-        value = local.nats_endpoint
-      },
-    ]
-    resources = {
-      requests = { cpu = "50m", memory = "128Mi" }
-      limits   = { cpu = "500m", memory = "256Mi" }
+    groups = {
+      enabled          = true
+      fullnameOverride = "groups"
+      image = {
+        repository = "ghcr.io/agynio/charts/agyn-platform"
+        tag        = local.resolved_groups_image_tag
+        pullPolicy = "IfNotPresent"
+      }
+      env = [
+        {
+          name  = "GRPC_ADDRESS"
+          value = ":50051"
+        },
+        {
+          name  = "DATABASE_URL"
+          value = format("postgresql://groups:%s@groups-db:5432/groups?sslmode=disable", var.groups_db_password)
+        },
+        {
+          name  = "AUTHORIZATION_GRPC_TARGET"
+          value = "authorization:50051"
+        },
+        {
+          name  = "IDENTITY_GRPC_TARGET"
+          value = "identity:50051"
+        },
+        {
+          name  = "NATS_URL"
+          value = local.nats_endpoint
+        },
+      ]
+      resources = {
+        requests = { cpu = "50m", memory = "128Mi" }
+        limits   = { cpu = "500m", memory = "256Mi" }
+      }
     }
   })
 
