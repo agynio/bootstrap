@@ -13,3 +13,6 @@ local-certs/*
 
 # Shared host volume persisted locally
 /shared/
+
+# Local appliance spike artifacts
+/dist/

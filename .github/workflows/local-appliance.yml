@@ -1,0 +1,91 @@
+name: local appliance spike
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: GHCR image tag to publish
+        required: true
+        default: manual
+      restore_validation:
+        description: Attempt restore validation before optional publish
+        required: true
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+      publish:
+        description: Push images to GHCR after capture
+        required: true
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Reclaim disk space
+        shell: bash
+        run: |
+          set -euo pipefail
+          df -h
+          sudo rm -rf /usr/local/lib/android /usr/local/share/boost /opt/ghc /usr/share/dotnet /usr/share/swift
+          sudo apt-get clean
+          docker system prune -af
+          df -h
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: v1.34.3
+
+      - name: Install k3d
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -s https://raw.githubusercontent.com/k3d-io/k3d/v5.7.5/install.sh | TAG=v5.7.5 bash
+          k3d version
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.6
+
+      - name: Install jq
+        shell: bash
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Login to GHCR
+        if: inputs.publish == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build appliance artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          args=(
+            build
+            --image-repository ghcr.io/agynio/bootstrap-local-appliance
+            --image-tag "${{ inputs.image_tag }}"
+          )
+          if [[ "${{ inputs.restore_validation }}" != "true" ]]; then
+            args+=(--skip-restore-validation)
+          fi
+          if [[ "${{ inputs.publish }}" == "true" ]]; then
+            args+=(--publish)
+          fi
+          scripts/local-appliance.sh "${args[@]}"
