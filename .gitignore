@@ -13,3 +13,9 @@ local-certs/*
 
 # Shared host volume persisted locally
 /shared/
+
+# Local appliance spike artifacts
+/dist/
+
+# Local appliance k8s-only Terraform overrides
+/stacks/k8s/local-appliance.auto.tfvars
