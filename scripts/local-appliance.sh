@@ -15,13 +15,14 @@ DEFAULT_AGENTS="2"
 DEFAULT_K3S_VERSION="v1.34.3-k3s1"
 DEFAULT_PLATFORM_HEALTH_TIMEOUT="900"
 DEFAULT_ARTIFACT_VERSION="1"
+K8S_TFVARS_PATH="stacks/k8s/local-appliance.auto.tfvars"
 KUBECONFIG_PATH="stacks/k8s/.kube/agyn-local-kubeconfig.yaml"
 NODE_VOLUME_DESTINATIONS=(/var/lib/rancher/k3s /var/lib/kubelet /var/lib/cni)
 NODE_ARCHIVE_SUFFIXES=(var-lib-rancher-k3s var-lib-kubelet var-lib-cni)
 
 mode=""
-cluster_name="${APPLIANCE_CLUSTER_NAME:-$DEFAULT_CLUSTER_NAME}"
-restore_cluster_name="${APPLIANCE_RESTORE_CLUSTER_NAME:-$DEFAULT_RESTORE_CLUSTER_NAME}"
+cluster_name="$DEFAULT_CLUSTER_NAME"
+restore_cluster_name="$DEFAULT_RESTORE_CLUSTER_NAME"
 artifact_dir="${APPLIANCE_ARTIFACT_DIR:-$DEFAULT_ARTIFACT_DIR}"
 image_repository="${APPLIANCE_IMAGE_REPOSITORY:-$DEFAULT_IMAGE_REPOSITORY}"
 image_tag="${APPLIANCE_IMAGE_TAG:-$DEFAULT_IMAGE_TAG}"
@@ -264,9 +265,7 @@ metadata_ref() {
 }
 
 write_k8s_tfvars() {
-  local tfvars_path="stacks/k8s/local-appliance.auto.tfvars"
-
-  cat >"$tfvars_path" <<EOF_TFVARS
+  cat >"$K8S_TFVARS_PATH" <<EOF_TFVARS
 cluster_name = "${cluster_name}"
 servers      = ${servers}
 agents       = ${agents}
@@ -278,6 +277,7 @@ EOF_TFVARS
 run_bootstrap() {
   log "Provisioning ${cluster_name} with existing apply.sh and k8s-only appliance topology overrides."
   write_k8s_tfvars
+  trap 'rm -f "$K8S_TFVARS_PATH"' EXIT INT TERM RETURN
   DOMAIN="$domain" PORT="$port" ./apply.sh -y
 }
 

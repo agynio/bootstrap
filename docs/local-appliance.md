@@ -84,9 +84,12 @@ variables through the existing `apply.sh` execution:
 - `--port`
 
 The capture and restore steps use the same values so node volume archives and
-manifest metadata stay consistent. Custom cluster names are intentionally not
-supported in this spike because existing bootstrap health checks and dependent
-stacks use `stacks/k8s/.kube/agyn-local-kubeconfig.yaml`.
+manifest metadata stay consistent. `APPLIANCE_CLUSTER_NAME` and
+`APPLIANCE_RESTORE_CLUSTER_NAME` are intentionally ignored. Custom cluster names
+are not supported in this spike because existing bootstrap health checks and
+dependent stacks use `stacks/k8s/.kube/agyn-local-kubeconfig.yaml`. The
+temporary k8s tfvars file is removed automatically when `apply.sh` returns so
+normal future `./apply.sh` runs are not affected.
 
 ## Restore an existing artifact
 
