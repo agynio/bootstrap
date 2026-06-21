@@ -11,11 +11,13 @@ DEFAULT_DOMAIN="agyn.dev"
 DEFAULT_PORT="2496"
 DEFAULT_API_PORT="6443"
 DEFAULT_SERVERS="1"
-DEFAULT_AGENTS="0"
+DEFAULT_AGENTS="2"
 DEFAULT_K3S_VERSION="v1.34.3-k3s1"
 DEFAULT_PLATFORM_HEALTH_TIMEOUT="900"
 DEFAULT_ARTIFACT_VERSION="1"
 KUBECONFIG_PATH="stacks/k8s/.kube/agyn-local-kubeconfig.yaml"
+NODE_VOLUME_DESTINATIONS=(/var/lib/rancher/k3s /var/lib/kubelet /var/lib/cni)
+NODE_ARCHIVE_SUFFIXES=(var-lib-rancher-k3s var-lib-kubelet var-lib-cni)
 
 mode=""
 cluster_name="${APPLIANCE_CLUSTER_NAME:-$DEFAULT_CLUSTER_NAME}"
@@ -53,12 +55,12 @@ Options:
   --port PORT                   Bootstrap ingress host port (default: 2496).
   --api-port PORT               Kubernetes API host port (default: 6443).
   --servers N                   k3d server node count (default: 1).
-  --agents N                    k3d agent node count for the restore shell (default: 0).
+  --agents N                    k3d agent node count (default: 2).
   --k3s-version VERSION         k3s image tag without rancher/k3s: prefix.
   --platform-health-timeout S   Timeout for verify_platform_health.sh (default: 900).
-  --publish                     Build command also publishes after capture.
+  --publish                     Build command also publishes after successful validation.
+  --skip-restore-validation     Build command skips restore smoke test. Cannot be combined with --publish.
   --skip-provision              Build command captures an already-provisioned cluster.
-  --skip-restore-validation     Build command skips restore smoke test.
   -h, --help                    Show this help.
 
 Environment variables mirror the option names with APPLIANCE_ prefixes where
@@ -230,8 +232,8 @@ parse_args() {
     fail "this spike captures exactly one k3d server; set --servers 1"
   fi
 
-  if (( agents != 0 )); then
-    fail "restore validation is limited to a single-node k3d shell; set --agents 0"
+  if [[ "$publish" == "true" && "$skip_restore_validation" == "true" ]]; then
+    fail "--publish requires restore validation; remove --skip-restore-validation"
   fi
 }
 
@@ -248,24 +250,20 @@ remove_restore_cluster_if_present() {
   fi
 }
 
-source_node_name() {
-  printf 'k3d-%s-server-0' "$cluster_name"
+node_name() {
+  local cluster=$1
+  local role=$2
+  local index=$3
+
+  printf 'k3d-%s-%s-%s' "$cluster" "$role" "$index"
 }
 
 source_load_balancer_name() {
   printf 'k3d-%s-serverlb' "$cluster_name"
 }
 
-restore_node_name() {
-  printf 'k3d-%s-server-0' "$restore_cluster_name"
-}
-
 image_ref() {
   printf '%s:%s' "$image_repository" "$image_tag"
-}
-
-runtime_image_ref() {
-  printf '%s-runtime:%s' "$image_repository" "$image_tag"
 }
 
 metadata_ref() {
@@ -273,8 +271,18 @@ metadata_ref() {
 }
 
 run_bootstrap() {
-  log "Provisioning ${cluster_name} with existing apply.sh."
-  DOMAIN="$domain" PORT="$port" ./apply.sh -y
+  local tfvars
+
+  tfvars=(
+    -var "cluster_name=${cluster_name}"
+    -var "servers=${servers}"
+    -var "agents=${agents}"
+    -var "k3s_version=${k3s_version}"
+    -var "api_port=${api_port}"
+  )
+
+  log "Provisioning ${cluster_name} with existing apply.sh and appliance topology overrides."
+  TF_CLI_ARGS_apply="${tfvars[*]}" DOMAIN="$domain" PORT="$port" ./apply.sh -y
 }
 
 wait_for_platform_health() {
@@ -304,6 +312,21 @@ bind_source_for_destination() {
   '
 }
 
+node_archive_prefix() {
+  local role=$1
+  local index=$2
+
+  printf '%s-%s' "$role" "$index"
+}
+
+node_archive_path() {
+  local role=$1
+  local index=$2
+  local suffix=$3
+
+  printf '%s/volumes/%s-%s.tar.gz' "$artifact_dir" "$(node_archive_prefix "$role" "$index")" "$suffix"
+}
+
 capture_volume() {
   local volume_name=$1
   local destination=$2
@@ -317,6 +340,62 @@ capture_volume() {
     tar -C /source -czf - . >"$output_path"
 }
 
+restore_volume_into_container() {
+  local archive_path=$1
+  local container_name=$2
+  local destination=$3
+  local volume_name
+
+  [[ -f "$archive_path" ]] || fail "missing archive ${archive_path}"
+  volume_name=$(volume_name_for_destination "$container_name" "$destination")
+  [[ -n "$volume_name" ]] || fail "restore cluster does not expose ${destination} as a Docker volume"
+
+  log "Restoring ${destination} into volume ${volume_name}."
+  docker run --rm -i \
+    -v "${volume_name}:/target" \
+    alpine:3.20 \
+    sh -c "rm -rf /target/* /target/.[!.]* /target/..?* 2>/dev/null || true; tar -C /target -xzf -" <"$archive_path"
+}
+
+capture_node() {
+  local role=$1
+  local index=$2
+  local container_name
+  local destination_index
+  local destination
+  local suffix
+  local volume_name
+
+  container_name=$(node_name "$cluster_name" "$role" "$index")
+  docker inspect "$container_name" >/dev/null
+
+  for destination_index in "${!NODE_VOLUME_DESTINATIONS[@]}"; do
+    destination="${NODE_VOLUME_DESTINATIONS[$destination_index]}"
+    suffix="${NODE_ARCHIVE_SUFFIXES[$destination_index]}"
+    volume_name=$(volume_name_for_destination "$container_name" "$destination")
+    capture_volume "$volume_name" "${container_name}:${destination}" "$(node_archive_path "$role" "$index" "$suffix")"
+  done
+
+  docker inspect "$container_name" >"${artifact_dir}/inspect/source-${role}-${index}.json"
+}
+
+restore_node_volumes() {
+  local role=$1
+  local index=$2
+  local container_name
+  local destination_index
+  local destination
+  local suffix
+
+  container_name=$(node_name "$restore_cluster_name" "$role" "$index")
+
+  for destination_index in "${!NODE_VOLUME_DESTINATIONS[@]}"; do
+    destination="${NODE_VOLUME_DESTINATIONS[$destination_index]}"
+    suffix="${NODE_ARCHIVE_SUFFIXES[$destination_index]}"
+    restore_volume_into_container "$(node_archive_path "$role" "$index" "$suffix")" "$container_name" "$destination"
+  done
+}
+
 write_json_array() {
   local output_path=$1
   shift
@@ -326,17 +405,15 @@ write_json_array() {
 
 capture_source_state() {
   local source_node
-  local server_rancher_volume
-  local server_kubelet_volume
-  local server_cni_volume
   local shared_source
   local artifact_image
-  local runtime_image
+  local metadata_image
   local created_at
+  local agent_index
 
-  source_node=$(source_node_name)
+  source_node=$(node_name "$cluster_name" server 0)
   artifact_image=$(image_ref)
-  runtime_image=$(runtime_image_ref)
+  metadata_image=$(metadata_ref)
   created_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
   docker inspect "$source_node" >/dev/null
@@ -351,15 +428,12 @@ capture_source_state() {
   log "Committing ${source_node} to ${artifact_image}."
   docker commit "$source_node" "$artifact_image"
 
-  server_rancher_volume=$(volume_name_for_destination "$source_node" /var/lib/rancher/k3s)
-  server_kubelet_volume=$(volume_name_for_destination "$source_node" /var/lib/kubelet)
-  server_cni_volume=$(volume_name_for_destination "$source_node" /var/lib/cni)
+  capture_node server 0
+  for (( agent_index = 0; agent_index < agents; agent_index++ )); do
+    capture_node agent "$agent_index"
+  done
+
   shared_source=$(bind_source_for_destination "$source_node" /shared)
-
-  capture_volume "$server_rancher_volume" /var/lib/rancher/k3s "${artifact_dir}/volumes/server-var-lib-rancher-k3s.tar.gz"
-  capture_volume "$server_kubelet_volume" /var/lib/kubelet "${artifact_dir}/volumes/server-var-lib-kubelet.tar.gz"
-  capture_volume "$server_cni_volume" /var/lib/cni "${artifact_dir}/volumes/server-var-lib-cni.tar.gz"
-
   if [[ -n "$shared_source" && -d "$shared_source" ]]; then
     log "Capturing /shared bind source ${shared_source}."
     tar -C "$shared_source" -czf "${artifact_dir}/volumes/shared.tar.gz" .
@@ -368,12 +442,11 @@ capture_source_state() {
     tar -C /tmp --files-from /dev/null -czf "${artifact_dir}/volumes/shared.tar.gz"
   fi
 
-  docker inspect "$source_node" >"${artifact_dir}/inspect/source-server.json"
   if docker inspect "$(source_load_balancer_name)" >/dev/null 2>&1; then
     docker inspect "$(source_load_balancer_name)" >"${artifact_dir}/inspect/source-load-balancer.json"
   fi
 
-  write_json_array "${artifact_dir}/agent-images.json" "rancher/k3s:${k3s_version}"
+  write_json_array "${artifact_dir}/node-images.json" "rancher/k3s:${k3s_version}"
 
   jq -n \
     --arg artifact_version "$DEFAULT_ARTIFACT_VERSION" \
@@ -381,7 +454,7 @@ capture_source_state() {
     --arg source_cluster_name "$cluster_name" \
     --arg restore_cluster_name "$restore_cluster_name" \
     --arg image "$artifact_image" \
-    --arg runtime_image "$runtime_image" \
+    --arg metadata_image "$metadata_image" \
     --arg k3s_image "rancher/k3s:${k3s_version}" \
     --arg domain "$domain" \
     --argjson port "$port" \
@@ -393,7 +466,7 @@ capture_source_state() {
       sourceClusterName: $source_cluster_name,
       defaultRestoreClusterName: $restore_cluster_name,
       image: $image,
-      runtimeImage: $runtime_image,
+      metadataImage: $metadata_image,
       k3sImage: $k3s_image,
       domain: $domain,
       port: $port,
@@ -405,7 +478,10 @@ capture_source_state() {
         "/var/lib/kubelet",
         "/var/lib/cni",
         "/shared"
-      ]
+      ],
+      nodeArchives: ([
+        {role: "server", index: 0}
+      ] + [range(0; $agents) | {role: "agent", index: .}])
     }' >"${artifact_dir}/manifest.json"
 
   tar -C "$artifact_dir" -czf "${artifact_dir}.tar.gz" .
@@ -415,15 +491,15 @@ FROM scratch
 LABEL org.opencontainers.image.title="agyn-local-appliance-metadata"
 LABEL org.opencontainers.image.description="Metadata and volume snapshots for the opt-in Agyn local appliance spike"
 ADD manifest.json /manifest.json
-ADD agent-images.json /agent-images.json
+ADD node-images.json /node-images.json
 ADD volumes /volumes
 ADD inspect /inspect
 EOF_METADATA
-  docker build -f "${artifact_dir}/Dockerfile.metadata" -t "$runtime_image" "$artifact_dir"
+  docker build -f "${artifact_dir}/Dockerfile.metadata" -t "$metadata_image" "$artifact_dir"
 
   log "Artifact written to ${artifact_dir} and ${artifact_dir}.tar.gz."
   log "Committed source server image: ${artifact_image}."
-  log "Metadata image: ${runtime_image}."
+  log "Metadata image: ${metadata_image}."
 }
 
 create_restore_cluster_shell() {
@@ -452,23 +528,6 @@ create_restore_cluster_shell() {
   rm -f "$tmp_kubeconfig"
 }
 
-restore_volume_into_container() {
-  local archive_path=$1
-  local container_name=$2
-  local destination=$3
-  local volume_name
-
-  [[ -f "$archive_path" ]] || fail "missing archive ${archive_path}"
-  volume_name=$(volume_name_for_destination "$container_name" "$destination")
-  [[ -n "$volume_name" ]] || fail "restore cluster does not expose ${destination} as a Docker volume"
-
-  log "Restoring ${destination} into volume ${volume_name}."
-  docker run --rm -i \
-    -v "${volume_name}:/target" \
-    alpine:3.20 \
-    sh -c "rm -rf /target/* /target/.[!.]* /target/..?* 2>/dev/null || true; tar -C /target -xzf -" <"$archive_path"
-}
-
 restore_shared_snapshot() {
   local archive_path="${artifact_dir}/volumes/shared.tar.gz"
 
@@ -479,20 +538,61 @@ restore_shared_snapshot() {
   tar -C shared -xzf "$archive_path"
 }
 
+pull_artifact() {
+  local metadata_image
+  local extract_container
+
+  metadata_image=$(metadata_ref)
+
+  if [[ -f "${artifact_dir}/manifest.json" ]]; then
+    return 0
+  fi
+
+  require_command docker
+  if docker image inspect "$metadata_image" >/dev/null 2>&1; then
+    log "Artifact directory ${artifact_dir} is missing; extracting local ${metadata_image}."
+  else
+    log "Artifact directory ${artifact_dir} is missing; pulling ${metadata_image}."
+    docker pull "$metadata_image"
+  fi
+
+  rm -rf "$artifact_dir"
+  mkdir -p "$artifact_dir"
+  extract_container=$(docker create --entrypoint true "$metadata_image")
+  docker cp "${extract_container}:/manifest.json" "${artifact_dir}/manifest.json"
+  docker cp "${extract_container}:/node-images.json" "${artifact_dir}/node-images.json"
+  docker cp "${extract_container}:/volumes" "${artifact_dir}/volumes"
+  docker cp "${extract_container}:/inspect" "${artifact_dir}/inspect"
+  docker rm "$extract_container" >/dev/null
+}
+
+load_manifest_defaults() {
+  local manifest_path="${artifact_dir}/manifest.json"
+
+  [[ -f "$manifest_path" ]] || fail "missing manifest ${manifest_path}"
+
+  agents=$(jq -r '.agents' "$manifest_path")
+  api_port=$(jq -r '.apiPort' "$manifest_path")
+  port=$(jq -r '.port' "$manifest_path")
+  domain=$(jq -r '.domain' "$manifest_path")
+  k3s_version=$(jq -r '.k3sImage | sub("^rancher/k3s:"; "")' "$manifest_path")
+}
+
 restore_artifact() {
-  local restore_node
+  local agent_index
 
   require_common_commands
+  pull_artifact
+  load_manifest_defaults
   create_restore_cluster_shell
-  restore_node=$(restore_node_name)
 
   log "Stopping ${restore_cluster_name} before volume restore."
   k3d cluster stop "$restore_cluster_name"
 
-  restore_volume_into_container "${artifact_dir}/volumes/server-var-lib-rancher-k3s.tar.gz" "$restore_node" /var/lib/rancher/k3s
-  restore_volume_into_container "${artifact_dir}/volumes/server-var-lib-kubelet.tar.gz" "$restore_node" /var/lib/kubelet
-  restore_volume_into_container "${artifact_dir}/volumes/server-var-lib-cni.tar.gz" "$restore_node" /var/lib/cni
-
+  restore_node_volumes server 0
+  for (( agent_index = 0; agent_index < agents; agent_index++ )); do
+    restore_node_volumes agent "$agent_index"
+  done
   restore_shared_snapshot
 
   log "Starting restored cluster ${restore_cluster_name}."
@@ -512,19 +612,14 @@ smoke_validate_restore() {
 
 publish_artifact() {
   local artifact_image
-  local runtime_image
   local metadata_image
 
   require_common_commands
   artifact_image=$(image_ref)
-  runtime_image=$(runtime_image_ref)
   metadata_image=$(metadata_ref)
 
   docker image inspect "$artifact_image" >/dev/null
-  docker image inspect "$runtime_image" >/dev/null
-
-  log "Tagging metadata artifact ${runtime_image} as ${metadata_image}."
-  docker tag "$runtime_image" "$metadata_image"
+  docker image inspect "$metadata_image" >/dev/null
 
   log "Pushing ${artifact_image}."
   docker push "$artifact_image"

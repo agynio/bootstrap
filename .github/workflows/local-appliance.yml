@@ -15,7 +15,7 @@ on:
           - 'false'
           - 'true'
       publish:
-        description: Push images to GHCR after capture
+        description: Push images to GHCR after restore validation
         required: true
         default: 'false'
         type: choice
@@ -82,10 +82,9 @@ jobs:
             --image-repository ghcr.io/agynio/bootstrap-local-appliance
             --image-tag "${{ inputs.image_tag }}"
           )
-          if [[ "${{ inputs.restore_validation }}" != "true" ]]; then
-            args+=(--skip-restore-validation)
-          fi
           if [[ "${{ inputs.publish }}" == "true" ]]; then
             args+=(--publish)
+          elif [[ "${{ inputs.restore_validation }}" != "true" ]]; then
+            args+=(--skip-restore-validation)
           fi
           scripts/local-appliance.sh "${args[@]}"

@@ -2,7 +2,7 @@
 
 This is an opt-in spike path for building a pre-provisioned local Agyn
 appliance from the normal bootstrap source of truth. It does not change
-`apply.sh`, CI, Terraform stacks, or downstream users by default.
+`apply.sh`, default CI, Terraform stacks, or downstream users by default.
 
 The spike currently produces the closest feasible artifact instead of relying on
 one Docker image alone:
@@ -10,10 +10,11 @@ one Docker image alone:
 - a committed k3d server container image,
 - compressed snapshots of the Docker volumes that k3d mounts at
   `/var/lib/rancher/k3s`, `/var/lib/kubelet`, and `/var/lib/cni` for the server
-  node,
+  and each configured agent node,
 - a compressed `/shared` bind-mount snapshot,
 - Docker inspect output for the captured k3d containers,
-- a manifest and metadata image that can be pushed to GHCR.
+- a manifest and metadata image that can be pushed to GHCR and extracted by the
+  restore command on a clean machine.
 
 A plain `docker commit` is not enough for k3d state portability. k3d stores the
 k3s datastore, kubelet state, CNI state, and image-related state in Docker
@@ -42,12 +43,14 @@ scripts/local-appliance.sh build \
 
 The build command:
 
-1. runs `./apply.sh -y` with the selected domain and port,
+1. runs `./apply.sh -y` with selected domain, port, and topology/version
+   overrides,
 2. runs `.github/scripts/verify_platform_health.sh`,
 3. stops the source k3d cluster cleanly,
 4. commits the server container image,
-5. captures the mounted state volumes and inspect metadata,
-6. attempts to recreate a single-node k3d cluster from the artifact,
+5. captures the mounted state volumes and inspect metadata for the server and
+   each configured agent,
+6. attempts to recreate a matching k3d cluster from the artifact,
 7. validates that the Kubernetes API starts, nodes are Ready, PVC/PV objects are
    visible, and Argo CD Application objects are present.
 
@@ -68,6 +71,22 @@ To capture without immediately running restore validation:
 scripts/local-appliance.sh build --skip-restore-validation
 ```
 
+## Topology and version options
+
+`build` applies the following options during provisioning by passing Terraform
+variables through the existing `apply.sh` execution:
+
+- `--cluster-name`
+- `--servers` (currently limited to `1`)
+- `--agents`
+- `--k3s-version`
+- `--api-port`
+- `--domain`
+- `--port`
+
+The capture and restore steps use the same values so node names, volume archives,
+and manifest metadata stay consistent.
+
 ## Restore an existing artifact
 
 ```sh
@@ -76,6 +95,13 @@ scripts/local-appliance.sh restore \
   --image-repository ghcr.io/agynio/bootstrap-local-appliance \
   --image-tag dev
 ```
+
+If `--artifact-dir` already contains `manifest.json`, restore uses the local
+artifact directory. If it does not, restore pulls
+`ghcr.io/agynio/bootstrap-local-appliance-metadata:<tag>` and extracts the
+manifest, volume snapshots, and inspect metadata into `--artifact-dir` before
+creating the k3d shell. The server image is pulled by `k3d cluster create` when
+it is not already present locally.
 
 The default restore cluster name is `agyn-local` so persisted node names match
 objects stored in the k3s datastore. Use a different name only for experiments;
@@ -91,14 +117,15 @@ scripts/local-appliance.sh publish \
   --image-tag $(git rev-parse --short HEAD)
 ```
 
-`publish` pushes two tags:
+`publish` pushes two restorable tags:
 
 - `ghcr.io/agynio/bootstrap-local-appliance:<tag>`: committed k3d server image,
-- `ghcr.io/agynio/bootstrap-local-appliance-metadata:<tag>`: metadata and volume
-  snapshots.
+- `ghcr.io/agynio/bootstrap-local-appliance-metadata:<tag>`: manifest, Docker
+  inspect metadata, and compressed volume snapshots.
 
 The build command can publish after local capture and restore validation with
-`--publish`.
+`--publish`. The CLI rejects `--publish` when `--skip-restore-validation` is set
+so GHCR tags are only pushed after a successful restore smoke test.
 
 ## Security notes
 
