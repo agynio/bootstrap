@@ -46,8 +46,6 @@ Commands:
   publish   Push appliance images and OCI artifact metadata to GHCR.
 
 Options:
-  --cluster-name NAME           Source cluster for build (default: agyn-local).
-  --restore-cluster-name NAME   Restore target cluster (default: agyn-local).
   --artifact-dir DIR            Appliance artifact directory (default: dist/local-appliance).
   --image-repository REPO       OCI repository for published images/artifacts.
   --image-tag TAG               Image/artifact tag (default: dev).
@@ -143,13 +141,8 @@ parse_args() {
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      --cluster-name)
-        cluster_name="${2:-}"
-        shift 2
-        ;;
-      --restore-cluster-name)
-        restore_cluster_name="${2:-}"
-        shift 2
+      --cluster-name | --restore-cluster-name)
+        fail "$1 is not supported because bootstrap health checks and dependent stacks use ${KUBECONFIG_PATH}"
         ;;
       --artifact-dir)
         artifact_dir="${2:-}"
@@ -270,19 +263,22 @@ metadata_ref() {
   printf '%s-metadata:%s' "$image_repository" "$image_tag"
 }
 
+write_k8s_tfvars() {
+  local tfvars_path="stacks/k8s/local-appliance.auto.tfvars"
+
+  cat >"$tfvars_path" <<EOF_TFVARS
+cluster_name = "${cluster_name}"
+servers      = ${servers}
+agents       = ${agents}
+k3s_version  = "${k3s_version}"
+api_port     = ${api_port}
+EOF_TFVARS
+}
+
 run_bootstrap() {
-  local tfvars
-
-  tfvars=(
-    -var "cluster_name=${cluster_name}"
-    -var "servers=${servers}"
-    -var "agents=${agents}"
-    -var "k3s_version=${k3s_version}"
-    -var "api_port=${api_port}"
-  )
-
-  log "Provisioning ${cluster_name} with existing apply.sh and appliance topology overrides."
-  TF_CLI_ARGS_apply="${tfvars[*]}" DOMAIN="$domain" PORT="$port" ./apply.sh -y
+  log "Provisioning ${cluster_name} with existing apply.sh and k8s-only appliance topology overrides."
+  write_k8s_tfvars
+  DOMAIN="$domain" PORT="$port" ./apply.sh -y
 }
 
 wait_for_platform_health() {

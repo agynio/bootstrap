@@ -76,7 +76,6 @@ scripts/local-appliance.sh build --skip-restore-validation
 `build` applies the following options during provisioning by passing Terraform
 variables through the existing `apply.sh` execution:
 
-- `--cluster-name`
 - `--servers` (currently limited to `1`)
 - `--agents`
 - `--k3s-version`
@@ -84,8 +83,10 @@ variables through the existing `apply.sh` execution:
 - `--domain`
 - `--port`
 
-The capture and restore steps use the same values so node names, volume archives,
-and manifest metadata stay consistent.
+The capture and restore steps use the same values so node volume archives and
+manifest metadata stay consistent. Custom cluster names are intentionally not
+supported in this spike because existing bootstrap health checks and dependent
+stacks use `stacks/k8s/.kube/agyn-local-kubeconfig.yaml`.
 
 ## Restore an existing artifact
 
