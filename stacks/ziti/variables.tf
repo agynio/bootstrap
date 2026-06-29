@@ -13,7 +13,7 @@ variable "ziti_admin_username" {
 variable "ziti_router_chart_version" {
   type        = string
   description = "OpenZiti router chart version"
-  default     = "3.0.0-pre5"
+  default     = "3.0.0"
 }
 
 variable "enable_ziti_diagnostics" {
