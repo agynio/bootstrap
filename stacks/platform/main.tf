@@ -897,6 +897,14 @@ locals {
         value = "10.43.0.10"
       },
       {
+        name  = "ZITI_RUNTIME_CONTROLLER_RESOLVE_HOST"
+        value = format("istio-ingressgateway.%s.svc.cluster.local", local.istio_gateway_namespace)
+      },
+      {
+        name  = "ZITI_RUNTIME_CONTROLLER_PORT"
+        value = "443"
+      },
+      {
         name  = "RUNNER_ADDRESS"
         value = "k8s-runner:50051"
       },

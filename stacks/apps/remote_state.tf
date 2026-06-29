@@ -43,3 +43,10 @@ data "kubernetes_service_v1" "ziti_router_edge" {
     namespace = local.ziti_namespace
   }
 }
+
+data "kubernetes_service_v1" "istio_ingressgateway" {
+  metadata {
+    name      = "istio-ingressgateway"
+    namespace = data.terraform_remote_state.system.outputs.istio_gateway_namespace
+  }
+}

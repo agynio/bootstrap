@@ -274,9 +274,9 @@ locals {
       zitiUnderlay = {
         endpoints = [
           {
-            name = "controller"
-            cidr = format("%s/32", data.kubernetes_service_v1.ziti_controller_client.spec[0].cluster_ip)
-            port = local.ingress_port
+            name = "ingress-gateway"
+            cidr = format("%s/32", data.kubernetes_service_v1.istio_ingressgateway.spec[0].cluster_ip)
+            port = 443
           },
           {
             name = "router"
