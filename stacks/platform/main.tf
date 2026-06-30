@@ -897,6 +897,14 @@ locals {
         value = "10.43.0.10"
       },
       {
+        name  = "ZITI_ENROLLMENT_CONTROLLER_RESOLVE_HOST"
+        value = format("ziti-controller-client.%s.svc.cluster.local", local.ziti_namespace)
+      },
+      {
+        name  = "ZITI_ENROLLMENT_CONTROLLER_PORT"
+        value = tostring(local.ingress_port)
+      },
+      {
         name  = "ZITI_RUNTIME_CONTROLLER_RESOLVE_HOST"
         value = format("istio-ingressgateway.%s.svc.cluster.local", local.istio_gateway_namespace)
       },

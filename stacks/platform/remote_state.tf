@@ -40,3 +40,10 @@ data "kubernetes_service_v1" "ziti_router_edge" {
     namespace = local.ziti_namespace
   }
 }
+
+data "kubernetes_service_v1" "istio_ingressgateway" {
+  metadata {
+    name      = "istio-ingressgateway"
+    namespace = local.istio_gateway_namespace
+  }
+}
