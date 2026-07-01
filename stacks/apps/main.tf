@@ -276,6 +276,11 @@ locals {
           {
             name = "ingress-gateway"
             cidr = format("%s/32", data.kubernetes_service_v1.istio_ingressgateway.spec[0].cluster_ip)
+            backendCIDRs = distinct(flatten([
+              for subset in data.kubernetes_endpoints_v1.istio_ingressgateway.subset : [
+                for address in subset.address : format("%s/32", address.ip)
+              ]
+            ]))
             namespaceSelector = {
               "kubernetes.io/metadata.name" = data.terraform_remote_state.system.outputs.istio_gateway_namespace
             }

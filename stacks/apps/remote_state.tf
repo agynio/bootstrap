@@ -50,3 +50,10 @@ data "kubernetes_service_v1" "istio_ingressgateway" {
     namespace = data.terraform_remote_state.system.outputs.istio_gateway_namespace
   }
 }
+
+data "kubernetes_endpoints_v1" "istio_ingressgateway" {
+  metadata {
+    name      = data.kubernetes_service_v1.istio_ingressgateway.metadata[0].name
+    namespace = data.terraform_remote_state.system.outputs.istio_gateway_namespace
+  }
+}
