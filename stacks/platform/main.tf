@@ -886,7 +886,7 @@ locals {
       },
       {
         name  = "ZITI_SIDECAR_IMAGE"
-        value = "openziti/ziti-tunnel:2.0.0"
+        value = "openziti/ziti-tunnel:1.5.16"
       },
       {
         name  = "WORKLOAD_DNS_UPSTREAM"
