@@ -886,11 +886,31 @@ locals {
       },
       {
         name  = "ZITI_SIDECAR_IMAGE"
-        value = "openziti/ziti-tunnel:2.0.0-pre8"
+        value = "openziti/ziti-tunnel:1.6.15"
       },
       {
         name  = "WORKLOAD_DNS_UPSTREAM"
         value = kubernetes_service_v1.ziti_workload_dns.spec[0].cluster_ip
+      },
+      {
+        name  = "ZITI_ENROLLMENT_DNS_UPSTREAM"
+        value = "10.43.0.10"
+      },
+      {
+        name  = "ZITI_ENROLLMENT_CONTROLLER_RESOLVE_HOST"
+        value = format("ziti-controller-client.%s.svc.cluster.local", local.ziti_namespace)
+      },
+      {
+        name  = "ZITI_ENROLLMENT_CONTROLLER_PORT"
+        value = tostring(local.ingress_port)
+      },
+      {
+        name  = "ZITI_RUNTIME_CONTROLLER_RESOLVE_HOST"
+        value = format("istio-ingressgateway.%s.svc.cluster.local", local.istio_gateway_namespace)
+      },
+      {
+        name  = "ZITI_RUNTIME_CONTROLLER_PORT"
+        value = "443"
       },
       {
         name  = "RUNNER_ADDRESS"

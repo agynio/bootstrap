@@ -6,6 +6,14 @@ data "terraform_remote_state" "k8s" {
   }
 }
 
+data "terraform_remote_state" "system" {
+  backend = "local"
+
+  config = {
+    path = "../system/state/terraform.tfstate"
+  }
+}
+
 data "terraform_remote_state" "platform" {
   backend = "local"
 
@@ -19,4 +27,33 @@ locals {
   ingress_port        = data.terraform_remote_state.k8s.outputs.ingress_port
   gateway_url         = format("https://gateway.%s:%d", local.base_domain, local.ingress_port)
   cluster_admin_token = data.terraform_remote_state.platform.outputs.cluster_admin_api_token
+  ziti_namespace      = data.terraform_remote_state.system.outputs.installed_namespaces[1]
+}
+
+data "kubernetes_service_v1" "ziti_controller_client" {
+  metadata {
+    name      = "ziti-controller-client"
+    namespace = local.ziti_namespace
+  }
+}
+
+data "kubernetes_service_v1" "ziti_router_edge" {
+  metadata {
+    name      = "ziti-router-edge"
+    namespace = local.ziti_namespace
+  }
+}
+
+data "kubernetes_service_v1" "istio_ingressgateway" {
+  metadata {
+    name      = "istio-ingressgateway"
+    namespace = data.terraform_remote_state.system.outputs.istio_gateway_namespace
+  }
+}
+
+data "kubernetes_endpoints_v1" "istio_ingressgateway" {
+  metadata {
+    name      = data.kubernetes_service_v1.istio_ingressgateway.metadata[0].name
+    namespace = data.terraform_remote_state.system.outputs.istio_gateway_namespace
+  }
 }
