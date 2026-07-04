@@ -4529,12 +4529,9 @@ resource "argocd_application" "llm_proxy" {
               type = "RuntimeDefault"
             }
           }
-          env = [
-            {
-              name  = "ZITI_ENABLED"
-              value = "true"
-            },
-          ]
+          llmProxy = {
+            zitiEnabled = true
+          }
         })
       }
     }
