@@ -20,13 +20,15 @@ locals {
     }
   })
 
+  ziti_client_advertised_port = 443
+
   ziti_controller_values = yamlencode({
     cluster = {
       mode = "standalone"
     }
     clientApi = {
       advertisedHost = "ziti.${local.base_domain}"
-      advertisedPort = local.ingress_port
+      advertisedPort = local.ziti_client_advertised_port
       service = {
         enabled = true
         type    = "ClusterIP"

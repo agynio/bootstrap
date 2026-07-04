@@ -7,8 +7,10 @@ POLL_INTERVAL=${POLL_INTERVAL:-10}
 PLATFORM_NAMESPACE=${PLATFORM_NAMESPACE:-platform}
 ARGO_NAMESPACE=${ARGO_NAMESPACE:-argocd}
 ZITI_NAMESPACE=${ZITI_NAMESPACE:-ziti}
+WORKLOAD_NAMESPACE=${WORKLOAD_NAMESPACE:-agyn-workloads}
 DEFAULT_DOMAIN="agyn.dev"
 DEFAULT_PORT="2496"
+DEFAULT_ZITI_CLIENT_PORT="443"
 POD_TERMINAL_FAILURE_GRACE_CYCLES=${POD_TERMINAL_FAILURE_GRACE_CYCLES:-5}
 POD_CRASH_BACKOFF_GRACE_CYCLES=${POD_CRASH_BACKOFF_GRACE_CYCLES:-5}
 
@@ -104,6 +106,76 @@ ziti_api_get() {
   local path=$2
 
   curl -sk --fail -H "zt-session: ${token}" "${ZITI_MGMT_ENDPOINT}${path}"
+}
+
+verify_ziti_client_oidc_runtime() {
+  local dns_ip
+  local domain
+  local oidc_url
+  local pod_name
+  local port
+  local version_url
+
+  domain="${DOMAIN:-$DEFAULT_DOMAIN}"
+  port="${ZITI_CLIENT_PORT:-$DEFAULT_ZITI_CLIENT_PORT}"
+  pod_name="ziti-client-runtime-health"
+  version_url="https://ziti.${domain}:${port}/edge/client/v1/version"
+  oidc_url="https://ziti.${domain}:${port}/oidc/.well-known/openid-configuration"
+
+  dns_ip=$(kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$ZITI_NAMESPACE" \
+    get svc ziti-workload-dns -o jsonpath='{.spec.clusterIP}' 2>/dev/null || true)
+  if [[ -z "$dns_ip" ]]; then
+    log "Ziti workload DNS service is not available"
+    return 1
+  fi
+
+  kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$WORKLOAD_NAMESPACE" \
+    delete pod "$pod_name" --ignore-not-found --wait=false >/dev/null 2>&1 || true
+
+  if ! kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$WORKLOAD_NAMESPACE" apply -f - >/dev/null <<EOF
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ${pod_name}
+  labels:
+    app.kubernetes.io/name: ziti-client-runtime-health
+spec:
+  restartPolicy: Never
+  dnsPolicy: None
+  dnsConfig:
+    nameservers:
+      - ${dns_ip}
+  containers:
+    - name: curl
+      image: curlimages/curl:8.16.0
+      command:
+        - sh
+        - -ec
+        - |
+          version_json="$(curl -skf '${version_url}')"
+          if printf '%s' "\$version_json" | grep -q 'OIDC_AUTH'; then
+            curl -skf '${oidc_url}' | grep -q '"issuer"'
+          else
+            echo 'OIDC_AUTH not advertised; cert-auth-only runtime path'
+          fi
+EOF
+  then
+    log "Unable to create Ziti client runtime health pod"
+    return 1
+  fi
+
+  if ! kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$WORKLOAD_NAMESPACE" \
+    wait --for=jsonpath='{.status.phase}'=Succeeded "pod/${pod_name}" --timeout=60s >/dev/null; then
+    log "Ziti client runtime OIDC check failed: ${version_url} / ${oidc_url}"
+    kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$WORKLOAD_NAMESPACE" logs "$pod_name" --all-containers --tail=50 || true
+    kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$WORKLOAD_NAMESPACE" describe pod "$pod_name" || true
+    kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$WORKLOAD_NAMESPACE" delete pod "$pod_name" --ignore-not-found --wait=false >/dev/null 2>&1 || true
+    return 1
+  fi
+
+  kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$WORKLOAD_NAMESPACE" logs "$pod_name" --all-containers --tail=20 || true
+  kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$WORKLOAD_NAMESPACE" delete pod "$pod_name" --ignore-not-found --wait=false >/dev/null 2>&1 || true
+  log "Ziti client runtime auth discovery is valid from workload DNS context"
 }
 
 jq_unhealthy_pods() {
@@ -401,6 +473,12 @@ while (( SECONDS < deadline )); do
     if (( ${#ziti_overlay_pending[@]} > 0 )); then
       ziti_overlay_message=$(join_lines "$(printf '%s\n' "${ziti_overlay_pending[@]}")")
       outstanding+=("waiting for Ziti overlay: ${ziti_overlay_message}")
+    fi
+  fi
+
+  if (( ${#outstanding[@]} == 0 )); then
+    if ! verify_ziti_client_oidc_runtime; then
+      outstanding+=("waiting for Ziti client OIDC runtime endpoint")
     fi
   fi
 

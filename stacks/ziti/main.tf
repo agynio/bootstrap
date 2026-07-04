@@ -6,10 +6,12 @@ locals {
   management_identity_secret_name   = "ziti-management-enrollment"
   orchestrator_identity_secret_name = "ziti-orchestrator-enrollment"
 
+  ziti_client_runtime_port = 443
+
   router_values = yamlencode({
     ctrl = {
-      # Use controller service port (ingress advertised port), not container 1280.
-      endpoint = "ziti.${local.base_domain}:${local.ingress_port}"
+      # Use the client API service port advertised to edge routers.
+      endpoint = "ziti.${local.base_domain}:${local.ziti_client_runtime_port}"
     }
     edge = {
       advertisedHost = "ziti-router.${local.base_domain}"

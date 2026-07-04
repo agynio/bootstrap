@@ -290,7 +290,7 @@ locals {
           {
             name = "controller-enrollment"
             cidr = format("%s/32", data.kubernetes_service_v1.ziti_controller_client.spec[0].cluster_ip)
-            port = local.ingress_port
+            port = local.ziti_client_runtime_port
           },
           {
             name = "router"

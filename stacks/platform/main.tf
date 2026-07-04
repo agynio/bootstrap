@@ -67,6 +67,7 @@ locals {
   istio_gateway_tls_secret_name = data.terraform_remote_state.system.outputs.wildcard_tls_gateway_secret_name
   ziti_namespace                = data.terraform_remote_state.system.outputs.installed_namespaces[1]
   workload_namespace            = "agyn-workloads"
+  ziti_client_runtime_port      = 443
   openfga_api_url_external      = format("https://openfga.%s:%d", local.base_domain, local.ingress_port)
   openfga_api_url_internal      = format("http://openfga.%s.svc.cluster.local:8080", var.openfga_namespace)
   nats_endpoint                 = format("nats://nats.%s.svc.cluster.local:4222", var.platform_namespace)
@@ -902,7 +903,7 @@ locals {
       },
       {
         name  = "ZITI_ENROLLMENT_CONTROLLER_PORT"
-        value = tostring(local.ingress_port)
+        value = tostring(local.ziti_client_runtime_port)
       },
       {
         name  = "ZITI_RUNTIME_CONTROLLER_RESOLVE_HOST"

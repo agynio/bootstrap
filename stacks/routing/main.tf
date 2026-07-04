@@ -3,6 +3,8 @@ locals {
   istio_gateway_tls_secret_name = data.terraform_remote_state.system.outputs.wildcard_tls_gateway_secret_name
   # Explicit host list prevents platform SIMPLE TLS from shadowing
   # Ziti passthrough SNI; add new platform hosts here as needed.
+  ziti_client_runtime_port = 443
+
   platform_gateway_hosts = [
     local.base_domain,
     "argocd.${local.base_domain}",
@@ -159,7 +161,7 @@ resource "kubernetes_manifest" "virtualservice_ziti_controller" {
               "destination" = {
                 "host" = "ziti-controller-client.ziti.svc.cluster.local"
                 "port" = {
-                  "number" = local.ingress_port
+                  "number" = local.ziti_client_runtime_port
                 }
               }
             }
