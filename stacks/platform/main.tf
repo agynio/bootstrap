@@ -67,6 +67,7 @@ locals {
   istio_gateway_tls_secret_name = data.terraform_remote_state.system.outputs.wildcard_tls_gateway_secret_name
   ziti_namespace                = data.terraform_remote_state.system.outputs.installed_namespaces[1]
   workload_namespace            = "agyn-workloads"
+  ziti_client_runtime_port      = 443
   openfga_api_url_external      = format("https://openfga.%s:%d", local.base_domain, local.ingress_port)
   openfga_api_url_internal      = format("http://openfga.%s.svc.cluster.local:8080", var.openfga_namespace)
   nats_endpoint                 = format("nats://nats.%s.svc.cluster.local:4222", var.platform_namespace)
@@ -886,11 +887,31 @@ locals {
       },
       {
         name  = "ZITI_SIDECAR_IMAGE"
-        value = "openziti/ziti-tunnel:2.0.0-pre8"
+        value = "openziti/ziti-tunnel:1.6.15"
       },
       {
         name  = "WORKLOAD_DNS_UPSTREAM"
         value = kubernetes_service_v1.ziti_workload_dns.spec[0].cluster_ip
+      },
+      {
+        name  = "ZITI_ENROLLMENT_DNS_UPSTREAM"
+        value = data.kubernetes_service_v1.kube_dns.spec[0].cluster_ip
+      },
+      {
+        name  = "ZITI_ENROLLMENT_CONTROLLER_RESOLVE_HOST"
+        value = format("ziti-controller-client.%s.svc.cluster.local", local.ziti_namespace)
+      },
+      {
+        name  = "ZITI_ENROLLMENT_CONTROLLER_PORT"
+        value = tostring(local.ziti_client_runtime_port)
+      },
+      {
+        name  = "ZITI_RUNTIME_CONTROLLER_RESOLVE_HOST"
+        value = format("istio-ingressgateway.%s.svc.cluster.local", local.istio_gateway_namespace)
+      },
+      {
+        name  = "ZITI_RUNTIME_CONTROLLER_PORT"
+        value = "443"
       },
       {
         name  = "RUNNER_ADDRESS"
@@ -4509,12 +4530,9 @@ resource "argocd_application" "llm_proxy" {
               type = "RuntimeDefault"
             }
           }
-          env = [
-            {
-              name  = "ZITI_ENABLED"
-              value = "true"
-            },
-          ]
+          llmProxy = {
+            zitiEnabled = true
+          }
         })
       }
     }

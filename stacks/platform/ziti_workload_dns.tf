@@ -40,8 +40,8 @@ resource "kubernetes_config_map_v1" "ziti_workload_dns" {
       $TTL 30
       @ IN SOA ns.ziti.${local.base_domain}. hostmaster.${local.base_domain}. 1 7200 3600 1209600 30
       @ IN NS ns.ziti.${local.base_domain}.
-      @ IN A ${data.kubernetes_service_v1.ziti_controller_client.spec[0].cluster_ip}
-      ns IN A ${data.kubernetes_service_v1.ziti_controller_client.spec[0].cluster_ip}
+      @ IN A ${data.kubernetes_service_v1.istio_ingressgateway.spec[0].cluster_ip}
+      ns IN A ${data.kubernetes_service_v1.istio_ingressgateway.spec[0].cluster_ip}
     ZONE
 
     "ziti-router.db" = <<-ZONE

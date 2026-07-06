@@ -265,6 +265,41 @@ locals {
         }
       ]
     }
+    workloadNamespace = "agyn-workloads"
+    workloadEgressNetworkPolicy = {
+      enabled = true
+      zitiWorkloadDNS = {
+        enabled = true
+      }
+      zitiUnderlay = {
+        endpoints = [
+          {
+            name = "ingress-gateway"
+            cidr = format("%s/32", data.kubernetes_service_v1.istio_ingressgateway.spec[0].cluster_ip)
+            backendCIDRs = distinct(flatten([
+              for subset in data.kubernetes_endpoints_v1.istio_ingressgateway.subset : [
+                for address in subset.address : format("%s/32", address.ip)
+              ]
+            ]))
+            namespaceSelector = {
+              "kubernetes.io/metadata.name" = data.terraform_remote_state.system.outputs.istio_gateway_namespace
+            }
+            podSelector = data.kubernetes_service_v1.istio_ingressgateway.spec[0].selector
+            port        = 443
+          },
+          {
+            name = "controller-enrollment"
+            cidr = format("%s/32", data.kubernetes_service_v1.ziti_controller_client.spec[0].cluster_ip)
+            port = local.ziti_client_runtime_port
+          },
+          {
+            name = "router"
+            cidr = format("%s/32", data.kubernetes_service_v1.ziti_router_edge.spec[0].cluster_ip)
+            port = local.ingress_port
+          },
+        ]
+      }
+    }
   })
 }
 
