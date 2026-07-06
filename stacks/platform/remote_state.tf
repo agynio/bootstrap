@@ -47,3 +47,10 @@ data "kubernetes_service_v1" "istio_ingressgateway" {
     namespace = local.istio_gateway_namespace
   }
 }
+
+data "kubernetes_service_v1" "kube_dns" {
+  metadata {
+    name      = "kube-dns"
+    namespace = "kube-system"
+  }
+}

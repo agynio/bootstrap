@@ -895,7 +895,7 @@ locals {
       },
       {
         name  = "ZITI_ENROLLMENT_DNS_UPSTREAM"
-        value = "10.43.0.10"
+        value = data.kubernetes_service_v1.kube_dns.spec[0].cluster_ip
       },
       {
         name  = "ZITI_ENROLLMENT_CONTROLLER_RESOLVE_HOST"
