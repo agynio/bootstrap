@@ -6,6 +6,7 @@ provider "registry.terraform.io/agynio/agyn" {
   constraints = "~> 0.6"
   hashes = [
     "h1:2EpEMlLIhAbEFx6wnOObjbfUYVzdkue+CFBuZn6NaQo=",
+    "h1:N5xo2wappOk5FQpNzsnUasKEWMtlHZS+p3cCa4Rw3H8=",
     "zh:1db60ffcb376618c75e36652e28a43290db1c9de3f9a3f8cc4e54e2bb2cea7fe",
     "zh:2213189873c66cfd6621e55b122699a6c30ac8d37f47daf0c0f98a246c3a4a60",
     "zh:42f7c230b1f5a06552fdc3932731fc11bc5c90cb2ee6023c77ae088b54175c4c",

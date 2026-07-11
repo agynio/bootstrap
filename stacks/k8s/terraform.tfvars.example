@@ -1,6 +1,6 @@
 cluster_name   = "agyn-local"
 servers        = 1
-agents         = 2
+agents         = 0
 k3s_version    = "v1.28.4-k3s1"
 k3s_extra_args = []
 expose_api     = true

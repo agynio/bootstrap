@@ -13,7 +13,7 @@ variable "servers" {
 variable "agents" {
   type        = number
   description = "Number of agent nodes"
-  default     = 2
+  default     = 0
 }
 
 variable "k3s_version" {
