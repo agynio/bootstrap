@@ -219,7 +219,7 @@ resource "kubernetes_network_policy_v1" "ziti_workload_dns" {
 resource "kubernetes_network_policy_v1" "workload_ziti_egress" {
   metadata {
     name      = "workload-ziti-egress"
-    namespace = local.workload_namespace
+    namespace = kubernetes_namespace_v1.agyn_workloads.metadata[0].name
   }
 
   spec {

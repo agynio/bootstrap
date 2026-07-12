@@ -744,7 +744,7 @@ variable "egress_db_pvc_size" {
 variable "egress_gateway_chart_version" {
   type        = string
   description = "Version of the egress-gateway Helm chart published to GHCR"
-  default     = "0.1.4"
+  default     = "0.1.5"
 }
 
 variable "egress_gateway_image_tag" {
