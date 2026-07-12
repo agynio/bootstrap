@@ -200,14 +200,45 @@ resource "kubernetes_network_policy_v1" "ziti_workload_dns" {
         }
       }
 
+      # Numeric port: k3s kube-router drops named UDP ports.
       ports {
-        port     = "dns"
+        port     = "53"
         protocol = "UDP"
       }
 
       ports {
-        port     = "dns-tcp"
+        port     = "53"
         protocol = "TCP"
+      }
+    }
+  }
+}
+
+# Allow workloads to reach the ziti resolver/controller/router; the k8s-runner
+# egress policy blocks the service CIDR. Additive to that policy.
+resource "kubernetes_network_policy_v1" "workload_ziti_egress" {
+  metadata {
+    name      = "workload-ziti-egress"
+    namespace = local.workload_namespace
+  }
+
+  spec {
+    pod_selector {
+      match_labels = {
+        "agyn.dev/managed-by" = "agents-orchestrator"
+      }
+    }
+
+    policy_types = ["Egress"]
+
+    # All ports: egress matches pod ports (post-DNAT), not the 2496 Service port.
+    egress {
+      to {
+        namespace_selector {
+          match_labels = {
+            "kubernetes.io/metadata.name" = local.ziti_namespace
+          }
+        }
       }
     }
   }
