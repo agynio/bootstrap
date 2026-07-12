@@ -249,7 +249,9 @@ resource "helm_release" "argo_cd" {
       }
       configs = {
         params = {
-          "server.insecure" = true
+          "controller.repo.server.timeout.seconds" = "180"
+          "server.insecure"                        = true
+          "server.repo.server.timeout.seconds"     = "180"
         }
         cm = {
           admin = {
