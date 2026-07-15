@@ -84,6 +84,8 @@ Verify persistence by:
 | 5         | `platform-db`      | PostgreSQL for platform workloads   | Uses chart `oci://ghcr.io/agynio/charts/postgres-helm` with inline Helm values |
 | 18        | `k8s-runner`       | Kubernetes workspace runner         | Uses cluster-wide RBAC; TCP-only runner mode |
 | 16        | `nats`             | NATS JetStream event bus            | Required by Groups and private Networks |
+| 18        | `groups`           | Organization groups service         | Backs Console Org Settings / Groups through Gateway |
+| 19        | `networks`         | Private networks service            | Backs Console Infrastructure / Private Networks through Gateway |
 | 20        | `platform-server`  | Core platform API                   | Depends on `platform-db` |
 | 25        | `platform-ui`      | Platform web UI                     | Connects to `platform-server` |
 

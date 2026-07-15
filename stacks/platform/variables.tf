@@ -107,6 +107,18 @@ variable "organizations_chart_version" {
   default     = "0.4.4"
 }
 
+variable "groups_chart_version" {
+  type        = string
+  description = "Version of the agyn-platform Helm chart used to deploy groups"
+  default     = "0.5.10"
+}
+
+variable "networks_chart_version" {
+  type        = string
+  description = "Version of the agyn-platform Helm chart used to deploy networks"
+  default     = "0.5.10"
+}
+
 variable "identity_chart_version" {
   type        = string
   description = "Version of the identity Helm chart published to GHCR"
@@ -282,6 +294,18 @@ variable "organizations_image_tag" {
   default     = ""
 }
 
+variable "groups_image_tag" {
+  type        = string
+  description = "Optional override for the groups image tag"
+  default     = ""
+}
+
+variable "networks_image_tag" {
+  type        = string
+  description = "Optional override for the networks image tag"
+  default     = ""
+}
+
 variable "identity_image_tag" {
   type        = string
   description = "Optional override for the identity image tag"
@@ -394,6 +418,32 @@ variable "platform_db_password" {
 variable "platform_db_pvc_size" {
   type        = string
   description = "Persistent volume claim size for the platform PostgreSQL primary"
+  default     = "5Gi"
+}
+
+variable "groups_db_password" {
+  type        = string
+  description = "Password for the groups PostgreSQL database user"
+  default     = "groups"
+  sensitive   = true
+}
+
+variable "groups_db_pvc_size" {
+  type        = string
+  description = "Persistent volume claim size for the groups PostgreSQL primary"
+  default     = "5Gi"
+}
+
+variable "networks_db_password" {
+  type        = string
+  description = "Password for the networks PostgreSQL database user"
+  default     = "networks"
+  sensitive   = true
+}
+
+variable "networks_db_pvc_size" {
+  type        = string
+  description = "Persistent volume claim size for the networks PostgreSQL primary"
   default     = "5Gi"
 }
 
