@@ -21,6 +21,8 @@ locals {
   resolved_users_image_tag               = trimspace(var.users_image_tag) != "" ? var.users_image_tag : var.users_chart_version
   resolved_expose_image_tag              = trimspace(var.expose_image_tag) != "" ? var.expose_image_tag : var.expose_chart_version
   resolved_organizations_image_tag       = trimspace(var.organizations_image_tag) != "" ? var.organizations_image_tag : var.organizations_chart_version
+  resolved_groups_image_tag              = trimspace(var.groups_image_tag) != "" ? var.groups_image_tag : "0.1.1"
+  resolved_networks_image_tag            = trimspace(var.networks_image_tag) != "" ? var.networks_image_tag : "0.1.0"
   resolved_authorization_image_tag       = trimspace(var.authorization_image_tag) != "" ? var.authorization_image_tag : var.authorization_chart_version
   resolved_identity_image_tag            = trimspace(var.identity_image_tag) != "" ? var.identity_image_tag : var.identity_chart_version
   resolved_runners_image_tag             = trimspace(var.runners_image_tag) != "" ? var.runners_image_tag : var.runners_chart_version
@@ -54,6 +56,8 @@ locals {
   users_chart_name               = "agynio/charts/users"
   expose_chart_name              = "agynio/charts/expose"
   organizations_chart_name       = "agynio/charts/organizations"
+  groups_chart_name              = "agynio/charts/agyn-platform"
+  networks_chart_name            = "agynio/charts/agyn-platform"
   authorization_chart_name       = "agynio/charts/authorization"
   identity_chart_name            = "agynio/charts/identity"
   runners_chart_name             = "agynio/charts/runners"
@@ -70,6 +74,7 @@ locals {
   openfga_api_url_external      = format("https://openfga.%s:%d", local.base_domain, local.ingress_port)
   openfga_api_url_internal      = format("http://openfga.%s.svc.cluster.local:8080", var.openfga_namespace)
   nats_endpoint                 = format("nats://nats.%s.svc.cluster.local:4222", var.platform_namespace)
+  platform_database_urls_secret = "agyn-platform-database-urls"
   # Deterministic v5 UUID for the cluster admin identity.
   # This is a synthetic identity used only during bootstrap;
   # it does not correspond to a user record in the Users DB.
@@ -87,6 +92,108 @@ locals {
     "ApplyOutOfSyncOnly=true",
     "RespectIgnoreDifferences=true",
   ]
+
+  agyn_platform_single_service_values = {
+    postgres = {
+      enabled = false
+    }
+    egress = {
+      enabled = false
+    }
+    "egress-gateway" = {
+      enabled = false
+    }
+    gateway = {
+      enabled = false
+    }
+    agents = {
+      enabled = false
+    }
+    "agents-orchestrator" = {
+      enabled = false
+    }
+    threads = {
+      enabled = false
+    }
+    chat = {
+      enabled = false
+    }
+    users = {
+      enabled = false
+    }
+    organizations = {
+      enabled = false
+    }
+    identity = {
+      enabled = false
+    }
+    authorization = {
+      enabled = false
+    }
+    groups = {
+      enabled = false
+    }
+    networks = {
+      enabled = false
+    }
+    apps = {
+      enabled = false
+    }
+    runners = {
+      enabled = false
+    }
+    "ziti-management" = {
+      enabled = false
+    }
+    expose = {
+      enabled = false
+    }
+    secrets = {
+      enabled = false
+    }
+    llm = {
+      enabled = false
+    }
+    "llm-proxy" = {
+      enabled = false
+    }
+    "token-counting" = {
+      enabled = false
+    }
+    tracing = {
+      enabled = false
+    }
+    notifications = {
+      enabled = false
+      redis = {
+        enabled = false
+      }
+    }
+    nats = {
+      enabled = false
+    }
+    files = {
+      enabled = false
+    }
+    "media-proxy" = {
+      enabled = false
+    }
+    "chat-app" = {
+      enabled = false
+    }
+    "console-app" = {
+      enabled = false
+    }
+    "tracing-app" = {
+      enabled = false
+    }
+    registryMirror = {
+      enabled = false
+    }
+    ncps = {
+      enabled = false
+    }
+  }
 
   platform_db_values = yamlencode({
     fullnameOverride = "platform-db"
@@ -107,6 +214,69 @@ locals {
       }
       liveness = {
         execCommand = ["pg_isready", "-U", "agents", "-d", "agents"]
+      }
+    }
+  })
+
+  platform_database_urls = {
+    groups   = format("postgresql://groups:%s@groups-db:5432/groups?sslmode=disable", var.groups_db_password)
+    networks = format("postgresql://networks:%s@networks-db:5432/networks?sslmode=disable", var.networks_db_password)
+  }
+
+  agyn_platform_external_nats_values = {
+    platform = {
+      serviceEndpoints = {
+        nats = local.nats_endpoint
+      }
+      eventBus = {
+        url        = local.nats_endpoint
+        urlEnvName = "NATS_URL"
+      }
+    }
+  }
+
+  groups_db_values = yamlencode({
+    fullnameOverride = "groups-db"
+    postgres = {
+      database = "groups"
+      username = "groups"
+      password = var.groups_db_password
+      pgdata   = "/var/lib/postgresql/data/pgdata"
+    }
+    persistence = {
+      size                    = var.groups_db_pvc_size
+      mountPath               = "/var/lib/postgresql/data"
+      volumeClaimTemplateName = "data"
+    }
+    probes = {
+      readiness = {
+        execCommand = ["pg_isready", "-U", "groups", "-d", "groups"]
+      }
+      liveness = {
+        execCommand = ["pg_isready", "-U", "groups", "-d", "groups"]
+      }
+    }
+  })
+
+  networks_db_values = yamlencode({
+    fullnameOverride = "networks-db"
+    postgres = {
+      database = "networks"
+      username = "networks"
+      password = var.networks_db_password
+      pgdata   = "/var/lib/postgresql/data/pgdata"
+    }
+    persistence = {
+      size                    = var.networks_db_pvc_size
+      mountPath               = "/var/lib/postgresql/data"
+      volumeClaimTemplateName = "data"
+    }
+    probes = {
+      readiness = {
+        execCommand = ["pg_isready", "-U", "networks", "-d", "networks"]
+      }
+      liveness = {
+        execCommand = ["pg_isready", "-U", "networks", "-d", "networks"]
       }
     }
   })
@@ -806,6 +976,151 @@ locals {
         value = format("postgresql://organizations:%s@organizations-db:5432/organizations?sslmode=disable", var.organizations_db_password)
       },
     ]
+  })
+
+  groups_values = yamlencode({
+    for key, value in merge(
+      local.agyn_platform_single_service_values,
+      local.agyn_platform_external_nats_values,
+      {
+        groups = {
+          enabled          = true
+          replicaCount     = 1
+          fullnameOverride = "groups"
+          image = {
+            repository = "ghcr.io/agynio/groups"
+            tag        = local.resolved_groups_image_tag
+            pullPolicy = "IfNotPresent"
+          }
+          service = {
+            enabled = true
+            type    = "ClusterIP"
+            ports = [
+              {
+                name       = "grpc"
+                port       = 50051
+                targetPort = "grpc"
+                protocol   = "TCP"
+              }
+            ]
+          }
+          containerPorts = [
+            {
+              name          = "grpc"
+              containerPort = 50051
+              protocol      = "TCP"
+            }
+          ]
+          env = [
+            {
+              name  = "GRPC_ADDRESS"
+              value = ":50051"
+            },
+            {
+              name = "DATABASE_URL"
+              valueFrom = {
+                secretKeyRef = {
+                  name = local.platform_database_urls_secret
+                  key  = "groups"
+                }
+              }
+            },
+            {
+              name  = "AUTHORIZATION_GRPC_TARGET"
+              value = "authorization:50051"
+            },
+            {
+              name  = "IDENTITY_GRPC_TARGET"
+              value = "identity:50051"
+            },
+            {
+              name  = "NATS_URL"
+              value = local.nats_endpoint
+            },
+          ]
+        }
+      }
+    ) : key => value
+  })
+
+  networks_values = yamlencode({
+    for key, value in merge(
+      local.agyn_platform_single_service_values,
+      local.agyn_platform_external_nats_values,
+      {
+        networks = {
+          enabled          = true
+          replicaCount     = 1
+          fullnameOverride = "networks"
+          image = {
+            tag        = local.resolved_networks_image_tag
+            pullPolicy = "IfNotPresent"
+          }
+          service = {
+            enabled = true
+            type    = "ClusterIP"
+            ports = [
+              {
+                name       = "grpc"
+                port       = 50051
+                targetPort = "grpc"
+                protocol   = "TCP"
+              }
+            ]
+          }
+          containerPorts = [
+            {
+              name          = "grpc"
+              containerPort = 50051
+              protocol      = "TCP"
+            }
+          ]
+          env = [
+            {
+              name  = "GRPC_ADDRESS"
+              value = ":50051"
+            },
+            {
+              name = "DATABASE_URL"
+              valueFrom = {
+                secretKeyRef = {
+                  name = local.platform_database_urls_secret
+                  key  = "networks"
+                }
+              }
+            },
+            {
+              name  = "DEPENDENCY_CLIENTS_ENABLED"
+              value = "true"
+            },
+            {
+              name  = "AUTHORIZATION_GRPC_TARGET"
+              value = "authorization:50051"
+            },
+            {
+              name  = "ZITI_MANAGEMENT_GRPC_TARGET"
+              value = "ziti-management:50051"
+            },
+            {
+              name  = "IDENTITY_GRPC_TARGET"
+              value = "identity:50051"
+            },
+            {
+              name  = "GROUPS_GRPC_TARGET"
+              value = "groups:50051"
+            },
+            {
+              name  = "NOTIFICATIONS_GRPC_TARGET"
+              value = "notifications:50051"
+            },
+            {
+              name  = "NATS_URL"
+              value = local.nats_endpoint
+            },
+          ]
+        }
+      }
+    ) : key => value
   })
 
   identity_values = yamlencode({
@@ -1627,6 +1942,16 @@ resource "kubernetes_namespace" "platform" {
   }
 }
 
+resource "kubernetes_secret_v1" "platform_database_urls" {
+  metadata {
+    name      = local.platform_database_urls_secret
+    namespace = kubernetes_namespace.platform.metadata[0].name
+  }
+
+  type = "Opaque"
+  data = local.platform_database_urls
+}
+
 resource "kubernetes_namespace_v1" "agyn_workloads" {
   metadata {
     name = "agyn-workloads"
@@ -2347,6 +2672,100 @@ resource "argocd_application" "platform_db" {
     sync_policy {
       # DB apps always use automated sync with prune disabled for stateful safety,
       # independent of var.argocd_automated_sync_enabled.
+      automated {
+        prune       = false
+        self_heal   = true
+        allow_empty = false
+      }
+
+      sync_options = local.postgres_sync_options
+    }
+  }
+
+  timeouts {
+    create = "5m"
+    update = "5m"
+    delete = "5m"
+  }
+}
+
+resource "argocd_application" "groups_db" {
+  wait = true
+
+  metadata {
+    name      = "groups-db"
+    namespace = "argocd"
+    annotations = {
+      "argocd.argoproj.io/sync-wave" = "7"
+    }
+  }
+
+  spec {
+    project = "default"
+
+    source {
+      repo_url        = local.postgres_chart_repo_host
+      chart           = local.postgres_chart_name
+      target_revision = var.postgres_chart_version
+
+      helm {
+        values = local.groups_db_values
+      }
+    }
+
+    destination {
+      server    = var.destination_server
+      namespace = kubernetes_namespace.platform.metadata[0].name
+    }
+
+    sync_policy {
+      automated {
+        prune       = false
+        self_heal   = true
+        allow_empty = false
+      }
+
+      sync_options = local.postgres_sync_options
+    }
+  }
+
+  timeouts {
+    create = "5m"
+    update = "5m"
+    delete = "5m"
+  }
+}
+
+resource "argocd_application" "networks_db" {
+  wait = true
+
+  metadata {
+    name      = "networks-db"
+    namespace = "argocd"
+    annotations = {
+      "argocd.argoproj.io/sync-wave" = "7"
+    }
+  }
+
+  spec {
+    project = "default"
+
+    source {
+      repo_url        = local.postgres_chart_repo_host
+      chart           = local.postgres_chart_name
+      target_revision = var.postgres_chart_version
+
+      helm {
+        values = local.networks_db_values
+      }
+    }
+
+    destination {
+      server    = var.destination_server
+      namespace = kubernetes_namespace.platform.metadata[0].name
+    }
+
+    sync_policy {
       automated {
         prune       = false
         self_heal   = true
@@ -4033,6 +4452,109 @@ resource "argocd_application" "organizations" {
   }
 }
 
+resource "argocd_application" "groups" {
+  depends_on = [
+    argocd_application.groups_db,
+    argocd_application.authorization,
+    argocd_application.identity,
+    argocd_application.nats,
+    kubernetes_secret_v1.platform_database_urls,
+  ]
+
+  metadata {
+    name      = "groups"
+    namespace = "argocd"
+    annotations = {
+      "argocd.argoproj.io/sync-wave" = "18"
+    }
+  }
+
+  spec {
+    project = "default"
+
+    source {
+      repo_url        = local.platform_chart_repo_host
+      chart           = local.groups_chart_name
+      target_revision = var.groups_chart_version
+
+      helm {
+        values = local.groups_values
+      }
+    }
+
+    destination {
+      server    = var.destination_server
+      namespace = kubernetes_namespace.platform.metadata[0].name
+    }
+
+    sync_policy {
+      dynamic "automated" {
+        for_each = var.argocd_automated_sync_enabled ? [1] : []
+        content {
+          prune       = var.argocd_prune_enabled
+          self_heal   = var.argocd_self_heal_enabled
+          allow_empty = false
+        }
+      }
+
+      sync_options = local.default_sync_options
+    }
+  }
+}
+
+resource "argocd_application" "networks" {
+  depends_on = [
+    argocd_application.networks_db,
+    argocd_application.authorization,
+    argocd_application.ziti_management,
+    argocd_application.identity,
+    argocd_application.groups,
+    argocd_application.notifications,
+    argocd_application.nats,
+    kubernetes_secret_v1.platform_database_urls,
+  ]
+
+  metadata {
+    name      = "networks"
+    namespace = "argocd"
+    annotations = {
+      "argocd.argoproj.io/sync-wave" = "19"
+    }
+  }
+
+  spec {
+    project = "default"
+
+    source {
+      repo_url        = local.platform_chart_repo_host
+      chart           = local.networks_chart_name
+      target_revision = var.networks_chart_version
+
+      helm {
+        values = local.networks_values
+      }
+    }
+
+    destination {
+      server    = var.destination_server
+      namespace = kubernetes_namespace.platform.metadata[0].name
+    }
+
+    sync_policy {
+      dynamic "automated" {
+        for_each = var.argocd_automated_sync_enabled ? [1] : []
+        content {
+          prune       = var.argocd_prune_enabled
+          self_heal   = var.argocd_self_heal_enabled
+          allow_empty = false
+        }
+      }
+
+      sync_options = local.default_sync_options
+    }
+  }
+}
+
 resource "argocd_application" "llm" {
   depends_on = [
     argocd_application.llm_db,
@@ -4401,8 +4923,14 @@ resource "argocd_application" "tracing_app" {
 }
 
 resource "argocd_application" "gateway" {
-  depends_on = [argocd_application.llm, argocd_application.ziti_management, argocd_application.expose]
-  wait       = true
+  depends_on = [
+    argocd_application.llm,
+    argocd_application.ziti_management,
+    argocd_application.expose,
+    argocd_application.groups,
+    argocd_application.networks,
+  ]
+  wait = true
   metadata {
     name      = "gateway"
     namespace = "argocd"
@@ -4433,6 +4961,8 @@ resource "argocd_application" "gateway" {
             clusterAdminIdentityId  = local.cluster_admin_identity_id
             usersGrpcTarget         = "users:50051"
             organizationsGrpcTarget = "organizations:50051"
+            groupsGrpcTarget        = "groups:50051"
+            networksGrpcTarget      = "networks:50051"
             egressRulesGrpcTarget   = "egress:50051"
           }
           env = [
