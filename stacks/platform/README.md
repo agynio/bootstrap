@@ -110,15 +110,13 @@ stable `terminal-proxy-ticket-signing` Secret consumed by
 
 The Terminal Proxy Ziti identity is pre-provisioned in the ziti stack with the
 `terminal-proxy-hosts` role attribute and exposes its enrollment token as
-`terminal_proxy_enrollment_token`. Operators enroll that identity and pass the
-resulting JSON through `terminal_proxy_ziti_identity_json`; the platform stack
-stores it in the `terminal-proxy-ziti-identity` Secret as `identity.json`, which
-is mounted at `/var/run/agyn/terminal-proxy-ziti/identity.json`.
-
-The top-level `apply.sh` preserves this pre-provisioned identity-file design by
-deriving `terminal_proxy_ziti_identity_json` after the ziti stack when the value
-is not supplied. Reusable environments may also provide an already-enrolled
-identity JSON through `TERMINAL_PROXY_ZITI_IDENTITY_JSON`.
+`terminal_proxy_enrollment_token`. The platform stack follows the existing
+enrollment Secret pattern used by ziti-management and egress-gateway: it stores
+that remote-state enrollment token in the `terminal-proxy-enrollment` Secret as
+`enrollmentJwt`. The Terminal Proxy chart mounts that Secret into an init
+container, enrolls it into `/var/run/agyn/terminal-proxy-ziti/identity.json` on
+an `emptyDir`, then starts Terminal Proxy with `ZITI_IDENTITY_FILE` pointing at
+that generated identity file.
 
 Gateway is wired with `TERMINAL_PROXY_GRPC_TARGET=terminal-proxy:50051`. The
 routing stack exposes the WebSocket endpoint as

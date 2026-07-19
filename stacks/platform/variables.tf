@@ -814,9 +814,3 @@ variable "terminal_proxy_image_tag" {
   description = "Optional override for the terminal-proxy image tag"
   default     = ""
 }
-
-variable "terminal_proxy_ziti_identity_json" {
-  type        = string
-  description = "Enrolled terminal-proxy OpenZiti identity JSON stored as terminal-proxy-ziti-identity/identity.json"
-  sensitive   = true
-}

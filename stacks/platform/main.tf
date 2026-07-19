@@ -851,6 +851,10 @@ locals {
           enabled          = true
           replicaCount     = 1
           fullnameOverride = "terminal-proxy"
+          podSecurityContext = {
+            enabled = true
+            fsGroup = 10001
+          }
           image = {
             repository = "ghcr.io/agynio/terminal-proxy"
             tag        = local.resolved_terminal_proxy_image_tag
@@ -891,7 +895,27 @@ locals {
             { name = "ziti-identity", mountPath = "/var/run/agyn/terminal-proxy-ziti", readOnly = true },
           ]
           extraVolumes = [
-            { name = "ziti-identity", secret = { secretName = kubernetes_secret_v1.terminal_proxy_ziti_identity.metadata[0].name } },
+            { name = "ziti-identity", emptyDir = {} },
+            { name = "ziti-enrollment", secret = { secretName = kubernetes_secret_v1.terminal_proxy_enrollment.metadata[0].name } },
+          ]
+          initContainers = [
+            {
+              name            = "enroll-ziti-identity"
+              image           = "openziti/ziti-cli:2.0.0-pre10"
+              imagePullPolicy = "IfNotPresent"
+              command         = ["/bin/sh", "-ec"]
+              args = [<<-EOT
+                ziti edge enroll \
+                  --jwt /etc/ziti-enrollment/enrollmentJwt \
+                  --out /var/run/agyn/terminal-proxy-ziti/identity.json
+                chmod 0400 /var/run/agyn/terminal-proxy-ziti/identity.json
+              EOT
+              ]
+              volumeMounts = [
+                { name = "ziti-enrollment", mountPath = "/etc/ziti-enrollment", readOnly = true },
+                { name = "ziti-identity", mountPath = "/var/run/agyn/terminal-proxy-ziti" },
+              ]
+            }
           ]
           resources = {
             requests = { cpu = "50m", memory = "128Mi" }
@@ -2076,16 +2100,16 @@ resource "kubernetes_secret_v1" "terminal_proxy_ticket_signing" {
   }
 }
 
-resource "kubernetes_secret_v1" "terminal_proxy_ziti_identity" {
+resource "kubernetes_secret_v1" "terminal_proxy_enrollment" {
   metadata {
-    name      = "terminal-proxy-ziti-identity"
+    name      = "terminal-proxy-enrollment"
     namespace = kubernetes_namespace.platform.metadata[0].name
   }
 
   type = "Opaque"
 
   data = {
-    "identity.json" = var.terminal_proxy_ziti_identity_json
+    enrollmentJwt = data.terraform_remote_state.ziti.outputs.terminal_proxy_enrollment_token
   }
 }
 
@@ -4330,7 +4354,7 @@ resource "argocd_application" "terminal_proxy" {
     argocd_application.agents,
     argocd_application.authorization,
     kubernetes_secret_v1.terminal_proxy_ticket_signing,
-    kubernetes_secret_v1.terminal_proxy_ziti_identity,
+    kubernetes_secret_v1.terminal_proxy_enrollment,
   ]
   metadata {
     name      = "terminal-proxy"

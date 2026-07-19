@@ -28,9 +28,6 @@ Environment variables:
   TRACING_APP_OIDC_CLIENT_ID  Override the tracing-app OIDC client ID (default: client_tzqVFAYTvpkfUzy5)
   OIDC_CLIENT_SECRET  Override the OIDC client secret (default: XPKka2i9uzISrKZ95zxli8sY51BK4eTJ)
   ADMIN_OIDC_SUBJECT  Optional OIDC subject for the bootstrap admin user (default: admin@agyn.io)
-  TERMINAL_PROXY_ZITI_IDENTITY_JSON  Optional enrolled Terminal Proxy Ziti identity JSON.
-                                     When unset, apply.sh enrolls the pre-provisioned Ziti identity
-                                     after the ziti stack and passes it to the platform stack.
   K3D_IMAGE_LOADBALANCER  Override the k3d load balancer image
                           (default: ghcr.io/k3d-io/k3d-proxy:5.7.5)
 EOF
@@ -162,12 +159,6 @@ if [[ -n "${admin_oidc_subject}" ]]; then
   echo "Admin OIDC subject provided via ADMIN_OIDC_SUBJECT environment variable: ${admin_oidc_subject}"
 fi
 
-terminal_proxy_ziti_identity_json="${TERMINAL_PROXY_ZITI_IDENTITY_JSON:-}"
-if [[ -n "${terminal_proxy_ziti_identity_json}" ]]; then
-  export TF_VAR_terminal_proxy_ziti_identity_json="${terminal_proxy_ziti_identity_json}"
-  echo "Terminal Proxy Ziti identity JSON provided via TERMINAL_PROXY_ZITI_IDENTITY_JSON environment variable."
-fi
-
 export K3D_IMAGE_LOADBALANCER="${K3D_IMAGE_LOADBALANCER:-${DEFAULT_K3D_PROXY_IMAGE}}"
 echo "Using k3d load balancer image: ${K3D_IMAGE_LOADBALANCER}"
 
@@ -283,79 +274,6 @@ merge_kubeconfig() {
     return 1
   fi
   echo "Merged k3d kubeconfig into ${target_config}."
-}
-
-capture_existing_terminal_proxy_ziti_identity() {
-  local encoded_identity
-
-  encoded_identity=$(kubectl --kubeconfig "${KUBECONFIG_PATH}" \
-    -n platform get secret terminal-proxy-ziti-identity \
-    -o jsonpath='{.data.identity\.json}' 2>/dev/null || true)
-  if [[ -z "${encoded_identity}" ]]; then
-    return 1
-  fi
-
-  if ! terminal_proxy_ziti_identity_json=$(printf '%s' "${encoded_identity}" | base64 --decode); then
-    echo "Error: failed to decode existing terminal-proxy-ziti-identity Secret." >&2
-    exit 1
-  fi
-
-  export TF_VAR_terminal_proxy_ziti_identity_json="${terminal_proxy_ziti_identity_json}"
-  echo "Using existing terminal-proxy-ziti-identity Secret for Terminal Proxy."
-}
-
-enroll_terminal_proxy_ziti_identity() {
-  local controller_pod
-  local identity_file
-  local jwt_file
-  local temp_dir
-
-  if [[ -n "${terminal_proxy_ziti_identity_json}" ]]; then
-    return 0
-  fi
-
-  if capture_existing_terminal_proxy_ziti_identity; then
-    return 0
-  fi
-
-  echo "=== Enrolling Terminal Proxy Ziti identity ==="
-  temp_dir=$(mktemp -d)
-  jwt_file="${temp_dir}/terminal-proxy.jwt"
-  identity_file="${temp_dir}/terminal-proxy.identity.json"
-
-  terraform -chdir=stacks/ziti output -raw terminal_proxy_enrollment_token >"${jwt_file}"
-  chmod 600 "${jwt_file}"
-
-  if command -v ziti >/dev/null 2>&1; then
-    ziti edge enroll --jwt "${jwt_file}" --out "${identity_file}"
-  else
-    controller_pod=$(kubectl --kubeconfig "${KUBECONFIG_PATH}" \
-      -n ziti get pods -l app.kubernetes.io/name=ziti-controller \
-      -o jsonpath='{.items[0].metadata.name}')
-    if [[ -z "${controller_pod}" ]]; then
-      echo "Error: unable to find ziti-controller pod for Terminal Proxy identity enrollment." >&2
-      exit 1
-    fi
-
-    kubectl --kubeconfig "${KUBECONFIG_PATH}" -n ziti exec -i "${controller_pod}" -- \
-      sh -c 'cat >/tmp/terminal-proxy.jwt' <"${jwt_file}"
-    kubectl --kubeconfig "${KUBECONFIG_PATH}" -n ziti exec "${controller_pod}" -- \
-      sh -c 'ziti_bin=$(command -v ziti || command -v /openziti/ziti-bin/ziti || command -v /var/openziti/ziti-bin/ziti); rm -f /tmp/terminal-proxy.identity.json; "$ziti_bin" edge enroll --jwt /tmp/terminal-proxy.jwt --out /tmp/terminal-proxy.identity.json'
-    kubectl --kubeconfig "${KUBECONFIG_PATH}" -n ziti exec "${controller_pod}" -- \
-      cat /tmp/terminal-proxy.identity.json >"${identity_file}"
-    kubectl --kubeconfig "${KUBECONFIG_PATH}" -n ziti exec "${controller_pod}" -- \
-      sh -c 'rm -f /tmp/terminal-proxy.jwt /tmp/terminal-proxy.identity.json' >/dev/null 2>&1 || true
-  fi
-
-  if [[ ! -s "${identity_file}" ]]; then
-    echo "Error: Terminal Proxy Ziti identity enrollment produced an empty identity file." >&2
-    exit 1
-  fi
-
-  terminal_proxy_ziti_identity_json=$(cat "${identity_file}")
-  rm -rf "${temp_dir}"
-  export TF_VAR_terminal_proxy_ziti_identity_json="${terminal_proxy_ziti_identity_json}"
-  echo "Terminal Proxy Ziti identity enrolled for platform Secret creation."
 }
 
 declare -a step_names=()
@@ -558,10 +476,6 @@ if [ "${ZITI_EXIT}" -ne 0 ]; then
   exit "${ZITI_EXIT}"
 fi
 step_end "stack:ziti"
-
-step_start "terminal-proxy-ziti-identity"
-enroll_terminal_proxy_ziti_identity
-step_end "terminal-proxy-ziti-identity"
 
 step_start "stack:data"
 run_stack "data"
