@@ -15,6 +15,7 @@ locals {
     "minio-api.${local.base_domain}",
     "openfga.${local.base_domain}",
     "openfga-playground.${local.base_domain}",
+    "terminal.${local.base_domain}",
     "tracing.${local.base_domain}",
   ]
 }
@@ -116,6 +117,47 @@ resource "kubernetes_manifest" "virtualservice_argocd" {
             {
               "destination" = {
                 "host" = "argo-cd-argocd-server.argocd.svc.cluster.local"
+                "port" = {
+                  "number" = 8080
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+
+  computed_fields = [
+    "metadata.annotations",
+    "metadata.labels",
+  ]
+}
+
+resource "kubernetes_manifest" "virtualservice_terminal_proxy" {
+  manifest = {
+    "apiVersion" = "networking.istio.io/v1beta1"
+    "kind"       = "VirtualService"
+    "metadata" = {
+      "name"      = "terminal-proxy"
+      "namespace" = local.istio_gateway_namespace
+    }
+    "spec" = {
+      "hosts"    = ["terminal.${local.base_domain}"]
+      "gateways" = ["platform-gateway"]
+      "http" = [
+        {
+          "match" = [
+            {
+              "uri" = {
+                "prefix" = "/terminal"
+              }
+            }
+          ]
+          "route" = [
+            {
+              "destination" = {
+                "host" = "terminal-proxy.platform.svc.cluster.local"
                 "port" = {
                   "number" = 8080
                 }

@@ -802,3 +802,21 @@ variable "egress_gateway_image_tag" {
   description = "Optional override for the egress-gateway image tag"
   default     = ""
 }
+
+variable "terminal_proxy_chart_version" {
+  type        = string
+  description = "Version of the agyn-platform Helm chart used to deploy terminal-proxy"
+  default     = "0.5.11"
+}
+
+variable "terminal_proxy_image_tag" {
+  type        = string
+  description = "Optional override for the terminal-proxy image tag"
+  default     = ""
+}
+
+variable "terminal_proxy_ziti_identity_json" {
+  type        = string
+  description = "Enrolled terminal-proxy OpenZiti identity JSON stored as terminal-proxy-ziti-identity/identity.json"
+  sensitive   = true
+}

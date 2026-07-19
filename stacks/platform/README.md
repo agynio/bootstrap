@@ -100,3 +100,21 @@ service account get-only access to that secret for failure diagnostics.
 
 Production deployments must leave `enable_ziti_diagnostics` at its
 default value of `false` so the secret and RBAC do not exist.
+
+## Terminal Proxy deployment contract
+
+The platform stack deploys Terminal Proxy as a dedicated Argo CD application
+using the `terminal-proxy` slice in the agyn-platform chart. It also creates the
+stable `terminal-proxy-ticket-signing` Secret consumed by
+`TERMINAL_PROXY_TICKET_SIGNING_KEY`.
+
+The Terminal Proxy Ziti identity is pre-provisioned in the ziti stack with the
+`terminal-proxy-hosts` role attribute and exposes its enrollment token as
+`terminal_proxy_enrollment_token`. Operators enroll that identity and pass the
+resulting JSON through `terminal_proxy_ziti_identity_json`; the platform stack
+stores it in the `terminal-proxy-ziti-identity` Secret as `identity.json`, which
+is mounted at `/var/run/agyn/terminal-proxy-ziti/identity.json`.
+
+Gateway is wired with `TERMINAL_PROXY_GRPC_TARGET=terminal-proxy:50051`. The
+routing stack exposes the WebSocket endpoint as
+`wss://terminal.<base_domain>/terminal` through the platform Istio gateway.
