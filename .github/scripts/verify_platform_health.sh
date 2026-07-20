@@ -42,6 +42,8 @@ dump_diagnostics() {
   kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$PLATFORM_NAMESPACE" logs --all-containers --prefix --previous --tail=100 -l app.kubernetes.io/name=egress || true
   kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$PLATFORM_NAMESPACE" logs --all-containers --prefix --tail=100 -l app.kubernetes.io/name=egress-gateway || true
   kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$PLATFORM_NAMESPACE" logs --all-containers --prefix --previous --tail=100 -l app.kubernetes.io/name=egress-gateway || true
+  kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$PLATFORM_NAMESPACE" logs --all-containers --prefix --tail=100 -l app.kubernetes.io/name=terminal-proxy || true
+  kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$PLATFORM_NAMESPACE" logs --all-containers --prefix --previous --tail=100 -l app.kubernetes.io/name=terminal-proxy || true
   kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$ARGO_NAMESPACE" get applications.argoproj.io -o yaml | grep -E "(name:|status:)" | sed -n '1,200p' || true
 }
 

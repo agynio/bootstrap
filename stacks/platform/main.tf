@@ -912,6 +912,10 @@ locals {
                 chmod 0400 /var/run/agyn/terminal-proxy-ziti/identity.json
               EOT
               ]
+              securityContext = {
+                runAsUser  = 0
+                runAsGroup = 0
+              }
               volumeMounts = [
                 { name = "ziti-enrollment", mountPath = "/etc/ziti-enrollment", readOnly = true },
                 { name = "ziti-identity", mountPath = "/var/run/agyn/terminal-proxy-ziti" },
