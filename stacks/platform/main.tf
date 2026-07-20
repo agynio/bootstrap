@@ -908,6 +908,7 @@ locals {
                 ziti edge enroll \
                   --jwt /etc/ziti-enrollment/enrollmentJwt \
                   --out /var/run/agyn/terminal-proxy-ziti/identity.json
+                chown 10001:10001 /var/run/agyn/terminal-proxy-ziti/identity.json
                 chmod 0400 /var/run/agyn/terminal-proxy-ziti/identity.json
               EOT
               ]
