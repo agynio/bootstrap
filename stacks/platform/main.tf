@@ -69,7 +69,7 @@ locals {
   # be published in production deployments.
   ziti_diagnostics_secret_name             = "ziti-diagnostics"
   terminal_proxy_ziti_identity_secret_name = "terminal-proxy-ziti-identity"
-  terminal_proxy_ziti_identity_job_name    = format("terminal-proxy-ziti-identity-%s", substr(sha256(data.terraform_remote_state.ziti.outputs.ziti_identity_ids.terminal_proxy), 0, 8))
+  terminal_proxy_ziti_identity_job_name    = format("terminal-proxy-ziti-identity-%s", substr(sha256(data.terraform_remote_state.ziti.outputs.identity_ids.terminal_proxy), 0, 8))
   terminal_proxy_websocket_url             = format("wss://terminal.%s:%d/terminal", local.base_domain, local.ingress_port)
   istio_gateway_namespace                  = data.terraform_remote_state.system.outputs.istio_gateway_namespace
   istio_gateway_tls_secret_name            = data.terraform_remote_state.system.outputs.wildcard_tls_gateway_secret_name
@@ -2182,7 +2182,7 @@ resource "kubernetes_manifest" "terminal_proxy_ziti_identity" {
                 },
                 {
                   "name"  = "ZITI_IDENTITY_ID"
-                  "value" = data.terraform_remote_state.ziti.outputs.ziti_identity_ids.terminal_proxy
+                  "value" = data.terraform_remote_state.ziti.outputs.identity_ids.terminal_proxy
                 }
               ]
             }
