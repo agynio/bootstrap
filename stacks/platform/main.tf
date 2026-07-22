@@ -2396,7 +2396,8 @@ resource "kubernetes_deployment_v1" "terminal_proxy" {
         volume {
           name = "ziti-identity"
           secret {
-            secret_name = local.terminal_proxy_ziti_identity_secret_name
+            secret_name  = local.terminal_proxy_ziti_identity_secret_name
+            default_mode = "0440"
           }
         }
       }
