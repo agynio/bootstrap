@@ -841,6 +841,9 @@ locals {
     for key, value in merge(
       local.agyn_platform_single_service_values,
       {
+        contractConfigMaps = {
+          enabled = false
+        }
         platform = {
           serviceEndpoints = {
             terminalProxy = "terminal-proxy:50051"
