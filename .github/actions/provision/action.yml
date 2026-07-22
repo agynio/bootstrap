@@ -48,6 +48,16 @@ runs:
       with:
         terraform_version: 1.6.6
 
+    - name: Install OpenZiti CLI
+      shell: bash
+      run: |
+        set -euo pipefail
+        container_id="$(docker create openziti/ziti-cli:2.0.0-pre10)"
+        trap 'docker rm -f "${container_id}" >/dev/null 2>&1 || true' EXIT
+        docker cp "${container_id}:/usr/local/bin/ziti" /tmp/ziti
+        sudo install -m 0755 /tmp/ziti /usr/local/bin/ziti
+        ziti version
+
     - name: Apply bootstrap stacks
       shell: bash
       working-directory: bootstrap

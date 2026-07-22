@@ -214,6 +214,12 @@ resource "ziti_identity" "orchestrator" {
   role_attributes = ["orchestrators"]
 }
 
+resource "ziti_identity" "terminal_proxy" {
+  name            = "terminal-proxy"
+  type            = "Device"
+  role_attributes = ["terminal-proxy-hosts"]
+}
+
 resource "kubernetes_secret_v1" "gateway_identity_enrollment" {
   metadata {
     name      = local.gateway_identity_secret_name

@@ -29,6 +29,7 @@ locals {
   resolved_apps_image_tag                = trimspace(var.apps_image_tag) != "" ? var.apps_image_tag : var.apps_chart_version
   resolved_egress_image_tag              = trimspace(var.egress_image_tag) != "" ? var.egress_image_tag : var.egress_chart_version
   resolved_egress_gateway_image_tag      = trimspace(var.egress_gateway_image_tag) != "" ? var.egress_gateway_image_tag : var.egress_gateway_chart_version
+  resolved_terminal_proxy_image_tag      = trimspace(var.terminal_proxy_image_tag) != "" ? var.terminal_proxy_image_tag : "0.5.11"
 
   postgres_image                 = "postgres:16.6-alpine"
   platform_chart_repo_host       = "ghcr.io"
@@ -64,17 +65,20 @@ locals {
   apps_chart_name                = "agynio/charts/apps"
   egress_chart_name              = "agynio/charts/egress"
   egress_gateway_chart_name      = "agynio/charts/egress-gateway"
+  terminal_proxy_chart_name      = "agynio/charts/agyn-platform"
   # DEV/E2E ONLY: this secret name is used by diagnostics tests and must not
   # be published in production deployments.
-  ziti_diagnostics_secret_name  = "ziti-diagnostics"
-  istio_gateway_namespace       = data.terraform_remote_state.system.outputs.istio_gateway_namespace
-  istio_gateway_tls_secret_name = data.terraform_remote_state.system.outputs.wildcard_tls_gateway_secret_name
-  ziti_namespace                = data.terraform_remote_state.system.outputs.installed_namespaces[1]
-  workload_namespace            = "agyn-workloads"
-  openfga_api_url_external      = format("https://openfga.%s:%d", local.base_domain, local.ingress_port)
-  openfga_api_url_internal      = format("http://openfga.%s.svc.cluster.local:8080", var.openfga_namespace)
-  nats_endpoint                 = format("nats://nats.%s.svc.cluster.local:4222", var.platform_namespace)
-  platform_database_urls_secret = "agyn-platform-database-urls"
+  ziti_diagnostics_secret_name             = "ziti-diagnostics"
+  terminal_proxy_ziti_identity_secret_name = "terminal-proxy-ziti-identity"
+  terminal_proxy_websocket_url             = format("wss://terminal.%s:%d/terminal", local.base_domain, local.ingress_port)
+  istio_gateway_namespace                  = data.terraform_remote_state.system.outputs.istio_gateway_namespace
+  istio_gateway_tls_secret_name            = data.terraform_remote_state.system.outputs.wildcard_tls_gateway_secret_name
+  ziti_namespace                           = data.terraform_remote_state.system.outputs.installed_namespaces[1]
+  workload_namespace                       = "agyn-workloads"
+  openfga_api_url_external                 = format("https://openfga.%s:%d", local.base_domain, local.ingress_port)
+  openfga_api_url_internal                 = format("http://openfga.%s.svc.cluster.local:8080", var.openfga_namespace)
+  nats_endpoint                            = format("nats://nats.%s.svc.cluster.local:4222", var.platform_namespace)
+  platform_database_urls_secret            = "agyn-platform-database-urls"
   # Deterministic v5 UUID for the cluster admin identity.
   # This is a synthetic identity used only during bootstrap;
   # it does not correspond to a user record in the Users DB.
@@ -104,6 +108,9 @@ locals {
       enabled = false
     }
     gateway = {
+      enabled = false
+    }
+    "terminal-proxy" = {
       enabled = false
     }
     agents = {
@@ -830,6 +837,101 @@ locals {
     }
   })
 
+  terminal_proxy_values = yamlencode({
+    for key, value in merge(
+      local.agyn_platform_single_service_values,
+      {
+        contractConfigMaps = {
+          enabled = false
+        }
+        platform = {
+          serviceEndpoints = {
+            terminalProxy = "terminal-proxy:50051"
+          }
+          externalUrls = {
+            terminalProxyWebSocket = local.terminal_proxy_websocket_url
+          }
+        }
+        "terminal-proxy" = {
+          enabled          = true
+          replicaCount     = 1
+          fullnameOverride = "terminal-proxy"
+          podSecurityContext = {
+            enabled = true
+            fsGroup = 10001
+          }
+          image = {
+            repository = "ghcr.io/agynio/terminal-proxy"
+            tag        = local.resolved_terminal_proxy_image_tag
+            pullPolicy = "IfNotPresent"
+          }
+          securityContext = {
+            enabled                  = true
+            runAsNonRoot             = true
+            runAsUser                = 10001
+            runAsGroup               = 10001
+            readOnlyRootFilesystem   = true
+            allowPrivilegeEscalation = false
+            capabilities = {
+              drop = ["ALL"]
+            }
+            seccompProfile = {
+              type = "RuntimeDefault"
+            }
+          }
+          env = [
+            { name = "HTTP_ADDRESS", value = ":8080" },
+            { name = "GRPC_ADDRESS", value = ":50051" },
+            { name = "TERMINAL_PROXY_WEBSOCKET_URL", value = local.terminal_proxy_websocket_url },
+            {
+              name = "TERMINAL_PROXY_TICKET_SIGNING_KEY"
+              valueFrom = {
+                secretKeyRef = {
+                  name = kubernetes_secret_v1.terminal_proxy_ticket_signing.metadata[0].name
+                  key  = "signing-key"
+                }
+              }
+            },
+            { name = "RUNNERS_ADDRESS", value = "runners:50051" },
+            { name = "AGENTS_ADDRESS", value = "agents:50051" },
+            { name = "AUTHORIZATION_ADDRESS", value = "authorization:50051" },
+            { name = "ZITI_ENABLED", value = "true" },
+            { name = "ZITI_IDENTITY_FILE", value = "/var/run/agyn/terminal-proxy-ziti/identity.json" },
+          ]
+          service = {
+            enabled = true
+            type    = "ClusterIP"
+            ports = [
+              { name = "http", port = 8080, targetPort = "http", protocol = "TCP" },
+              { name = "grpc", port = 50051, targetPort = "grpc", protocol = "TCP" },
+            ]
+          }
+          containerPorts = [
+            { name = "http", containerPort = 8080, protocol = "TCP" },
+            { name = "grpc", containerPort = 50051, protocol = "TCP" },
+          ]
+          extraVolumeMounts = [
+            { name = "ziti-identity", mountPath = "/var/run/agyn/terminal-proxy-ziti", readOnly = true },
+          ]
+          extraVolumes = [
+            {
+              name = "ziti-identity"
+              secret = {
+                secretName  = kubernetes_secret_v1.terminal_proxy_ziti_identity.metadata[0].name
+                defaultMode = 288
+              }
+            },
+          ]
+          initContainers = []
+          resources = {
+            requests = { cpu = "50m", memory = "128Mi" }
+            limits   = { cpu = "500m", memory = "256Mi" }
+          }
+        }
+      }
+    ) : key => value
+  })
+
   agents_values = yamlencode({
     fullnameOverride = "agents"
     image = {
@@ -1142,6 +1244,9 @@ locals {
   runners_values = yamlencode({
     replicaCount     = 1
     fullnameOverride = "runners"
+    authorizationPolicy = {
+      enabled = false
+    }
     image = {
       repository = "ghcr.io/agynio/runners"
       tag        = local.resolved_runners_image_tag
@@ -1985,6 +2090,37 @@ resource "kubernetes_secret_v1" "egress_gateway_enrollment" {
     enrollmentJwt = data.terraform_remote_state.ziti.outputs.egress_gateway_enrollment_token
   }
 }
+
+resource "random_bytes" "terminal_proxy_ticket_signing" {
+  length = 32
+}
+
+resource "kubernetes_secret_v1" "terminal_proxy_ticket_signing" {
+  metadata {
+    name      = "terminal-proxy-ticket-signing"
+    namespace = kubernetes_namespace.platform.metadata[0].name
+  }
+
+  type = "Opaque"
+
+  data = {
+    signing-key = random_bytes.terminal_proxy_ticket_signing.base64
+  }
+}
+
+resource "kubernetes_secret_v1" "terminal_proxy_ziti_identity" {
+  metadata {
+    name      = local.terminal_proxy_ziti_identity_secret_name
+    namespace = kubernetes_namespace.platform.metadata[0].name
+  }
+
+  type = "Opaque"
+
+  data = {
+    "identity.json" = var.terminal_proxy_ziti_identity_json
+  }
+}
+
 resource "kubernetes_manifest" "agyn_selfsigned_cluster_issuer" {
   manifest = {
     "apiVersion" = "cert-manager.io/v1"
@@ -4220,6 +4356,55 @@ resource "argocd_application" "egress_gateway" {
   }
 }
 
+resource "argocd_application" "terminal_proxy" {
+  depends_on = [
+    argocd_application.runners,
+    argocd_application.agents,
+    argocd_application.authorization,
+    kubernetes_secret_v1.terminal_proxy_ticket_signing,
+    kubernetes_secret_v1.terminal_proxy_ziti_identity,
+  ]
+  metadata {
+    name      = "terminal-proxy"
+    namespace = "argocd"
+    annotations = {
+      "argocd.argoproj.io/sync-wave" = "20"
+    }
+  }
+
+  spec {
+    project = "default"
+
+    source {
+      repo_url        = local.platform_chart_repo_host
+      chart           = local.terminal_proxy_chart_name
+      target_revision = var.terminal_proxy_chart_version
+
+      helm {
+        values = local.terminal_proxy_values
+      }
+    }
+
+    destination {
+      server    = var.destination_server
+      namespace = kubernetes_namespace.platform.metadata[0].name
+    }
+
+    sync_policy {
+      dynamic "automated" {
+        for_each = var.argocd_automated_sync_enabled ? [1] : []
+        content {
+          prune       = var.argocd_prune_enabled
+          self_heal   = var.argocd_self_heal_enabled
+          allow_empty = false
+        }
+      }
+
+      sync_options = local.default_sync_options
+    }
+  }
+}
+
 resource "argocd_application" "agents" {
   depends_on = [
     argocd_application.agents_db,
@@ -4929,6 +5114,7 @@ resource "argocd_application" "gateway" {
     argocd_application.expose,
     argocd_application.groups,
     argocd_application.networks,
+    argocd_application.terminal_proxy,
   ]
   wait = true
   metadata {
@@ -4969,6 +5155,10 @@ resource "argocd_application" "gateway" {
             {
               name  = "ZITI_ENABLED"
               value = "true"
+            },
+            {
+              name  = "TERMINAL_PROXY_GRPC_TARGET"
+              value = "terminal-proxy:50051"
             },
           ]
         })

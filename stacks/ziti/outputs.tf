@@ -9,6 +9,7 @@ output "identity_ids" {
     egress_gateway  = ziti_identity.egress_gateway.id
     ziti_management = ziti_identity.ziti_management.id
     orchestrator    = ziti_identity.orchestrator.id
+    terminal_proxy  = ziti_identity.terminal_proxy.id
   }
   description = "Ziti identity IDs"
 }
@@ -41,5 +42,11 @@ output "ziti_diagnostics_credentials" {
 output "egress_gateway_enrollment_token" {
   value       = ziti_identity.egress_gateway.enrollment_token
   description = "Enrollment JWT for the egress-gateway identity"
+  sensitive   = true
+}
+
+output "terminal_proxy_enrollment_token" {
+  value       = ziti_identity.terminal_proxy.enrollment_token
+  description = "Enrollment JWT for the terminal-proxy identity"
   sensitive   = true
 }
