@@ -65,18 +65,20 @@ locals {
   apps_chart_name                = "agynio/charts/apps"
   egress_chart_name              = "agynio/charts/egress"
   egress_gateway_chart_name      = "agynio/charts/egress-gateway"
-  terminal_proxy_chart_name      = "agynio/charts/agyn-platform"
   # DEV/E2E ONLY: this secret name is used by diagnostics tests and must not
   # be published in production deployments.
-  ziti_diagnostics_secret_name  = "ziti-diagnostics"
-  istio_gateway_namespace       = data.terraform_remote_state.system.outputs.istio_gateway_namespace
-  istio_gateway_tls_secret_name = data.terraform_remote_state.system.outputs.wildcard_tls_gateway_secret_name
-  ziti_namespace                = data.terraform_remote_state.system.outputs.installed_namespaces[1]
-  workload_namespace            = "agyn-workloads"
-  openfga_api_url_external      = format("https://openfga.%s:%d", local.base_domain, local.ingress_port)
-  openfga_api_url_internal      = format("http://openfga.%s.svc.cluster.local:8080", var.openfga_namespace)
-  nats_endpoint                 = format("nats://nats.%s.svc.cluster.local:4222", var.platform_namespace)
-  platform_database_urls_secret = "agyn-platform-database-urls"
+  ziti_diagnostics_secret_name             = "ziti-diagnostics"
+  terminal_proxy_ziti_identity_secret_name = "terminal-proxy-ziti-identity"
+  terminal_proxy_ziti_identity_job_name    = format("terminal-proxy-ziti-identity-%s", substr(sha256(data.terraform_remote_state.ziti.outputs.ziti_identity_ids.terminal_proxy), 0, 8))
+  terminal_proxy_websocket_url             = format("wss://terminal.%s:%d/terminal", local.base_domain, local.ingress_port)
+  istio_gateway_namespace                  = data.terraform_remote_state.system.outputs.istio_gateway_namespace
+  istio_gateway_tls_secret_name            = data.terraform_remote_state.system.outputs.wildcard_tls_gateway_secret_name
+  ziti_namespace                           = data.terraform_remote_state.system.outputs.installed_namespaces[1]
+  workload_namespace                       = "agyn-workloads"
+  openfga_api_url_external                 = format("https://openfga.%s:%d", local.base_domain, local.ingress_port)
+  openfga_api_url_internal                 = format("http://openfga.%s.svc.cluster.local:8080", var.openfga_namespace)
+  nats_endpoint                            = format("nats://nats.%s.svc.cluster.local:4222", var.platform_namespace)
+  platform_database_urls_secret            = "agyn-platform-database-urls"
   # Deterministic v5 UUID for the cluster admin identity.
   # This is a synthetic identity used only during bootstrap;
   # it does not correspond to a user record in the Users DB.
@@ -833,116 +835,6 @@ locals {
       requests = { cpu = "100m", memory = "128Mi" }
       limits   = { cpu = "1000m", memory = "512Mi" }
     }
-  })
-
-  terminal_proxy_values = yamlencode({
-    for key, value in merge(
-      local.agyn_platform_single_service_values,
-      {
-        platform = {
-          serviceEndpoints = {
-            terminalProxy = "terminal-proxy:50051"
-          }
-          externalUrls = {
-            terminalProxyWebSocket = format("wss://terminal.%s/terminal", local.base_domain)
-          }
-        }
-        "terminal-proxy" = {
-          enabled          = true
-          replicaCount     = 1
-          fullnameOverride = "terminal-proxy"
-          podSecurityContext = {
-            enabled = true
-            fsGroup = 10001
-          }
-          image = {
-            repository = "ghcr.io/agynio/terminal-proxy"
-            tag        = local.resolved_terminal_proxy_image_tag
-            pullPolicy = "IfNotPresent"
-          }
-          securityContext = {
-            enabled                  = true
-            runAsNonRoot             = true
-            runAsUser                = 10001
-            runAsGroup               = 10001
-            readOnlyRootFilesystem   = true
-            allowPrivilegeEscalation = false
-            capabilities = {
-              drop = ["ALL"]
-            }
-            seccompProfile = {
-              type = "RuntimeDefault"
-            }
-          }
-          env = [
-            { name = "HTTP_ADDRESS", value = ":8080" },
-            { name = "GRPC_ADDRESS", value = ":50051" },
-            { name = "TERMINAL_PROXY_WEBSOCKET_URL", value = format("wss://terminal.%s/terminal", local.base_domain) },
-            {
-              name = "TERMINAL_PROXY_TICKET_SIGNING_KEY"
-              valueFrom = {
-                secretKeyRef = {
-                  name = kubernetes_secret_v1.terminal_proxy_ticket_signing.metadata[0].name
-                  key  = "signing-key"
-                }
-              }
-            },
-            { name = "RUNNERS_ADDRESS", value = "runners:50051" },
-            { name = "AGENTS_ADDRESS", value = "agents:50051" },
-            { name = "AUTHORIZATION_ADDRESS", value = "authorization:50051" },
-            { name = "ZITI_ENABLED", value = "true" },
-            { name = "ZITI_IDENTITY_FILE", value = "/var/run/agyn/terminal-proxy-ziti/identity.json" },
-          ]
-          service = {
-            enabled = true
-            type    = "ClusterIP"
-            ports = [
-              { name = "http", port = 8080, targetPort = "http", protocol = "TCP" },
-              { name = "grpc", port = 50051, targetPort = "grpc", protocol = "TCP" },
-            ]
-          }
-          containerPorts = [
-            { name = "http", containerPort = 8080, protocol = "TCP" },
-            { name = "grpc", containerPort = 50051, protocol = "TCP" },
-          ]
-          extraVolumeMounts = [
-            { name = "ziti-identity", mountPath = "/var/run/agyn/terminal-proxy-ziti", readOnly = true },
-          ]
-          extraVolumes = [
-            { name = "ziti-identity", emptyDir = {} },
-            { name = "ziti-enrollment", secret = { secretName = kubernetes_secret_v1.terminal_proxy_enrollment.metadata[0].name } },
-          ]
-          initContainers = [
-            {
-              name            = "enroll-ziti-identity"
-              image           = "openziti/ziti-cli:2.0.0-pre10"
-              imagePullPolicy = "IfNotPresent"
-              command         = ["/bin/sh", "-ec"]
-              args = [<<-EOT
-                ziti edge enroll \
-                  --jwt /etc/ziti-enrollment/enrollmentJwt \
-                  --out /var/run/agyn/terminal-proxy-ziti/identity.json
-                chown 10001:10001 /var/run/agyn/terminal-proxy-ziti/identity.json
-                chmod 0400 /var/run/agyn/terminal-proxy-ziti/identity.json
-              EOT
-              ]
-              securityContext = {
-                runAsUser  = 0
-                runAsGroup = 0
-              }
-              volumeMounts = [
-                { name = "ziti-enrollment", mountPath = "/etc/ziti-enrollment", readOnly = true },
-                { name = "ziti-identity", mountPath = "/var/run/agyn/terminal-proxy-ziti" },
-              ]
-            }
-          ]
-          resources = {
-            requests = { cpu = "50m", memory = "128Mi" }
-            limits   = { cpu = "500m", memory = "256Mi" }
-          }
-        }
-      }
-    ) : key => value
   })
 
   agents_values = yamlencode({
@@ -2121,19 +2013,6 @@ resource "kubernetes_secret_v1" "terminal_proxy_ticket_signing" {
   }
 }
 
-resource "kubernetes_secret_v1" "terminal_proxy_enrollment" {
-  metadata {
-    name      = "terminal-proxy-enrollment"
-    namespace = kubernetes_namespace.platform.metadata[0].name
-  }
-
-  type = "Opaque"
-
-  data = {
-    enrollmentJwt = data.terraform_remote_state.ziti.outputs.terminal_proxy_enrollment_token
-  }
-}
-
 resource "kubernetes_manifest" "agyn_selfsigned_cluster_issuer" {
   manifest = {
     "apiVersion" = "cert-manager.io/v1"
@@ -2180,6 +2059,505 @@ resource "kubernetes_manifest" "egress_ca_certificate" {
   ]
 
   depends_on = [kubernetes_manifest.agyn_selfsigned_cluster_issuer]
+}
+
+resource "kubernetes_service_account_v1" "terminal_proxy_ziti_identity" {
+  metadata {
+    name      = "terminal-proxy-ziti-identity"
+    namespace = kubernetes_namespace.platform.metadata[0].name
+    labels = {
+      "app.kubernetes.io/name"       = "terminal-proxy-ziti-identity"
+      "app.kubernetes.io/managed-by" = "terraform"
+    }
+  }
+}
+
+resource "kubernetes_role_v1" "terminal_proxy_ziti_identity" {
+  metadata {
+    name      = "terminal-proxy-ziti-identity"
+    namespace = kubernetes_namespace.platform.metadata[0].name
+  }
+
+  rule {
+    api_groups = [""]
+    resources  = ["secrets"]
+    verbs      = ["create", "get", "patch", "update"]
+  }
+}
+
+resource "kubernetes_role_binding_v1" "terminal_proxy_ziti_identity" {
+  metadata {
+    name      = "terminal-proxy-ziti-identity"
+    namespace = kubernetes_namespace.platform.metadata[0].name
+  }
+
+  role_ref {
+    api_group = "rbac.authorization.k8s.io"
+    kind      = "Role"
+    name      = kubernetes_role_v1.terminal_proxy_ziti_identity.metadata[0].name
+  }
+
+  subject {
+    kind      = "ServiceAccount"
+    name      = kubernetes_service_account_v1.terminal_proxy_ziti_identity.metadata[0].name
+    namespace = kubernetes_namespace.platform.metadata[0].name
+  }
+}
+
+resource "kubernetes_manifest" "terminal_proxy_ziti_identity" {
+  manifest = {
+    "apiVersion" = "batch/v1"
+    "kind"       = "Job"
+    "metadata" = {
+      "name"      = local.terminal_proxy_ziti_identity_job_name
+      "namespace" = kubernetes_namespace.platform.metadata[0].name
+      "labels" = {
+        "app.kubernetes.io/name"       = "terminal-proxy-ziti-identity"
+        "app.kubernetes.io/managed-by" = "terraform"
+      }
+    }
+    "spec" = {
+      "backoffLimit"            = 3
+      "ttlSecondsAfterFinished" = 300
+      "template" = {
+        "metadata" = {
+          "labels" = {
+            "app.kubernetes.io/name" = "terminal-proxy-ziti-identity"
+          }
+        }
+        "spec" = {
+          "restartPolicy"      = "OnFailure"
+          "serviceAccountName" = kubernetes_service_account_v1.terminal_proxy_ziti_identity.metadata[0].name
+          "containers" = [
+            {
+              "name"            = "enroll"
+              "image"           = "openziti/ziti-cli:2.0.0-pre10"
+              "imagePullPolicy" = "IfNotPresent"
+              "command"         = ["/bin/sh", "-ec"]
+              "args" = [<<-EOT
+                identity_file="$(mktemp)"
+                jwt_file="$(mktemp)"
+                trap 'rm -f "$identity_file" "$jwt_file"' EXIT
+
+                token="$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)"
+                ca_file="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+                secret_url="https://kubernetes.default.svc/api/v1/namespaces/${var.platform_namespace}/secrets/${local.terminal_proxy_ziti_identity_secret_name}"
+                status="$(curl -sS --cacert "$ca_file" -o /tmp/terminal-proxy-ziti-identity.json -w '%%{http_code}' \
+                  -H "Authorization: Bearer $token" \
+                  "$secret_url")"
+                if [ "$status" = "200" ] && \
+                  [ "$(jq -r '.metadata.annotations["agyn.io/ziti-identity-id"] // ""' /tmp/terminal-proxy-ziti-identity.json)" = "$ZITI_IDENTITY_ID" ] && \
+                  jq -e '.data["identity.json"] // empty' /tmp/terminal-proxy-ziti-identity.json >/dev/null; then
+                  exit 0
+                fi
+                if [ "$status" != "200" ] && [ "$status" != "404" ]; then
+                  cat /tmp/terminal-proxy-ziti-identity.json >&2
+                  exit 1
+                fi
+
+                printf '%s' "$ZITI_ENROLLMENT_JWT" > "$jwt_file"
+                ziti edge enroll --jwt "$jwt_file" --out "$identity_file"
+                identity_json_b64="$(base64 -w 0 "$identity_file")"
+                payload="{\"metadata\":{\"name\":\"${local.terminal_proxy_ziti_identity_secret_name}\",\"annotations\":{\"agyn.io/ziti-identity-id\":\"$ZITI_IDENTITY_ID\"}},\"data\":{\"identity.json\":\"$identity_json_b64\"},\"type\":\"Opaque\"}"
+
+                if [ "$status" = "404" ]; then
+                  curl -fsS --cacert "$ca_file" -X POST \
+                    -H "Authorization: Bearer $token" \
+                    -H 'Content-Type: application/json' \
+                    -d "$payload" \
+                    "https://kubernetes.default.svc/api/v1/namespaces/${var.platform_namespace}/secrets"
+                else
+                  curl -fsS --cacert "$ca_file" -X PATCH \
+                    -H "Authorization: Bearer $token" \
+                    -H 'Content-Type: application/merge-patch+json' \
+                    -d "$payload" \
+                    "$secret_url"
+                fi
+              EOT
+              ]
+              "env" = [
+                {
+                  "name"  = "ZITI_ENROLLMENT_JWT"
+                  "value" = data.terraform_remote_state.ziti.outputs.terminal_proxy_enrollment_token
+                },
+                {
+                  "name"  = "ZITI_IDENTITY_ID"
+                  "value" = data.terraform_remote_state.ziti.outputs.ziti_identity_ids.terminal_proxy
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  }
+
+  computed_fields = [
+    "metadata.annotations",
+    "metadata.labels",
+    "spec.selector",
+    "spec.template.metadata.labels",
+  ]
+
+  wait {
+    fields = {
+      "status.succeeded" = "1"
+    }
+  }
+
+  depends_on = [
+    kubernetes_namespace.platform,
+    kubernetes_role_binding_v1.terminal_proxy_ziti_identity,
+  ]
+}
+
+resource "kubernetes_service_account_v1" "terminal_proxy" {
+  metadata {
+    name      = "terminal-proxy"
+    namespace = kubernetes_namespace.platform.metadata[0].name
+    labels = {
+      "app.kubernetes.io/name"       = "terminal-proxy"
+      "app.kubernetes.io/instance"   = "terminal-proxy"
+      "app.kubernetes.io/managed-by" = "terraform"
+    }
+  }
+}
+
+resource "kubernetes_service_v1" "terminal_proxy" {
+  metadata {
+    name      = "terminal-proxy"
+    namespace = kubernetes_namespace.platform.metadata[0].name
+    labels = {
+      "app.kubernetes.io/name"       = "terminal-proxy"
+      "app.kubernetes.io/instance"   = "terminal-proxy"
+      "app.kubernetes.io/managed-by" = "terraform"
+    }
+  }
+
+  spec {
+    selector = {
+      "app.kubernetes.io/name"     = "terminal-proxy"
+      "app.kubernetes.io/instance" = "terminal-proxy"
+    }
+
+    port {
+      name        = "http"
+      port        = 8080
+      target_port = "http"
+      protocol    = "TCP"
+    }
+
+    port {
+      name        = "grpc"
+      port        = 50051
+      target_port = "grpc"
+      protocol    = "TCP"
+    }
+  }
+}
+
+resource "kubernetes_deployment_v1" "terminal_proxy" {
+  metadata {
+    name      = "terminal-proxy"
+    namespace = kubernetes_namespace.platform.metadata[0].name
+    labels = {
+      "app.kubernetes.io/name"       = "terminal-proxy"
+      "app.kubernetes.io/instance"   = "terminal-proxy"
+      "app.kubernetes.io/managed-by" = "terraform"
+    }
+  }
+
+  spec {
+    replicas = 1
+
+    selector {
+      match_labels = {
+        "app.kubernetes.io/name"     = "terminal-proxy"
+        "app.kubernetes.io/instance" = "terminal-proxy"
+      }
+    }
+
+    template {
+      metadata {
+        labels = {
+          "app.kubernetes.io/name"     = "terminal-proxy"
+          "app.kubernetes.io/instance" = "terminal-proxy"
+        }
+      }
+
+      spec {
+        service_account_name = kubernetes_service_account_v1.terminal_proxy.metadata[0].name
+
+        security_context {
+          fs_group = 10001
+        }
+
+        container {
+          name              = "terminal-proxy"
+          image             = "ghcr.io/agynio/terminal-proxy:${local.resolved_terminal_proxy_image_tag}"
+          image_pull_policy = "IfNotPresent"
+
+          port {
+            name           = "http"
+            container_port = 8080
+            protocol       = "TCP"
+          }
+
+          port {
+            name           = "grpc"
+            container_port = 50051
+            protocol       = "TCP"
+          }
+
+          env {
+            name  = "HTTP_ADDRESS"
+            value = ":8080"
+          }
+
+          env {
+            name  = "GRPC_ADDRESS"
+            value = ":50051"
+          }
+
+          env {
+            name  = "TERMINAL_PROXY_WEBSOCKET_URL"
+            value = local.terminal_proxy_websocket_url
+          }
+
+          env {
+            name = "TERMINAL_PROXY_TICKET_SIGNING_KEY"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret_v1.terminal_proxy_ticket_signing.metadata[0].name
+                key  = "signing-key"
+              }
+            }
+          }
+
+          env {
+            name  = "RUNNERS_ADDRESS"
+            value = "runners:50051"
+          }
+
+          env {
+            name  = "AGENTS_ADDRESS"
+            value = "agents:50051"
+          }
+
+          env {
+            name  = "AUTHORIZATION_ADDRESS"
+            value = "authorization:50051"
+          }
+
+          env {
+            name  = "ZITI_ENABLED"
+            value = "true"
+          }
+
+          env {
+            name  = "ZITI_IDENTITY_FILE"
+            value = "/var/run/agyn/terminal-proxy-ziti/identity.json"
+          }
+
+          volume_mount {
+            name       = "ziti-identity"
+            mount_path = "/var/run/agyn/terminal-proxy-ziti"
+            read_only  = true
+          }
+
+          security_context {
+            run_as_non_root            = true
+            run_as_user                = 10001
+            run_as_group               = 10001
+            read_only_root_filesystem  = true
+            allow_privilege_escalation = false
+
+            capabilities {
+              drop = ["ALL"]
+            }
+
+            seccomp_profile {
+              type = "RuntimeDefault"
+            }
+          }
+
+          resources {
+            requests = {
+              cpu    = "50m"
+              memory = "128Mi"
+            }
+            limits = {
+              cpu    = "500m"
+              memory = "256Mi"
+            }
+          }
+        }
+
+        volume {
+          name = "ziti-identity"
+          secret {
+            secret_name = local.terminal_proxy_ziti_identity_secret_name
+          }
+        }
+      }
+    }
+  }
+
+  depends_on = [
+    kubernetes_manifest.terminal_proxy_ziti_identity,
+  ]
+}
+
+resource "kubernetes_manifest" "runners_internal_authorization_policy" {
+  manifest = {
+    "apiVersion" = "security.istio.io/v1beta1"
+    "kind"       = "AuthorizationPolicy"
+    "metadata" = {
+      "name"      = "runners-internal"
+      "namespace" = kubernetes_namespace.platform.metadata[0].name
+      "labels" = {
+        "app.kubernetes.io/name"       = "runners"
+        "app.kubernetes.io/instance"   = "runners"
+        "app.kubernetes.io/managed-by" = "terraform"
+      }
+    }
+    "spec" = {
+      "selector" = {
+        "matchLabels" = {
+          "app.kubernetes.io/name"     = "runners"
+          "app.kubernetes.io/instance" = "runners"
+        }
+      }
+      "action" = "DENY"
+      "rules" = [
+        {
+          "from" = [
+            {
+              "source" = {
+                "notPrincipals" = ["cluster.local/ns/${var.platform_namespace}/sa/agents-orchestrator"]
+              }
+            }
+          ]
+          "to" = [
+            {
+              "operation" = {
+                "paths" = [
+                  "/agynio.api.runners.v1.RunnersService/CreateWorkload",
+                  "/agynio.api.runners.v1.RunnersService/UpdateWorkload",
+                  "/agynio.api.runners.v1.RunnersService/UpdateWorkloadStatus",
+                  "/agynio.api.runners.v1.RunnersService/DeleteWorkload",
+                  "/agynio.api.runners.v1.RunnersService/BatchUpdateWorkloadSampledAt",
+                  "/agynio.api.runners.v1.RunnersService/CreateVolume",
+                  "/agynio.api.runners.v1.RunnersService/UpdateVolume",
+                  "/agynio.api.runners.v1.RunnersService/BatchUpdateVolumeSampledAt",
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "from" = [
+            {
+              "source" = {
+                "notPrincipals" = [
+                  "cluster.local/ns/${var.platform_namespace}/sa/agents-orchestrator",
+                  "cluster.local/ns/${var.platform_namespace}/sa/gateway",
+                  "cluster.local/ns/${var.platform_namespace}/sa/expose",
+                  "cluster.local/ns/${var.platform_namespace}/sa/notifications",
+                  "cluster.local/ns/${var.platform_namespace}/sa/chat",
+                ]
+              }
+            }
+          ]
+          "to" = [
+            {
+              "operation" = {
+                "paths" = [
+                  "/agynio.api.runners.v1.RunnersService/RegisterRunner",
+                  "/agynio.api.runners.v1.RunnersService/GetRunner",
+                  "/agynio.api.runners.v1.RunnersService/ListRunners",
+                  "/agynio.api.runners.v1.RunnersService/UpdateRunner",
+                  "/agynio.api.runners.v1.RunnersService/DeleteRunner",
+                  "/agynio.api.runners.v1.RunnersService/GetWorkload",
+                  "/agynio.api.runners.v1.RunnersService/ListWorkloadsByThread",
+                  "/agynio.api.runners.v1.RunnersService/StreamWorkloadLogs",
+                  "/agynio.api.runners.v1.RunnersService/GetVolume",
+                  "/agynio.api.runners.v1.RunnersService/ListVolumes",
+                  "/agynio.api.runners.v1.RunnersService/ListVolumesByThread",
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "from" = [
+            {
+              "source" = {
+                "notPrincipals" = [
+                  "cluster.local/ns/${var.platform_namespace}/sa/agents-orchestrator",
+                  "cluster.local/ns/${var.platform_namespace}/sa/terminal-proxy",
+                ]
+              }
+            }
+          ]
+          "to" = [
+            {
+              "operation" = {
+                "paths" = [
+                  "/agynio.api.runners.v1.RunnersService/ListWorkloads",
+                  "/agynio.api.runners.v1.RunnersService/TouchWorkload",
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "from" = [
+            {
+              "source" = {
+                "notPrincipals" = ["cluster.local/ns/${var.platform_namespace}/sa/agents-orchestrator"]
+              }
+            }
+          ]
+          "when" = [
+            {
+              "key"       = "request.headers[x-identity-id]"
+              "notValues" = ["*"]
+            }
+          ]
+          "to" = [
+            {
+              "operation" = {
+                "paths" = [
+                  "/agynio.api.runners.v1.RunnersService/RegisterRunner",
+                  "/agynio.api.runners.v1.RunnersService/GetRunner",
+                  "/agynio.api.runners.v1.RunnersService/ListRunners",
+                  "/agynio.api.runners.v1.RunnersService/UpdateRunner",
+                  "/agynio.api.runners.v1.RunnersService/DeleteRunner",
+                  "/agynio.api.runners.v1.RunnersService/GetWorkload",
+                  "/agynio.api.runners.v1.RunnersService/ListWorkloadsByThread",
+                  "/agynio.api.runners.v1.RunnersService/StreamWorkloadLogs",
+                  "/agynio.api.runners.v1.RunnersService/GetVolume",
+                  "/agynio.api.runners.v1.RunnersService/ListVolumes",
+                  "/agynio.api.runners.v1.RunnersService/ListVolumesByThread",
+                ]
+              }
+            }
+          ]
+        },
+      ]
+    }
+  }
+
+  computed_fields = [
+    "metadata.annotations",
+    "metadata.labels",
+  ]
+
+  depends_on = [
+    argocd_application.runners,
+    kubernetes_service_account_v1.terminal_proxy,
+  ]
 }
 
 # DEV/E2E ONLY: ziti-diagnostics contains admin UPDB credentials
@@ -4369,55 +4747,6 @@ resource "argocd_application" "egress_gateway" {
   }
 }
 
-resource "argocd_application" "terminal_proxy" {
-  depends_on = [
-    argocd_application.runners,
-    argocd_application.agents,
-    argocd_application.authorization,
-    kubernetes_secret_v1.terminal_proxy_ticket_signing,
-    kubernetes_secret_v1.terminal_proxy_enrollment,
-  ]
-  metadata {
-    name      = "terminal-proxy"
-    namespace = "argocd"
-    annotations = {
-      "argocd.argoproj.io/sync-wave" = "20"
-    }
-  }
-
-  spec {
-    project = "default"
-
-    source {
-      repo_url        = local.platform_chart_repo_host
-      chart           = local.terminal_proxy_chart_name
-      target_revision = var.terminal_proxy_chart_version
-
-      helm {
-        values = local.terminal_proxy_values
-      }
-    }
-
-    destination {
-      server    = var.destination_server
-      namespace = kubernetes_namespace.platform.metadata[0].name
-    }
-
-    sync_policy {
-      dynamic "automated" {
-        for_each = var.argocd_automated_sync_enabled ? [1] : []
-        content {
-          prune       = var.argocd_prune_enabled
-          self_heal   = var.argocd_self_heal_enabled
-          allow_empty = false
-        }
-      }
-
-      sync_options = local.default_sync_options
-    }
-  }
-}
-
 resource "argocd_application" "agents" {
   depends_on = [
     argocd_application.agents_db,
@@ -5127,7 +5456,7 @@ resource "argocd_application" "gateway" {
     argocd_application.expose,
     argocd_application.groups,
     argocd_application.networks,
-    argocd_application.terminal_proxy,
+    kubernetes_deployment_v1.terminal_proxy,
   ]
   wait = true
   metadata {

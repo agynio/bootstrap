@@ -805,7 +805,7 @@ variable "egress_gateway_image_tag" {
 
 variable "terminal_proxy_chart_version" {
   type        = string
-  description = "Version of the agyn-platform Helm chart used to deploy terminal-proxy"
+  description = "Default terminal-proxy image tag when terminal_proxy_image_tag is unset"
   default     = "0.5.11"
 }
 

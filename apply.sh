@@ -486,9 +486,14 @@ run_stack "platform"
 step_end "stack:platform"
 
 dump_terminal_proxy_diagnostics() {
-  echo "--- terminal-proxy Argo CD application ---"
+  echo "--- terminal-proxy Argo CD application (legacy, if present) ---"
   kubectl --kubeconfig "${KUBECONFIG_PATH}" \
     -n argocd get application terminal-proxy -o yaml 2>&1 || true
+  echo "--- terminal-proxy Ziti identity enrollment job ---"
+  kubectl --kubeconfig "${KUBECONFIG_PATH}" \
+    -n platform get jobs,pods -l app.kubernetes.io/name=terminal-proxy-ziti-identity -o wide 2>&1 || true
+  kubectl --kubeconfig "${KUBECONFIG_PATH}" \
+    -n platform logs -l app.kubernetes.io/name=terminal-proxy-ziti-identity --all-containers --tail=200 --prefix 2>&1 || true
   echo "--- terminal-proxy resources ---"
   kubectl --kubeconfig "${KUBECONFIG_PATH}" \
     -n platform get deploy,rs,pods,svc -l app.kubernetes.io/name=terminal-proxy -o wide 2>&1 || true
@@ -512,8 +517,16 @@ dump_terminal_proxy_diagnostics() {
     -n platform logs -l app.kubernetes.io/name=terminal-proxy --all-containers --previous --tail=200 --prefix 2>&1 || true
 }
 
+echo "=== Waiting for terminal-proxy deployment ==="
+if ! kubectl --kubeconfig "${KUBECONFIG_PATH}" \
+  -n platform rollout status deployment/terminal-proxy --timeout=10m; then
+  echo "ERROR: terminal-proxy deployment did not become ready" >&2
+  dump_terminal_proxy_diagnostics
+  exit 1
+fi
+
 echo "=== Waiting for platform ArgoCD applications to sync ==="
-for app in identity organizations gateway apps runners terminal-proxy; do
+for app in identity organizations gateway apps runners; do
   echo "--- Waiting for ${app} ---"
   synced=0
   for i in $(seq 1 60); do

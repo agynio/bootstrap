@@ -50,6 +50,8 @@ jobs:
           KUBECONFIG: ${{ steps.provision.outputs.kubeconfig }}
         run: |
           kubectl -n argocd get applications.argoproj.io terminal-proxy -o yaml || true
+          kubectl -n platform get jobs,pods -l app.kubernetes.io/name=terminal-proxy-ziti-identity -o wide || true
+          kubectl -n platform logs -l app.kubernetes.io/name=terminal-proxy-ziti-identity --all-containers --tail=200 --prefix || true
           kubectl -n platform get deploy,rs,pods,svc -l app.kubernetes.io/name=terminal-proxy -o wide || true
           pods=$(kubectl -n platform get pods -l app.kubernetes.io/name=terminal-proxy -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' || true)
           for pod in $pods; do

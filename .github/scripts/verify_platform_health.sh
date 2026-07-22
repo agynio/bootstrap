@@ -24,7 +24,7 @@ if [[ ! -f "$KUBECONFIG_PATH" ]]; then
   exit 1
 fi
 
-REQUIRED_APPS_JSON='["cert-manager","trust-manager","ziti-controller","ziti-management","minio","platform-db","threads-db","chat-db","identity-db","runners-db","metering-db","egress-db","identity","authorization","gateway","egress","egress-gateway","runners","terminal-proxy","notifications-redis","notifications","metering","threads","chat","k8s-runner"]'
+REQUIRED_APPS_JSON='["cert-manager","trust-manager","ziti-controller","ziti-management","minio","platform-db","threads-db","chat-db","identity-db","runners-db","metering-db","egress-db","identity","authorization","gateway","egress","egress-gateway","runners","notifications-redis","notifications","metering","threads","chat","k8s-runner"]'
 
 deadline=$((SECONDS + TOTAL_TIMEOUT))
 pod_terminal_failures_streak=0
@@ -42,6 +42,7 @@ dump_diagnostics() {
   kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$PLATFORM_NAMESPACE" logs --all-containers --prefix --previous --tail=100 -l app.kubernetes.io/name=egress || true
   kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$PLATFORM_NAMESPACE" logs --all-containers --prefix --tail=100 -l app.kubernetes.io/name=egress-gateway || true
   kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$PLATFORM_NAMESPACE" logs --all-containers --prefix --previous --tail=100 -l app.kubernetes.io/name=egress-gateway || true
+  kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$PLATFORM_NAMESPACE" logs --all-containers --prefix --tail=100 -l app.kubernetes.io/name=terminal-proxy-ziti-identity || true
   kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$PLATFORM_NAMESPACE" logs --all-containers --prefix --tail=100 -l app.kubernetes.io/name=terminal-proxy || true
   kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$PLATFORM_NAMESPACE" logs --all-containers --prefix --previous --tail=100 -l app.kubernetes.io/name=terminal-proxy || true
   kubectl --kubeconfig "$KUBECONFIG_PATH" -n "$ARGO_NAMESPACE" get applications.argoproj.io -o yaml | grep -E "(name:|status:)" | sed -n '1,200p' || true
