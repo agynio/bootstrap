@@ -211,6 +211,47 @@ run_stack() {
   printf '=== Completed %s stack ===\n\n' "${stack}"
 }
 
+prepare_terminal_proxy_ziti_identity() {
+  local existing_identity_json
+  local enrollment_token
+  local identity_file
+  local jwt_file
+  local temp_dir
+
+  if [[ -n "${TERMINAL_PROXY_ZITI_IDENTITY_JSON:-}" ]]; then
+    export TF_VAR_terminal_proxy_ziti_identity_json="${TERMINAL_PROXY_ZITI_IDENTITY_JSON}"
+    echo "Using Terminal Proxy Ziti identity from TERMINAL_PROXY_ZITI_IDENTITY_JSON."
+    return
+  fi
+
+  existing_identity_json=$(kubectl --kubeconfig "${KUBECONFIG_PATH}" \
+    -n platform get secret terminal-proxy-ziti-identity \
+    -o jsonpath='{.data.identity\.json}' 2>/dev/null | base64 -d || true)
+  if [[ -n "${existing_identity_json}" ]]; then
+    export TF_VAR_terminal_proxy_ziti_identity_json="${existing_identity_json}"
+    echo "Using existing platform/terminal-proxy-ziti-identity Secret."
+    return
+  fi
+
+  if ! command -v ziti >/dev/null 2>&1; then
+    echo "Error: required command not found: ziti" >&2
+    echo "Install the OpenZiti CLI or set TERMINAL_PROXY_ZITI_IDENTITY_JSON." >&2
+    exit 1
+  fi
+
+  enrollment_token=$(terraform -chdir="stacks/ziti" output -raw terminal_proxy_enrollment_token)
+  temp_dir=$(mktemp -d)
+  identity_file="${temp_dir}/identity.json"
+  jwt_file="${temp_dir}/enrollment.jwt"
+  trap 'rm -rf "${temp_dir}"' RETURN
+
+  printf '%s' "${enrollment_token}" >"${jwt_file}"
+  ziti edge enroll --jwt "${jwt_file}" --out "${identity_file}"
+  export TF_VAR_terminal_proxy_ziti_identity_json
+  TF_VAR_terminal_proxy_ziti_identity_json=$(cat "${identity_file}")
+  echo "Enrolled Terminal Proxy Ziti identity for stable Secret provisioning."
+}
+
 should_merge_kubeconfig() {
   local response
 
@@ -477,6 +518,8 @@ if [ "${ZITI_EXIT}" -ne 0 ]; then
 fi
 step_end "stack:ziti"
 
+prepare_terminal_proxy_ziti_identity
+
 step_start "stack:data"
 run_stack "data"
 step_end "stack:data"
@@ -486,14 +529,9 @@ run_stack "platform"
 step_end "stack:platform"
 
 dump_terminal_proxy_diagnostics() {
-  echo "--- terminal-proxy Argo CD application (legacy, if present) ---"
+  echo "--- terminal-proxy Argo CD application ---"
   kubectl --kubeconfig "${KUBECONFIG_PATH}" \
     -n argocd get application terminal-proxy -o yaml 2>&1 || true
-  echo "--- terminal-proxy Ziti identity enrollment job ---"
-  kubectl --kubeconfig "${KUBECONFIG_PATH}" \
-    -n platform get jobs,pods -l app.kubernetes.io/name=terminal-proxy-ziti-identity -o wide 2>&1 || true
-  kubectl --kubeconfig "${KUBECONFIG_PATH}" \
-    -n platform logs -l app.kubernetes.io/name=terminal-proxy-ziti-identity --all-containers --tail=200 --prefix 2>&1 || true
   echo "--- terminal-proxy resources ---"
   kubectl --kubeconfig "${KUBECONFIG_PATH}" \
     -n platform get deploy,rs,pods,svc -l app.kubernetes.io/name=terminal-proxy -o wide 2>&1 || true
@@ -517,16 +555,8 @@ dump_terminal_proxy_diagnostics() {
     -n platform logs -l app.kubernetes.io/name=terminal-proxy --all-containers --previous --tail=200 --prefix 2>&1 || true
 }
 
-echo "=== Waiting for terminal-proxy deployment ==="
-if ! kubectl --kubeconfig "${KUBECONFIG_PATH}" \
-  -n platform rollout status deployment/terminal-proxy --timeout=10m; then
-  echo "ERROR: terminal-proxy deployment did not become ready" >&2
-  dump_terminal_proxy_diagnostics
-  exit 1
-fi
-
 echo "=== Waiting for platform ArgoCD applications to sync ==="
-for app in identity organizations gateway apps runners; do
+for app in identity organizations gateway apps runners terminal-proxy; do
   echo "--- Waiting for ${app} ---"
   synced=0
   for i in $(seq 1 60); do
