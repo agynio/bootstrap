@@ -817,6 +817,6 @@ variable "terminal_proxy_ziti_identity_json" {
 
 variable "terminal_proxy_image_tag" {
   type        = string
-  description = "Optional override for the terminal-proxy image tag"
-  default     = ""
+  description = "Terminal Proxy container image tag"
+  default     = "0.5.11"
 }

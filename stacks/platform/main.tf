@@ -29,7 +29,7 @@ locals {
   resolved_apps_image_tag                = trimspace(var.apps_image_tag) != "" ? var.apps_image_tag : var.apps_chart_version
   resolved_egress_image_tag              = trimspace(var.egress_image_tag) != "" ? var.egress_image_tag : var.egress_chart_version
   resolved_egress_gateway_image_tag      = trimspace(var.egress_gateway_image_tag) != "" ? var.egress_gateway_image_tag : var.egress_gateway_chart_version
-  resolved_terminal_proxy_image_tag      = trimspace(var.terminal_proxy_image_tag) != "" ? var.terminal_proxy_image_tag : var.terminal_proxy_chart_version
+  resolved_terminal_proxy_image_tag      = trimspace(var.terminal_proxy_image_tag) != "" ? var.terminal_proxy_image_tag : "0.5.11"
 
   postgres_image                 = "postgres:16.6-alpine"
   platform_chart_repo_host       = "ghcr.io"
