@@ -860,6 +860,20 @@ locals {
             tag        = local.resolved_terminal_proxy_image_tag
             pullPolicy = "IfNotPresent"
           }
+          securityContext = {
+            enabled                  = true
+            runAsNonRoot             = true
+            runAsUser                = 10001
+            runAsGroup               = 10001
+            readOnlyRootFilesystem   = true
+            allowPrivilegeEscalation = false
+            capabilities = {
+              drop = ["ALL"]
+            }
+            seccompProfile = {
+              type = "RuntimeDefault"
+            }
+          }
           env = [
             { name = "HTTP_ADDRESS", value = ":8080" },
             { name = "GRPC_ADDRESS", value = ":50051" },
@@ -1243,6 +1257,9 @@ locals {
   runners_values = yamlencode({
     replicaCount     = 1
     fullnameOverride = "runners"
+    authorizationPolicy = {
+      enabled = false
+    }
     image = {
       repository = "ghcr.io/agynio/runners"
       tag        = local.resolved_runners_image_tag
@@ -2088,7 +2105,7 @@ resource "kubernetes_secret_v1" "egress_gateway_enrollment" {
 }
 
 resource "random_password" "terminal_proxy_ticket_signing" {
-  length  = 32
+  length  = 64
   special = false
 }
 
