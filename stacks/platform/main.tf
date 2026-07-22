@@ -2104,9 +2104,8 @@ resource "kubernetes_secret_v1" "egress_gateway_enrollment" {
   }
 }
 
-resource "random_password" "terminal_proxy_ticket_signing" {
-  length  = 64
-  special = false
+resource "random_bytes" "terminal_proxy_ticket_signing" {
+  length = 32
 }
 
 resource "kubernetes_secret_v1" "terminal_proxy_ticket_signing" {
@@ -2118,7 +2117,7 @@ resource "kubernetes_secret_v1" "terminal_proxy_ticket_signing" {
   type = "Opaque"
 
   data = {
-    signing-key = random_password.terminal_proxy_ticket_signing.result
+    signing-key = random_bytes.terminal_proxy_ticket_signing.base64
   }
 }
 

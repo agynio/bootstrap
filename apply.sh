@@ -485,6 +485,33 @@ step_start "stack:platform"
 run_stack "platform"
 step_end "stack:platform"
 
+dump_terminal_proxy_diagnostics() {
+  echo "--- terminal-proxy Argo CD application ---"
+  kubectl --kubeconfig "${KUBECONFIG_PATH}" \
+    -n argocd get application terminal-proxy -o yaml 2>&1 || true
+  echo "--- terminal-proxy resources ---"
+  kubectl --kubeconfig "${KUBECONFIG_PATH}" \
+    -n platform get deploy,rs,pods,svc -l app.kubernetes.io/name=terminal-proxy -o wide 2>&1 || true
+  echo "--- terminal-proxy pod describe ---"
+  pods=$(kubectl --kubeconfig "${KUBECONFIG_PATH}" \
+    -n platform get pods -l app.kubernetes.io/name=terminal-proxy \
+    -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null || true)
+  while IFS= read -r pod; do
+    if [[ -z "${pod}" ]]; then
+      continue
+    fi
+    echo "## describe ${pod}"
+    kubectl --kubeconfig "${KUBECONFIG_PATH}" \
+      -n platform describe pod "${pod}" 2>&1 || true
+  done <<<"${pods}"
+  echo "--- terminal-proxy logs ---"
+  kubectl --kubeconfig "${KUBECONFIG_PATH}" \
+    -n platform logs -l app.kubernetes.io/name=terminal-proxy --all-containers --tail=200 --prefix 2>&1 || true
+  echo "--- terminal-proxy previous logs ---"
+  kubectl --kubeconfig "${KUBECONFIG_PATH}" \
+    -n platform logs -l app.kubernetes.io/name=terminal-proxy --all-containers --previous --tail=200 --prefix 2>&1 || true
+}
+
 echo "=== Waiting for platform ArgoCD applications to sync ==="
 for app in identity organizations gateway apps runners terminal-proxy; do
   echo "--- Waiting for ${app} ---"
@@ -520,6 +547,7 @@ for app in identity organizations gateway apps runners terminal-proxy; do
     echo "--- ${app} namespace events ---"
     kubectl --kubeconfig "${KUBECONFIG_PATH}" \
       -n "${ns}" get events --sort-by='.lastTimestamp' 2>&1 | tail -30 || true
+    dump_terminal_proxy_diagnostics
     exit 1
   fi
 done
