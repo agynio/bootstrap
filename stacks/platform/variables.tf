@@ -38,7 +38,7 @@ variable "threads_chart_version" {
 variable "metering_chart_version" {
   type        = string
   description = "Version of the metering Helm chart published to GHCR"
-  default     = "0.1.3"
+  default     = "0.1.4"
 }
 
 variable "tracing_chart_version" {
