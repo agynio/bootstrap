@@ -71,6 +71,9 @@ locals {
   openfga_values = yamlencode({
     fullnameOverride = "openfga"
     replicaCount     = 1
+    image = {
+      pullPolicy = "IfNotPresent"
+    }
     datastore = {
       engine            = "postgres"
       uri               = format("postgresql://openfga:%s@openfga-db:5432/openfga?sslmode=disable", var.openfga_db_password)
